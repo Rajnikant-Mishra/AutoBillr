@@ -247,10 +247,10 @@ const createProject = async () => {
     resetForm();
     onClose();
 
-    window.dispatchEvent(
+   window.dispatchEvent(
   new CustomEvent("project-created", {
     detail: {
-      project: payload,
+      project: data.project || data, // ✅ REAL SAVED PROJECT
     },
   })
 );
@@ -355,6 +355,7 @@ const fetchClients = async () => {
     console.log("Clients Raw Response:", text);
 
     const data = JSON.parse(text);
+    console.log("Saved Project:", data.project);
     setClients(data.clients || []);
   } catch (error) {
     console.error("CLIENT ERROR:", error);

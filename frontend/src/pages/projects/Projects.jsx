@@ -8,6 +8,8 @@ import ProjectDrawer from "../../components/projects/ProjectDrawer";
 import ProjectFilterDrawer from "../../components/projects/ProjectFilterDrawer";
 import MilestoneModal from "../../components/projects/MilestoneModal";
 import useCurrency from "../../hooks/useCurrency";
+import useProjectNotifications from "../../hooks/useProjectNotifications";
+
 export default function Projects() {
 const { format } = useCurrency();
 const [milestoneModalOpen, setMilestoneModalOpen] = useState(false);
@@ -16,8 +18,18 @@ const [milestone, setMilestone] = useState(null);
  const [projects, setProjects] = useState([]);
  const [activeFilter, setActiveFilter] =
   useState("all");
+  const {
+
+    notifyProjectCreated,
+
+    notifyMilestoneCreated,
+
+    notifyMilestonePaid,
+
+    notifyOverdue,
+
+} = useProjectNotifications();
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-const { addNotification } = useNotificationStore();
 const [filters, setFilters] = useState({
   projectStatus: [],
   milestoneStatus: [],
@@ -260,70 +272,84 @@ const stats = React.useMemo(() => {
 
   setShowMilestoneModal(true);
 };
+
+
+
 useEffect(() => {
   fetchProjects();
 }, []);
 useEffect(() => {
+
     const handleProjectCreated = (e) => {
-      fetchProjects();
-      
-      // Add Notification
-      if (e.detail?.project) {
-        addNotification({
-          type: "project",
-          icon: "assignment",
-          iconColor: "text-teal-600",
-          bgColor: "bg-teal-50",
-          title: `New Project Created: ${e.detail.project.name || "Untitled"}`,
-          description: `${e.detail.project.milestones?.length || 0} milestones added`,
-          borderColor: "border-l-teal-500",
-        });
-      } else {
-        addNotification({
-          type: "project",
-          icon: "assignment",
-          iconColor: "text-teal-600",
-          bgColor: "bg-teal-50",
-          title: "New Project Created",
-          description: "Project has been successfully added",
-          borderColor: "border-l-teal-500",
-        });
-      }
+
+        fetchProjects();
+
+        if (e.detail?.project) {
+
+            notifyProjectCreated(
+
+                e.detail.project,
+
+                format
+
+            );
+
+        }
+
     };
 
-    window.addEventListener("project-created", handleProjectCreated);
-    return () => window.removeEventListener("project-created", handleProjectCreated);
-  }, [addNotification]);
+    window.addEventListener(
+
+        "project-created",
+
+        handleProjectCreated
+
+    );
+
+    return () =>
+
+        window.removeEventListener(
+
+            "project-created",
+
+            handleProjectCreated
+
+        );
+
+}, [format]);
   useEffect(() => {
     const checkOverdue = () => {
-      projects.forEach((project) => {
-        const milestones = project.milestones || [];
-        milestones.forEach((milestone, idx) => {
-          if (milestone.status !== "paid") {
-            const due = new Date(milestone.dueDate);
-            const today = new Date();
-            
-            if (due < today) {
-              addNotification({
-                type: "overdue",
-                icon: "warning",
-                iconColor: "text-rose-600",
-                bgColor: "bg-rose-50",
-                title: `Overdue Milestone: ${milestone.title}`,
-                description: `${project.name} • ${format(Number(milestone.amount || 0))}`,
-                borderColor: "border-l-rose-500",
-                time: "Overdue",
-              });
-            }
-          }
-        });
-      });
+      projects.forEach(project => {
+
+    project.milestones.forEach(milestone => {
+
+        if (
+
+            milestone.status !== "paid" &&
+
+            new Date(milestone.dueDate) < new Date()
+
+        ) {
+
+            notifyOverdue(
+
+                project,
+
+                milestone
+
+            );
+
+        }
+
+    });
+
+});
     };
 
     if (projects.length > 0) {
       checkOverdue();
     }
-  }, [projects, addNotification]);
+  }, [projects]);
 
 const fetchProjects = async () => {
   try {
@@ -361,28 +387,31 @@ const updateMilestoneStatus = (milestoneIndex) => {
               return milestone;
             }
 
-            const currentIndex = statuses.indexOf(
-              milestone.status
-            );
+         const currentIndex = statuses.indexOf(
+    milestone.status
+);
 
-            const nextStatus =
-              statuses[
-              (currentIndex + 1) %
-              statuses.length
-              ];
-addNotification({
-              type: "milestone",
-              icon: "schedule",
-              iconColor: "text-amber-600",
-              bgColor: "bg-amber-50",
-              title: `Milestone Status Changed`,
-              description: `${milestone.title} → ${nextStatus.toUpperCase()}`,
-              borderColor: "border-l-amber-500",
-            });
-            return {
-              ...milestone,
-              status: nextStatus,
-            };
+const nextStatus =
+    statuses[
+        (currentIndex + 1) %
+        statuses.length
+    ];
+
+if (
+    nextStatus === "paid" &&
+    milestone.status !== "paid"
+) {
+    notifyMilestonePaid(
+        project,
+        milestone,
+        format
+    );
+}
+
+return {
+    ...milestone,
+    status: nextStatus,
+};
           }
         ),
       };
@@ -406,28 +435,30 @@ const counts = {
   ).length,
 };
 const saveMilestone = async () => {
-  try {
-    await fetchProjects();   
-    addNotification({
-        type: "automation",
-        icon: "bolt",
-        iconColor: "text-indigo-600",
-        bgColor: "bg-indigo-50",
-        title: "Milestone Updated",
-        description: `${editingMilestone?.title} has been saved successfully`,
-        borderColor: "border-l-indigo-500",
-      });     // Refresh from backend
-    setShowMilestoneModal(false);
-    setEditingMilestone(null);
-    showSuccessToast(
-  isEditing
-    ? "Milestone updated successfully"
-    : "Milestone created successfully"
-);
-  } catch (error) {
-    console.error("Refresh failed:", error);
-    showErrorToast("Milestone saved, but list refresh failed");
-  }
+
+    try {
+
+        await fetchProjects();
+
+        if (editingMilestone?.index === undefined) {
+
+            notifyMilestoneCreated(
+                selectedProject,
+                editingMilestone,
+                format
+            );
+
+        }
+
+        setShowMilestoneModal(false);
+        setEditingMilestone(null);
+
+    } catch (err) {
+
+        console.log(err);
+
+    }
+
 };
 
 const maxBudgetAvailable = React.useMemo(() => {
