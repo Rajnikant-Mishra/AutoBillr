@@ -99,43 +99,103 @@ export default function Register() {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.companyName) {
-      showErrorToast("Please fill all required fields");
-      return;
-    }
+  console.log("REGISTER FORM DATA:", formData);
+ console.log("SELECTED PLAN:", selectedPlan);
+
+  if (
+    !formData.firstName ||
+    !formData.lastName ||
+    !formData.email ||
+    !formData.password ||
+    !formData.companyName
+  ) {
+    showErrorToast("Please fill all required fields");
+    return;
+  }
+
+  if (!selectedPlan) {
+    showErrorToast("Please select a plan");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const payload = {
+      ...formData,
+      plan: selectedPlan,
+    };
+
+    console.log("REGISTER PAYLOAD:", payload);
+
+    const response = await fetch(
+      "http://localhost:5000/api/v1/auth/register",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const text = await response.text();
+
+    let data = {};
 
     try {
-      setLoading(true);
-
-      const payload = {
-        ...formData,
-        plan: selectedPlan,
-      };
-
-      const response = await fetch("http://localhost:5000/api/v1/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const text = await response.text();
-      const data = text ? JSON.parse(text) : { message: "Invalid response" };
-
-      if (!response.ok) throw new Error(data.message || "Registration failed");
-
-      showSuccessToast("Account created successfully!", `${formData.firstName} ${formData.lastName}`);
-      navigate("/dashboard");
-    } catch (err) {
-      console.error(err);
-      showErrorToast(err.message);
-    } finally {
-      setLoading(false);
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Invalid server response");
     }
-  };
 
+    if (!response.ok) {
+      throw new Error(data.message || "Registration failed");
+    }
+
+    if (data.token) {
+      localStorage.setItem("autobillr_token", data.token);
+    }
+
+    if (data.user) {
+      localStorage.setItem(
+        "autobillr_user",
+        JSON.stringify(data.user)
+      );
+    }
+
+    if (data.company) {
+      localStorage.setItem(
+        "autobillr_company",
+        JSON.stringify(data.company)
+      );
+    }
+
+    if (data.subscription) {
+      localStorage.setItem(
+        "autobillr_subscription",
+        JSON.stringify(data.subscription)
+      );
+    }
+
+    showSuccessToast(
+      "Account created successfully!",
+      `${formData.firstName} ${formData.lastName}`
+    );
+
+    navigate("/dashboard");
+  } catch (err) {
+    console.error("Registration error:", err);
+    showErrorToast(
+      err.message || "Registration failed. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
   const getStrengthColor = () => {
     if (passwordStrength <= 1) return "bg-red-500";
     if (passwordStrength === 2) return "bg-yellow-500";
