@@ -97,21 +97,53 @@ model Subscription {
 model Client {
   id String @id @default(cuid())
 
+  // Company relationship
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  // Basic company/contact information
   name        String
+  initials    String?
+  contactName String?
   email       String?
   phone       String?
-  status      String    @default("active")
-  billing     String?
+  website     String?
+  industry    String?
+
+  // Client classification
+  tier  String?
+  color String?
+
+  // Billing information
+  currency      String  @default("USD")
+  paymentTerms  String?
+  paymentMethod String?
+  taxId         String?
+
+  // Address
+  billingAddress String?
+  city           String?
+  stateRegion    String?
+  postalCode     String?
+  country        String?
+
+  // Client settings
+  status String  @default("active")
+  notes  String?
+
+  // Tags
+  tags Json?
+
+  // Automation preferences
+  automation Json?
+
+  // Financial information
   mrr         Decimal   @default(0) @db.Decimal(12, 2)
   nextInvoice DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  invoices Invoice[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invoices  Invoice[]
 
   @@index([companyId])
   @@index([email])

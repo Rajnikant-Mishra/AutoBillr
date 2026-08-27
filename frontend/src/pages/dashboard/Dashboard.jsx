@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback , useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -21,9 +21,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 export default function Dashboard() {
-  const location = useLocation();
+ 
 const navigate = useNavigate();
 const { addNotification } = useNotificationStore();
   const [dashboardData, setDashboardData] = useState({
@@ -107,28 +107,44 @@ const openEdit = (client) => {
 
 
   // Refetch dashboard when a new client is created
-  const refetchDashboard = useCallback(async () => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/dashboard`);
-      if (response.ok) {
-        const result = await response.json();
-        setDashboardData(result);
-      }
-    } catch (error) {
-      console.error("Failed to refetch dashboard", error);
+const refetchDashboard = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+   const response = await fetch(`${API_BASE_URL}/dashboard`, {
+  method: "GET",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result?.message || "Failed to refresh dashboard"
+      );
     }
-  }, []);
+
+    setDashboardData(result);
+  } catch (error) {
+    console.error("Failed to refetch dashboard:", error);
+  }
+}, []);
 
   // Listen for client updates (same pattern as Clients page)
 useEffect(() => {
-    const handleClientUpdated = (e) => {
-      refetchDashboard();
+  const handleClientUpdated = () => {
+    refetchDashboard();
+  };
 
-    };
+  window.addEventListener("client-updated", handleClientUpdated);
 
-    window.addEventListener("client-updated", handleClientUpdated);
-    return () => window.removeEventListener("client-updated", handleClientUpdated);
-  }, [refetchDashboard, addNotification]);
+  return () => {
+    window.removeEventListener("client-updated", handleClientUpdated);
+  };
+}, [refetchDashboard]);
   const getStatusStyles = (status) => {
     switch (status?.toLowerCase()) {
       case "paid":
@@ -320,38 +336,69 @@ useEffect(() => {
     ],
     [format],
   );
-  useEffect(() => {
-    if (location?.state?.fromLogin) {
-      toast.success("Welcome back!");
-    }
-  }, [location]);
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setLoading(true);
+ 
+ useEffect(() => {
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
 
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/dashboard`,
+      const token = localStorage.getItem("token");
+
+      const dashboardUrl = `${API_BASE_URL}/dashboard`;
+
+      console.log("=================================");
+      console.log("DASHBOARD REQUEST");
+      console.log("URL:", dashboardUrl);
+      console.log("Token exists:", !!token);
+      console.log("=================================");
+
+      const response = await fetch(dashboardUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(token
+            ? {
+                Authorization: `Bearer ${token}`,
+              }
+            : {}),
+        },
+      });
+
+      console.log("Dashboard HTTP status:", response.status);
+
+      const result = await response.json();
+
+      console.log("Dashboard result:", result);
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message || `Dashboard request failed (${response.status})`
         );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch dashboard");
-        }
-
-        const result = await response.json();
-
-        setDashboardData(result);
-      } catch (error) {
-        console.error(error);
-
-        toast.error(error.message || "Failed to load dashboard");
-      } finally {
-        setLoading(false);
       }
-    };
 
-    fetchDashboard();
-  }, []);
+      if (!result?.success) {
+        throw new Error(
+          result?.message || "Dashboard request was unsuccessful"
+        );
+      }
+
+      setDashboardData({
+        stats: result.stats || {},
+        revenueTrends: result.revenueTrends || [],
+        upcomingBilling: result.upcomingBilling || [],
+        recentInvoices: result.recentInvoices || [],
+      });
+    } catch (error) {
+      console.error("DASHBOARD ERROR:", error);
+
+      toast.error(error.message || "Failed to fetch dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchDashboard();
+}, []);
 
   const billingColumns = [
     { key: "invoice", label: "Invoice ID" },
@@ -511,9 +558,9 @@ useEffect(() => {
             "
           >
             <div className="absolute right-0 bottom-0 opacity-10 -mr-6 -mb-6">
-              <span className="material-symbols-outlined text-[120px]">
-                bolt
-              </span>
+              <span className="material-symbols-outlined">
+  bolt
+</span>
             </div>
 
             <h3 className="text-2xl font-bold">Quick Actions</h3>

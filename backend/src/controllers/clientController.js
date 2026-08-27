@@ -32,6 +32,43 @@ const getClients = async (req, res) => {
 };
 
 // =====================================================
+// GET CLIENT BY ID
+// =====================================================
+
+const getClientById = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const { id } = req.params;
+
+    const client = await prisma.client.findFirst({
+      where: {
+        id,
+        companyId,
+      },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: "Client not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      client,
+    });
+  } catch (error) {
+    console.error("GET CLIENT BY ID ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch client",
+    });
+  }
+};
+
+// =====================================================
 // CREATE CLIENT
 // =====================================================
 
@@ -41,12 +78,21 @@ const createClient = async (req, res) => {
 
     const {
       name,
+      contactName,
       email,
       phone,
-      status,
-      billing,
-      mrr,
-      nextInvoice,
+      website,
+      industry,
+      tier,
+      color,
+      address,
+      taxId,
+      currency,
+      paymentTerms,
+      paymentMethod,
+      notes,
+      tags,
+      automation,
     } = req.body;
 
     // -----------------------------
@@ -56,7 +102,14 @@ const createClient = async (req, res) => {
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Client name is required",
+        message: "Company name is required",
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Contact email is required",
       });
     }
 
@@ -67,15 +120,56 @@ const createClient = async (req, res) => {
     const client = await prisma.client.create({
       data: {
         companyId,
+
         name: name.trim(),
-        email: email?.trim().toLowerCase() || null,
-        phone: phone?.trim() || null,
-        status: status || "active",
-        billing: billing || null,
-        mrr: mrr ? Number(mrr) : 0,
-        nextInvoice: nextInvoice
-          ? new Date(nextInvoice)
-          : null,
+
+        contactName:
+          contactName?.trim() || null,
+
+        email:
+          email?.trim().toLowerCase() || null,
+
+        phone:
+          phone?.trim() || null,
+
+        website:
+          website?.trim() || null,
+
+        industry:
+          industry || null,
+
+        tier:
+          tier || "Enterprise",
+
+        color:
+          color || "bg-teal-500",
+
+        billingAddress: address?.street?.trim() || null,
+city: address?.city?.trim() || null,
+stateRegion: address?.state?.trim() || null,
+postalCode: address?.postalCode?.trim() || null,
+country: address?.country || null,
+
+        taxId:
+          taxId?.trim() || null,
+
+        currency:
+          currency || "USD",
+
+        paymentTerms:
+          paymentTerms || "Net 30",
+
+        paymentMethod:
+          paymentMethod || "ACH",
+
+        notes:
+          notes?.trim() || null,
+
+        tags:
+          Array.isArray(tags) ? tags : [],
+
+        automation:
+          automation || null,
       },
     });
 
@@ -90,6 +184,7 @@ const createClient = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to create client",
+      error: error.message,
     });
   }
 };
@@ -105,12 +200,21 @@ const updateClient = async (req, res) => {
 
     const {
       name,
+      contactName,
       email,
       phone,
-      status,
-      billing,
-      mrr,
-      nextInvoice,
+      website,
+      industry,
+      tier,
+      color,
+      address,
+      taxId,
+      currency,
+      paymentTerms,
+      paymentMethod,
+      notes,
+      tags,
+      automation,
     } = req.body;
 
     // -----------------------------
@@ -118,12 +222,13 @@ const updateClient = async (req, res) => {
     // to current company
     // -----------------------------
 
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        id,
-        companyId,
-      },
-    });
+    const existingClient =
+      await prisma.client.findFirst({
+        where: {
+          id,
+          companyId,
+        },
+      });
 
     if (!existingClient) {
       return res.status(404).json({
@@ -140,35 +245,92 @@ const updateClient = async (req, res) => {
       where: {
         id,
       },
+
       data: {
         ...(name !== undefined && {
           name: name.trim(),
         }),
 
+        ...(contactName !== undefined && {
+          contactName:
+            contactName?.trim() || null,
+        }),
+
         ...(email !== undefined && {
-          email: email?.trim().toLowerCase() || null,
+          email:
+            email?.trim().toLowerCase() || null,
         }),
 
         ...(phone !== undefined && {
-          phone: phone?.trim() || null,
+          phone:
+            phone?.trim() || null,
         }),
 
-        ...(status !== undefined && {
-          status,
+        ...(website !== undefined && {
+          website:
+            website?.trim() || null,
         }),
 
-        ...(billing !== undefined && {
-          billing,
+        ...(industry !== undefined && {
+          industry,
         }),
 
-        ...(mrr !== undefined && {
-          mrr: Number(mrr),
+        ...(tier !== undefined && {
+          tier,
         }),
 
-        ...(nextInvoice !== undefined && {
-          nextInvoice: nextInvoice
-            ? new Date(nextInvoice)
-            : null,
+        ...(color !== undefined && {
+          color,
+        }),
+
+       ...(address !== undefined && {
+  billingAddress:
+    address?.street?.trim() || null,
+
+  city:
+    address?.city?.trim() || null,
+
+  stateRegion:
+    address?.state?.trim() || null,
+
+  postalCode:
+    address?.postalCode?.trim() || null,
+
+  country:
+    address?.country || null,
+}),
+
+        ...(taxId !== undefined && {
+          taxId:
+            taxId?.trim() || null,
+        }),
+
+        ...(currency !== undefined && {
+          currency,
+        }),
+
+        ...(paymentTerms !== undefined && {
+          paymentTerms,
+        }),
+
+        ...(paymentMethod !== undefined && {
+          paymentMethod,
+        }),
+
+        ...(notes !== undefined && {
+          notes:
+            notes?.trim() || null,
+        }),
+
+        ...(tags !== undefined && {
+          tags:
+            Array.isArray(tags)
+              ? tags
+              : [],
+        }),
+
+        ...(automation !== undefined && {
+          automation,
         }),
       },
     });
@@ -184,6 +346,7 @@ const updateClient = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update client",
+      error: error.message,
     });
   }
 };
@@ -197,12 +360,13 @@ const deleteClient = async (req, res) => {
     const companyId = req.user.companyId;
     const { id } = req.params;
 
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        id,
-        companyId,
-      },
-    });
+    const existingClient =
+      await prisma.client.findFirst({
+        where: {
+          id,
+          companyId,
+        },
+      });
 
     if (!existingClient) {
       return res.status(404).json({
@@ -227,12 +391,18 @@ const deleteClient = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to delete client",
+      error: error.message,
     });
   }
 };
 
+// =====================================================
+// EXPORT
+// =====================================================
+
 module.exports = {
   getClients,
+  getClientById,
   createClient,
   updateClient,
   deleteClient,

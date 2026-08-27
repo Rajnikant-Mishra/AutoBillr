@@ -1,26 +1,27 @@
 const express = require("express");
 
-const authMiddleware = require("../middleware/authMiddleware");
+const router = express.Router();
 
 const {
-  getClients,
   createClient,
+  getClients,
+  getClientById,
   updateClient,
   deleteClient,
 } = require("../controllers/clientController");
 
-const router = express.Router();
+const authMiddleware = require("../middleware/authMiddleware");
 
-// Get all clients
-router.get("/", authMiddleware, getClients);
+router.use(authMiddleware);
 
-// Create client
-router.post("/", authMiddleware, createClient);
+router.get("/", getClients);
 
-// Update client
-router.put("/:id", authMiddleware, updateClient);
+router.get("/:id", getClientById);
 
-// Delete client
-router.delete("/:id", authMiddleware, deleteClient);
+router.post("/", createClient);
+
+router.put("/:id", updateClient);
+
+router.delete("/:id", deleteClient);
 
 module.exports = router;

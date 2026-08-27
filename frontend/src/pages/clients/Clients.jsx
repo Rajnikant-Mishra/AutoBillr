@@ -1,614 +1,1067 @@
-import React, { useState, useEffect, useMemo,useCallback } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+
 import SectionHeader from "../../components/ui/SectionHeader";
+import StatCard from "../../components/ui/StatCard";
+import DataTable from "../../components/ui/DataTable";
+
 import ClientDrawer from "../../components/clients/ClientFormDrawer";
 import FilterDrawer from "../../components/clients/FilterDrawer";
-import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
-import { createClient, updateClient } from "../../services/clientService";
-import StatCard from "../../components/ui/StatCard";
-import { getClients } from "../../services/clientService";
-import {
-  createColumnHelper,
-} from "@tanstack/react-table";
-import SortDrawer from "../../components/clients/SortDrawer";
 import ClientCard from "../../components/clients/ClientCard";
-import DataTable from "../../components/ui/DataTable";
+import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
+import SortDrawer from "../../components/clients/SortDrawer";
+
+import { getClients } from "../../services/clientService";
 import useCurrency from "../../hooks/useCurrency";
+
+const DEFAULT_PAGE_SIZE = 9;
+const PAGE_SIZES = [6, 9, 12, 18, 24, 50];
+
+const EMPTY_FILTERS = {
+  status: [],
+  billing: [],
+  fromDate: "",
+  toDate: "",
+  minAmount: "",
+  maxAmount: "",
+};
+
+const DEFAULT_SORT = {
+  field: "",
+  direction: "asc",
+};
+
+const SORT_COLUMNS = [
+  { id: "name", label: "Client Name", type: "string" },
+  { id: "billing", label: "Billing", type: "string" },
+  { id: "status", label: "Status", type: "string" },
+  { id: "mrr", label: "MRR", type: "number" },
+  { id: "nextInvoice", label: "Next Invoice", type: "date" },
+];
 
 const columnHelper = createColumnHelper();
 
-export default function Clients() {
-  // State
-  const [clients, setClients] = useState([]);
-  const [selectedClient, setSelectedClient] = useState(null);
-const [formDrawerOpen, setFormDrawerOpen] = useState(false);
-const [editingClient, setEditingClient] = useState(null);
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({
-    status: [],
-    billing: [],
-    fromDate: "",
-    toDate: "",
-    minAmount: "",
-    maxAmount: "",
-  });
+const normalize = (value) => String(value ?? "").trim().toLowerCase();
 
-  const [sortConfig, setSortConfig] = useState({ field: "", direction: "asc" });
-  
-  const [view, setView] = useState("list");
-  const [filterDrawer, setFilterDrawer] = useState(false);
-  const [sortDrawer, setSortDrawer] = useState(false);
-  const [clientDetailDrawer, setClientDetailDrawer] = useState(false);
-  const [pagination, setPagination] = useState({
-  pageIndex: 0,
-  pageSize: 9,
-});
-const {
-  format,
-  selectedCurrency,
-} = useCurrency();
-const sortColumns = [
-  {
-    id: "name",
-    label: "Client Name",
-    type: "string",
-  },
-  {
-    id: "billing",
-    label: "Billing",
-    type: "string",
-  },
-  {
-    id: "status",
-    label: "Status",
-    type: "string",
-  },
-  {
-    id: "mrr",
-    label: "MRR",
-    type: "number",
-  },
-  {
-    id: "nextInvoice",
-    label: "Next Invoice",
-    type: "date",
-  },
-];
-// Open for create
-const openCreate = () => {
-  setEditingClient(null);
-  setFormDrawerOpen(true);
-};
+const getClientId = (client) => client?._id ?? client?.id;
 
-// Open for edit
-const openEdit = useCallback((client) => {
-  setEditingClient(client);
-  setFormDrawerOpen(true);
-}, []);
-  // Load Clients
-const loadClients = async () => {
-  try {
-    const res = await getClients();
+const getClientInitials = (client) =>
+  client?.initials ||
+  String(client?.name ?? "")
+    .trim()
+    .slice(0, 2)
+    .toUpperCase() ||
+  "CL";
 
-
-    setClients(res.data?.clients || []);
-  } catch (err) {
-    console.error("Failed to load clients:", err);
-    setClients([]);
+const getStatusBadge = (status) => {
+  switch (normalize(status)) {
+    case "active":
+      return "bg-teal-50 text-teal-700";
+    case "pending":
+      return "bg-amber-50 text-amber-700";
+    case "inactive":
+      return "bg-slate-100 text-slate-600";
+    default:
+      return "bg-slate-100 text-slate-600";
   }
 };
 
-useEffect(() => {
-  loadClients();
+const getBillingBadge = (billing) => {
+  switch (normalize(billing)) {
+    case "monthly":
+      return "bg-teal-50 text-teal-700";
+    case "annual":
+      return "bg-slate-100 text-slate-700";
+    case "quarterly":
+      return "bg-indigo-50 text-indigo-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+};
 
-  const handleClientUpdated = () => {
-    loadClients();
-  };
+const parseDate = (value) => {
+  if (!value) return null;
 
-  window.addEventListener(
-    "client-updated",
-    handleClientUpdated
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const parseDateBoundary = (value, endOfDay = false) => {
+  if (!value) return null;
+
+  const date = new Date(
+    `${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}`
   );
 
-  return () => {
-    window.removeEventListener(
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const compareValues = (a, b, type, direction) => {
+  const multiplier = direction === "desc" ? -1 : 1;
+
+  if (type === "number") {
+    return (
+      (Number(a ?? 0) - Number(b ?? 0)) *
+      multiplier
+    );
+  }
+
+  if (type === "date") {
+    const aTime = parseDate(a)?.getTime() ?? 0;
+    const bTime = parseDate(b)?.getTime() ?? 0;
+
+    return (aTime - bTime) * multiplier;
+  }
+
+  return (
+    String(a ?? "").localeCompare(
+      String(b ?? ""),
+      undefined,
+      { sensitivity: "base", numeric: true }
+    ) * multiplier
+  );
+};
+
+export default function Clients() {
+  const [clients, setClients] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [editingClient, setEditingClient] = useState(null);
+
+  const [formDrawerOpen, setFormDrawerOpen] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [sortDrawerOpen, setSortDrawerOpen] = useState(false);
+  const [clientDetailDrawerOpen, setClientDetailDrawerOpen] =
+    useState(false);
+
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sortConfig, setSortConfig] = useState(DEFAULT_SORT);
+  const [view, setView] = useState("list");
+
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+
+  const { format, selectedCurrency } = useCurrency();
+
+  const loadClients = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const response = await getClients();
+      const clientList = Array.isArray(response?.clients)
+        ? response.clients
+        : [];
+
+      setClients(clientList);
+    } catch (error) {
+      console.error("Failed to load clients:", error);
+      setClients([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      setIsLoading(true);
+
+      try {
+        const response = await getClients();
+        const clientList = Array.isArray(response?.clients)
+          ? response.clients
+          : [];
+
+        if (isMounted) {
+          setClients(clientList);
+        }
+      } catch (error) {
+        console.error("Failed to load clients:", error);
+
+        if (isMounted) {
+          setClients([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const handleClientUpdated = () => {
+      void loadClients();
+    };
+
+    void load();
+
+    window.addEventListener(
       "client-updated",
       handleClientUpdated
     );
-  };
-}, []);
 
-
-
-
-  // Memoized Filtered & Sorted Data
-  const processedData = useMemo(() => {
-    let data = [...clients];
-
-    // Search Filter
-    if (search) {
-      const term = search.toLowerCase();
-      data = data.filter(
-        (client) =>
-          client.name?.toLowerCase().includes(term) ||
-          client.email?.toLowerCase().includes(term)
+    return () => {
+      isMounted = false;
+      window.removeEventListener(
+        "client-updated",
+        handleClientUpdated
       );
-    }
+    };
+  }, [loadClients]);
 
-    // Advanced Filters
-    data = data.filter((client) => {
-  const matchesStatus =
-    filters.status.length === 0 ||
-    filters.status.includes(client.status);
+  const openCreate = useCallback(() => {
+    setEditingClient(null);
+    setFormDrawerOpen(true);
+  }, []);
 
-  const matchesBilling =
-    filters.billing.length === 0 ||
-    filters.billing.includes(client.billing);
+  const openEdit = useCallback((client) => {
+    if (!client) return;
 
-  const amount =
-    Number(client.mrr || 0) *
-    (selectedCurrency?.rate || 1);
+    setEditingClient(client);
+    setFormDrawerOpen(true);
+    setClientDetailDrawerOpen(false);
+  }, []);
 
-  const matchesMinAmount =
-    !filters.minAmount ||
-    amount >= Number(filters.minAmount);
+  const handleRowClick = useCallback((client) => {
+    if (!client) return;
 
-  const matchesMaxAmount =
-    !filters.maxAmount ||
-    amount <= Number(filters.maxAmount);
+    setSelectedClient(client);
+    setClientDetailDrawerOpen(true);
+  }, []);
 
-  const invoiceDate = client.nextInvoice
-    ? new Date(client.nextInvoice)
-    : null;
+  const handleFormClose = useCallback(() => {
+    setFormDrawerOpen(false);
+    setEditingClient(null);
+  }, []);
 
-  const matchesFromDate =
-    !filters.fromDate ||
-    (invoiceDate &&
-      invoiceDate >= new Date(filters.fromDate));
+  const handleSearchChange = useCallback((event) => {
+    setSearch(event.target.value);
+  }, []);
 
-  const matchesToDate =
-    !filters.toDate ||
-    (invoiceDate &&
-      invoiceDate <= new Date(filters.toDate));
+  const handleFilterOpen = useCallback(() => {
+    setFilterDrawerOpen(true);
+  }, []);
 
-  return (
-    matchesStatus &&
-    matchesBilling &&
-    matchesMinAmount &&
-    matchesMaxAmount &&
-    matchesFromDate &&
-    matchesToDate
-  );
-});
+  const handleFilterClose = useCallback(() => {
+    setFilterDrawerOpen(false);
+  }, []);
 
-    // Sorting
-    if (sortConfig.field) {
-      data.sort((a, b) => {
-        let aVal = a[sortConfig.field];
-        let bVal = b[sortConfig.field];
+  const handleSortOpen = useCallback(() => {
+    setSortDrawerOpen(true);
+  }, []);
 
-        if (typeof aVal === "number" || typeof bVal === "number") {
-          return sortConfig.direction === "asc"
-            ? Number(aVal || 0) - Number(bVal || 0)
-            : Number(bVal || 0) - Number(aVal || 0);
+  const handleSortClose = useCallback(() => {
+    setSortDrawerOpen(false);
+  }, []);
+
+  const handleDetailClose = useCallback(() => {
+    setClientDetailDrawerOpen(false);
+  }, []);
+
+  const handleViewChange = useCallback((nextView) => {
+    setView(nextView);
+  }, []);
+
+  const processedData = useMemo(() => {
+    const searchTerm = normalize(search);
+    const rate = Number(selectedCurrency?.rate) || 1;
+
+    const filtered = clients.filter((client) => {
+      if (searchTerm) {
+        const searchableText = [
+          client?.name,
+          client?.email,
+        ]
+          .map(normalize)
+          .join(" ");
+
+        if (!searchableText.includes(searchTerm)) {
+          return false;
         }
+      }
 
-        if (aVal instanceof Date || bVal instanceof Date || !isNaN(Date.parse(aVal))) {
-          return sortConfig.direction === "asc"
-            ? new Date(aVal) - new Date(bVal)
-            : new Date(bVal) - new Date(aVal);
+      const matchesStatus =
+        filters.status.length === 0 ||
+        filters.status.includes(client?.status);
+
+      const matchesBilling =
+        filters.billing.length === 0 ||
+        filters.billing.includes(client?.billing);
+
+      const amount = Number(client?.mrr) || 0;
+      const convertedAmount = amount * rate;
+
+      const minAmount =
+        filters.minAmount === ""
+          ? null
+          : Number(filters.minAmount);
+
+      const maxAmount =
+        filters.maxAmount === ""
+          ? null
+          : Number(filters.maxAmount);
+
+      const matchesMinAmount =
+        minAmount === null ||
+        (Number.isFinite(minAmount) &&
+          convertedAmount >= minAmount);
+
+      const matchesMaxAmount =
+        maxAmount === null ||
+        (Number.isFinite(maxAmount) &&
+          convertedAmount <= maxAmount);
+
+      if (!matchesMinAmount || !matchesMaxAmount) {
+        return false;
+      }
+
+      const invoiceDate = parseDate(client?.nextInvoice);
+
+      if (filters.fromDate) {
+        const fromDate = parseDateBoundary(filters.fromDate);
+
+        if (!invoiceDate || !fromDate || invoiceDate < fromDate) {
+          return false;
         }
+      }
 
-        return sortConfig.direction === "asc"
-          ? String(aVal || "").localeCompare(String(bVal || ""))
-          : String(bVal || "").localeCompare(String(aVal || ""));
-      });
-    }
-
-    return data;
-}, [
-  clients,
-  search,
-  filters,
-  sortConfig,
-  selectedCurrency,
-]);
-
-  // Badge Helpers
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "active": return "bg-teal-50 text-teal-700";
-      case "pending": return "bg-amber-50 text-amber-700";
-      case "inactive": return "bg-slate-100 text-slate-600";
-      default: return "bg-slate-100 text-slate-600";
-    }
-  };
-
-  const getBillingBadge = (billing) => {
-    switch (billing) {
-      case "Monthly": return "bg-teal-50 text-teal-700";
-      case "Annual": return "bg-slate-100 text-slate-700";
-      case "Quarterly": return "bg-indigo-50 text-indigo-700";
-      default: return "bg-slate-100 text-slate-700";
-    }
-  };
-
-  // Columns Definition (Memoized)
-  const columns = useMemo(() => [
-    columnHelper.accessor("name", {
-      header: "Client Name",
-      cell: ({ row }) => {
-        const client = row.original;
-        return (
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full grid place-items-center font-bold text-xs border border-slate-200 ${client.color || 'bg-slate-100'}`}>
-              {client.initials}
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-900">{client.name}</div>
-              <div className="text-xs text-slate-500">{client.email}</div>
-            </div>
-          </div>
+      if (filters.toDate) {
+        const toDate = parseDateBoundary(
+          filters.toDate,
+          true
         );
+
+        if (!invoiceDate || !toDate || invoiceDate > toDate) {
+          return false;
+        }
+      }
+
+      return matchesStatus && matchesBilling;
+    });
+
+    if (!sortConfig.field) {
+      return filtered;
+    }
+
+    const sortType =
+      SORT_COLUMNS.find(
+        (column) => column.id === sortConfig.field
+      )?.type || "string";
+
+    return [...filtered].sort((a, b) =>
+      compareValues(
+        a?.[sortConfig.field],
+        b?.[sortConfig.field],
+        sortType,
+        sortConfig.direction
+      )
+    );
+  }, [
+    clients,
+    filters,
+    search,
+    selectedCurrency?.rate,
+    sortConfig,
+  ]);
+
+  useEffect(() => {
+    setPagination((previous) =>
+      previous.pageIndex === 0
+        ? previous
+        : { ...previous, pageIndex: 0 }
+    );
+  }, [search, filters, sortConfig]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(
+        processedData.length / pagination.pageSize
+      )
+    );
+
+    setPagination((previous) => {
+      const maxPageIndex = totalPages - 1;
+
+      if (previous.pageIndex <= maxPageIndex) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        pageIndex: maxPageIndex,
+      };
+    });
+  }, [processedData.length, pagination.pageSize]);
+
+  const stats = useMemo(() => {
+    const totalClients = clients.length;
+
+    const totalMRR = clients.reduce(
+      (sum, client) =>
+        sum + (Number(client?.mrr) || 0),
+      0
+    );
+
+    const activeClients = clients.filter(
+      (client) => normalize(client?.status) === "active"
+    ).length;
+
+    const pendingClients = clients.filter(
+      (client) => normalize(client?.status) === "pending"
+    ).length;
+
+    const retentionRate =
+      totalClients > 0
+        ? ((activeClients / totalClients) * 100).toFixed(1)
+        : "0.0";
+
+    return [
+      {
+        title: "TOTAL CLIENTS",
+        value: totalClients,
+        change: `${activeClients} Active`,
+        icon: "group",
+        iconColor: "text-teal-600",
+        changeColor: "text-teal-700",
+        type: "progress",
       },
-    }),
-    columnHelper.accessor("billing", {
-      header: "Billing",
-      cell: ({ getValue }) => (
-        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getBillingBadge(getValue())}`}>
-          {getValue()}
-        </span>
+      {
+        title: "MONTHLY RECURRING",
+        value: format(totalMRR),
+        change: `${totalClients} Accounts`,
+        icon: "payments",
+        iconColor: "text-indigo-600",
+        changeColor: "text-indigo-600",
+        type: "bars",
+      },
+      {
+        title: "RETENTION RATE",
+        value: `${retentionRate}%`,
+        change: `${activeClients}/${totalClients}`,
+        icon: "recommend",
+        iconColor: "text-amber-600",
+        changeColor: "text-amber-600",
+        type: "progress",
+      },
+      {
+        title: "PENDING CLIENTS",
+        value: pendingClients,
+        change:
+          pendingClients > 0
+            ? "Needs Review"
+            : "All Clear",
+        icon: "warning",
+        iconColor: "text-rose-600",
+        changeColor: "text-rose-600",
+        type: "danger",
+      },
+    ];
+  }, [clients, format]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      processedData.length / pagination.pageSize
+    )
+  );
+
+  const startIndex =
+    pagination.pageIndex * pagination.pageSize;
+
+  const endIndex =
+    startIndex + pagination.pageSize;
+
+  const paginatedCards = useMemo(
+    () =>
+      processedData.slice(
+        startIndex,
+        endIndex
       ),
-    }),
-    columnHelper.accessor("status", {
-      header: "Status",
-      cell: ({ getValue }) => (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${getStatusBadge(getValue())}`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-          {getValue()}
-        </span>
+    [processedData, startIndex, endIndex]
+  );
+
+  const handlePageSizeChange = useCallback((event) => {
+    const pageSize = Number(event.target.value);
+
+    if (!PAGE_SIZES.includes(pageSize)) return;
+
+    setPagination({
+      pageIndex: 0,
+      pageSize,
+    });
+  }, []);
+
+  const goToPreviousPage = useCallback(() => {
+    setPagination((previous) => ({
+      ...previous,
+      pageIndex: Math.max(
+        previous.pageIndex - 1,
+        0
       ),
-    }),
-   columnHelper.accessor("mrr", {
-  header: "MRR",
-  cell: ({ getValue }) => (
-    <div className="text-right font-bold">
-      {format(Number(getValue() || 0))}
-    </div>
-  ),
-}),
-    columnHelper.accessor("nextInvoice", {
-      header: "Next Invoice",
-      cell: ({ getValue }) => (
-        <div className="text-sm font-medium text-slate-700">
-          {getValue() || "Pending setup"}
-        </div>
+    }));
+  }, []);
+
+  const goToNextPage = useCallback(() => {
+    setPagination((previous) => ({
+      ...previous,
+      pageIndex: Math.min(
+        previous.pageIndex + 1,
+        totalPages - 1
       ),
-    }),
-    columnHelper.display({
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <div className="text-right">
-          <div className="opacity-0 group-hover:opacity-100 transition inline-flex gap-1">
-            <button className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-100 rounded-md"  onClick={(e) => {
-          e.stopPropagation();
-          openEdit(row.original);
-        }}>
-              <span className="material-symbols-outlined text-[18px]">edit</span>
-            </button>
-            <button className="px-3 py-1.5 text-xs font-semibold text-teal-600 hover:bg-teal-50 rounded-lg">
-              View Details
-            </button>
-          </div>
-        </div>
-      ),
-    }),
-  ], [openEdit, format]);
+    }));
+  }, [totalPages]);
 
- 
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("name", {
+        header: "Client Name",
+        cell: ({ row }) => {
+          const client = row.original;
 
+          return (
+            <div className="flex items-center gap-3">
+              <div
+                aria-hidden="true"
+                className={`
+                  grid h-10 w-10 shrink-0 place-items-center
+                  rounded-full border border-slate-200
+                  text-xs font-bold
+                  ${client?.color || "bg-slate-100"}
+                `}
+              >
+                {getClientInitials(client)}
+              </div>
 
-const totalClients = clients.length;
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900">
+                  {client?.name || "Unnamed Client"}
+                </div>
 
-const totalMRR = clients.reduce(
-  (sum, client) =>
-    sum + Number(client.mrr || 0),
-  0
-);
+                <div className="truncate text-xs text-slate-500">
+                  {client?.email || "No email"}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      }),
 
-const activeClients = clients.filter(
-  (client) => client.status?.toLowerCase() === "active"
-).length;
+      columnHelper.accessor("billing", {
+        header: "Billing",
+        cell: ({ getValue }) => {
+          const billing = getValue();
 
-const pendingClients = clients.filter(
-  (client) => client.status?.toLowerCase() === "pending"
-).length;
+          return (
+            <span
+              className={`
+                inline-flex rounded-full px-2.5 py-1
+                text-xs font-medium
+                ${getBillingBadge(billing)}
+              `}
+            >
+              {billing || "N/A"}
+            </span>
+          );
+        },
+      }),
 
-const retentionRate =
-  totalClients > 0
-    ? ((activeClients / totalClients) * 100).toFixed(1)
-    : "0.0";
+      columnHelper.accessor("status", {
+        header: "Status",
+        cell: ({ getValue }) => {
+          const status = getValue();
 
+          return (
+            <span
+              className={`
+                inline-flex items-center gap-1.5
+                rounded-full px-2.5 py-1
+                text-[11px] font-bold uppercase
+                tracking-wider
+                ${getStatusBadge(status)}
+              `}
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
+              />
+              {status || "Unknown"}
+            </span>
+          );
+        },
+      }),
 
-   const stats = [
-  {
-    title: "TOTAL CLIENTS",
-    value: totalClients,
-    change: `${activeClients} Active`,
-    icon: "group",
-    iconColor: "text-teal-600",
-    changeColor: "text-teal-700",
-    type: "progress",
-  },
+      columnHelper.accessor("mrr", {
+        header: "MRR",
+        cell: ({ getValue }) => {
+          const amount = Number(getValue()) || 0;
 
- {
-  title: "MONTHLY RECURRING",
-  value: format(totalMRR),
-  change: `${totalClients} Accounts`,
-  icon: "payments",
-  iconColor: "text-indigo-600",
-  changeColor: "text-indigo-600",
-  type: "bars",
-},
+          return (
+            <div className="text-right font-bold text-slate-900">
+              {format(amount)}
+            </div>
+          );
+        },
+      }),
 
-  {
-    title: "RETENTION RATE",
-    value: `${retentionRate}%`,
-    change: `${activeClients}/${totalClients}`,
-    icon: "recommend",
-    iconColor: "text-amber-600",
-    changeColor: "text-amber-600",
-    type: "progress",
-  },
+      columnHelper.accessor("nextInvoice", {
+        header: "Next Invoice",
+        cell: ({ getValue }) => {
+          const value = getValue();
 
-  {
-    title: "PENDING CLIENTS",
-    value: pendingClients,
-    change: pendingClients > 0 ? "Needs Review" : "All Clear",
-    icon: "warning",
-    iconColor: "text-rose-600",
-    changeColor: "text-rose-600",
-    type: "danger",
-  },
-];
-const start = pagination.pageIndex * pagination.pageSize;
-const end = start + pagination.pageSize;
+          return (
+            <div className="text-sm font-medium text-slate-700">
+              {value || "Pending setup"}
+            </div>
+          );
+        },
+      }),
 
-const paginatedCards = processedData.slice(start, end);
+      columnHelper.display({
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const client = row.original;
 
+          const handleEdit = (event) => {
+            event.stopPropagation();
+            openEdit(client);
+          };
 
-useEffect(() => {
-  setPagination((prev) => ({
-    ...prev,
-    pageIndex: 0,
-  }));
-}, [search, filters, sortConfig]);
+          const handleViewDetails = (event) => {
+            event.stopPropagation();
+            handleRowClick(client);
+          };
+
+          return (
+            <div className="text-right">
+              <div className="inline-flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                <button
+                  type="button"
+                  aria-label={`Edit ${
+                    client?.name || "client"
+                  }`}
+                  className="
+                    rounded-md p-1.5
+                    text-slate-400
+                    transition-colors
+                    hover:bg-slate-100 hover:text-teal-600
+                    focus:outline-none focus:ring-2
+                    focus:ring-teal-500/30
+                  "
+                  onClick={handleEdit}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    edit
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="
+                    rounded-lg px-3 py-1.5
+                    text-xs font-semibold text-teal-600
+                    transition-colors hover:bg-teal-50
+                    focus:outline-none focus:ring-2
+                    focus:ring-teal-500/30
+                  "
+                  onClick={handleViewDetails}
+                >
+                  View Details
+                </button>
+              </div>
+            </div>
+          );
+        },
+      }),
+    ],
+    [format, handleRowClick, openEdit]
+  );
+
+  const activeClients = useMemo(
+    () =>
+      clients.filter(
+        (client) =>
+          normalize(client?.status) === "active"
+      ).length,
+    [clients]
+  );
+
   return (
-    <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full">
-      {/* Header */}
+    <main className="mx-auto w-full max-w-[1600px] flex-1 pt-2 pb-12">
       <SectionHeader
         title="Clients"
         description={`Manage ${activeClients} Active organizational relationships.`}
-        secondaryAction={{ label: "Filter", icon: "filter_list", onClick: () => setFilterDrawer(true) }}
-        primaryAction={{ label: "Add Client", icon: "person_add", onClick: openCreate }}
+        secondaryAction={{
+          label: "Filter",
+          icon: "filter_list",
+          onClick: handleFilterOpen,
+        }}
+        primaryAction={{
+          label: "Add Client",
+          icon: "person_add",
+          onClick: openCreate,
+        }}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
-        {stats.map((item, index) => (
-          <StatCard key={index} {...item} variant="dashboard" />
+      <div className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {stats.map((item) => (
+          <StatCard
+            key={item.title}
+            {...item}
+            variant="dashboard"
+          />
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex gap-2 flex-wrap">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+            <label htmlFor="client-search" className="sr-only">
+              Search clients
+            </label>
+
+            <span
+              aria-hidden="true"
+              className="
+                material-symbols-outlined
+                absolute left-3 top-1/2
+                -translate-y-1/2
+                text-[18px] text-slate-400
+              "
+            >
               search
             </span>
+
             <input
+              id="client-search"
+              type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="Search clients..."
-              className="pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none w-64"
+              autoComplete="off"
+              className="
+                w-64 rounded-lg border border-slate-200
+                bg-white py-2 pl-10 pr-3 text-sm outline-none
+                transition
+                focus:border-teal-500
+                focus:ring-2 focus:ring-teal-500/20
+              "
             />
           </div>
 
           <button
-            onClick={() => setFilterDrawer(true)}
-            className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 flex items-center gap-2"
+            type="button"
+            onClick={handleFilterOpen}
+            aria-label="Open client filters"
+            className="
+              flex items-center gap-2 rounded-lg
+              border border-slate-200 bg-white
+              px-3.5 py-2 text-sm font-medium
+              transition hover:bg-slate-50
+              focus:outline-none focus:ring-2
+              focus:ring-teal-500/30
+            "
           >
-            <span className="material-symbols-outlined text-[18px]">tune</span>
+            <span className="material-symbols-outlined text-[18px]">
+              tune
+            </span>
             Filter
           </button>
 
           <button
-            onClick={() => setSortDrawer(true)}
-            className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 flex items-center gap-2"
+            type="button"
+            onClick={handleSortOpen}
+            aria-label="Open client sorting options"
+            className="
+              flex items-center gap-2 rounded-lg
+              border border-slate-200 bg-white
+              px-3.5 py-2 text-sm font-medium
+              transition hover:bg-slate-50
+              focus:outline-none focus:ring-2
+              focus:ring-teal-500/30
+            "
           >
-            <span className="material-symbols-outlined text-[18px]">sort</span>
+            <span className="material-symbols-outlined text-[18px]">
+              sort
+            </span>
             Sort
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">View:</span>
-          <div className="flex bg-slate-100 p-1 rounded-lg">
-          <button
-  onClick={() => setView("list")}
-  className={`p-1.5 rounded-md ${
-    view === "list"
-      ? "bg-white text-teal-600 shadow-sm"
-      : "text-slate-400"
-  }`}
->
-  <span className="material-symbols-outlined text-[18px]">
-    list
-  </span>
-</button>
+          <span className="text-sm text-slate-500">
+            View:
+          </span>
 
-<button
-  onClick={() => setView("grid")}
-  className={`p-1.5 rounded-md ${
-    view === "grid"
-      ? "bg-white text-teal-600 shadow-sm"
-      : "text-slate-400"
-  }`}
->
-  <span className="material-symbols-outlined text-[18px]">
-    grid_view
-  </span>
-</button>
+          <div
+            className="flex rounded-lg bg-slate-100 p-1"
+            role="group"
+            aria-label="Client view"
+          >
+            <button
+              type="button"
+              onClick={() => handleViewChange("list")}
+              aria-label="List view"
+              aria-pressed={view === "list"}
+              className={`
+                rounded-md p-1.5 transition
+                focus:outline-none focus:ring-2
+                focus:ring-teal-500/30
+                ${
+                  view === "list"
+                    ? "bg-white text-teal-600 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                }
+              `}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                list
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleViewChange("grid")}
+              aria-label="Grid view"
+              aria-pressed={view === "grid"}
+              className={`
+                rounded-md p-1.5 transition
+                focus:outline-none focus:ring-2
+                focus:ring-teal-500/30
+                ${
+                  view === "grid"
+                    ? "bg-white text-teal-600 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                }
+              `}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                grid_view
+              </span>
+            </button>
           </div>
         </div>
       </div>
 
-   {/* Table / Grid View */}
-{view === "list" ? (
-  <DataTable
-    data={processedData}
-    columns={columns}
-    pagination={pagination}
-    setPagination={setPagination}
-    emptyMessage="No clients found"
-    pageSizes={[6, 9, 12, 18, 24, 50]}
-    onRowClick={(client) => {
-      setSelectedClient(client);
-      setClientDetailDrawer(true);
-    }}
-  />
-) : (
-  <>
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-      {paginatedCards.map((client) => (
-        <ClientCard
-          key={client._id}
-          client={client}
-          onClick={() => {
-            setSelectedClient(client);
-            setClientDetailDrawer(true);
-          }}
-        />
-      ))}
-    </div>
-
-    {/* Grid Footer */}
-    <div className="mt-6 bg-white border border-slate-100 rounded-xl px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-
-      <p className="text-sm text-slate-500">
-        Showing
-        <span className="font-semibold text-slate-900 mx-1">
-          {start + 1}
-        </span>
-        -
-        <span className="font-semibold text-slate-900 mx-1">
-          {Math.min(end, processedData.length)}
-        </span>
-        of
-        <span className="font-semibold text-slate-900 mx-1">
-          {processedData.length}
-        </span>
-        clients
-      </p>
-
-      <div className="flex items-center gap-3">
-
-        <select
-          value={pagination.pageSize}
-          onChange={(e) =>
-            setPagination({
-              pageIndex: 0,
-              pageSize: Number(e.target.value),
-            })
+      {view === "list" ? (
+        <DataTable
+          data={processedData}
+          columns={columns}
+          pagination={pagination}
+          setPagination={setPagination}
+          emptyMessage={
+            isLoading
+              ? "Loading clients..."
+              : "No clients found"
           }
-          className="h-9 px-3 rounded-lg border border-slate-200"
-        >
-          {[6, 9, 12, 18, 24, 50].map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
-          ))}
-        </select>
+          pageSizes={PAGE_SIZES}
+          onRowClick={handleRowClick}
+        />
+      ) : (
+        <>
+          {isLoading ? (
+            <div
+              className="
+                rounded-xl border border-slate-100
+                bg-white p-12 text-center
+              "
+              role="status"
+              aria-live="polite"
+            >
+              <span className="material-symbols-outlined animate-spin text-4xl text-slate-400">
+                progress_activity
+              </span>
 
-        <div className="flex items-center bg-slate-100 rounded-xl p-1">
+              <p className="mt-2 text-sm text-slate-500">
+                Loading clients...
+              </p>
+            </div>
+          ) : processedData.length === 0 ? (
+            <div
+              className="
+                rounded-xl border border-slate-100
+                bg-white p-12 text-center
+              "
+              role="status"
+            >
+              <div
+                aria-hidden="true"
+                className="mb-2 text-slate-400"
+              >
+                <span className="material-symbols-outlined text-4xl">
+                  group_off
+                </span>
+              </div>
 
-          <button
-            onClick={() =>
-              setPagination((prev) => ({
-                ...prev,
-                pageIndex: Math.max(prev.pageIndex - 1, 0),
-              }))
-            }
-            disabled={pagination.pageIndex === 0}
-            className="h-9 w-9 disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined">
-              chevron_left
-            </span>
-          </button>
+              <h3 className="text-sm font-semibold text-slate-900">
+                No clients found
+              </h3>
 
-          <span className="px-4 text-sm font-semibold">
-            {pagination.pageIndex + 1}
-          </span>
+              <p className="mt-1 text-sm text-slate-500">
+                Try changing your search or filters.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {paginatedCards.map((client) => (
+                <ClientCard
+                  key={getClientId(client)}
+                  client={client}
+                  onClick={() => handleRowClick(client)}
+                />
+              ))}
+            </div>
+          )}
 
-          <button
-            onClick={() =>
-              setPagination((prev) => ({
-                ...prev,
-                pageIndex: prev.pageIndex + 1,
-              }))
-            }
-            disabled={
-              (pagination.pageIndex + 1) *
-                pagination.pageSize >=
-              processedData.length
-            }
-            className="h-9 w-9 disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined">
-              chevron_right
-            </span>
-          </button>
+          {processedData.length > 0 && !isLoading && (
+            <div
+              className="
+                mt-6 flex flex-col gap-4 rounded-xl
+                border border-slate-100 bg-white
+                px-6 py-4 lg:flex-row
+                lg:items-center lg:justify-between
+              "
+            >
+              <p className="text-sm text-slate-500">
+                Showing{" "}
+                <span className="mx-1 font-semibold text-slate-900">
+                  {startIndex + 1}
+                </span>
+                -
+                <span className="mx-1 font-semibold text-slate-900">
+                  {Math.min(
+                    endIndex,
+                    processedData.length
+                  )}
+                </span>
+                of
+                <span className="mx-1 font-semibold text-slate-900">
+                  {processedData.length}
+                </span>
+                clients
+              </p>
 
-        </div>
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="client-page-size"
+                  className="sr-only"
+                >
+                  Clients per page
+                </label>
 
-      </div>
-    </div>
-  </>
-)}
+                <select
+                  id="client-page-size"
+                  value={pagination.pageSize}
+                  onChange={handlePageSizeChange}
+                  className="
+                    h-9 rounded-lg border border-slate-200
+                    bg-white px-3 text-sm
+                    focus:outline-none focus:ring-2
+                    focus:ring-teal-500/30
+                  "
+                >
+                  {PAGE_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
 
-  
-  
+                <div
+                  className="flex items-center rounded-xl bg-slate-100 p-1"
+                  aria-label="Pagination"
+                >
+                  <button
+                    type="button"
+                    onClick={goToPreviousPage}
+                    disabled={pagination.pageIndex === 0}
+                    aria-label="Previous page"
+                    className="
+                      grid h-9 w-9 place-items-center
+                      rounded-lg
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      focus:outline-none focus:ring-2
+                      focus:ring-teal-500/30
+                    "
+                  >
+                    <span className="material-symbols-outlined">
+                      chevron_left
+                    </span>
+                  </button>
 
+                  <span
+                    className="min-w-[80px] px-4 text-center text-sm font-semibold"
+                    aria-current="page"
+                  >
+                    {pagination.pageIndex + 1} / {totalPages}
+                  </span>
 
+                  <button
+                    type="button"
+                    onClick={goToNextPage}
+                    disabled={
+                      pagination.pageIndex >=
+                      totalPages - 1
+                    }
+                    aria-label="Next page"
+                    className="
+                      grid h-9 w-9 place-items-center
+                      rounded-lg
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                      focus:outline-none focus:ring-2
+                      focus:ring-teal-500/30
+                    "
+                  >
+                    <span className="material-symbols-outlined">
+                      chevron_right
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
+      <ClientDrawer
+        isOpen={formDrawerOpen}
+        onClose={handleFormClose}
+        client={editingClient}
+      />
 
+      <FilterDrawer
+        isOpen={filterDrawerOpen}
+        onClose={handleFilterClose}
+        filters={filters}
+        setFilters={setFilters}
+      />
 
-      {/* Drawers */}
-      <ClientDrawer isOpen={formDrawerOpen}
-  onClose={() => {
-    setFormDrawerOpen(false);
-    setEditingClient(null);   // important
-  }}
-  client={editingClient} />
-      <FilterDrawer isOpen={filterDrawer} onClose={() => setFilterDrawer(false)} filters={filters} setFilters={setFilters} />
-      <SortDrawer isOpen={sortDrawer} onClose={() => setSortDrawer(false)} columns={sortColumns} sortConfig={sortConfig} setSortConfig={setSortConfig} />
-      <ClientDetailDrawer  isOpen={clientDetailDrawer}
-  onClose={() => setClientDetailDrawer(false)}
-  client={selectedClient}
-  onEdit={openEdit} />
+      <SortDrawer
+        isOpen={sortDrawerOpen}
+        onClose={handleSortClose}
+        columns={SORT_COLUMNS}
+        sortConfig={sortConfig}
+        setSortConfig={setSortConfig}
+      />
+
+      <ClientDetailDrawer
+        isOpen={clientDetailDrawerOpen}
+        onClose={handleDetailClose}
+        client={selectedClient}
+        onEdit={openEdit}
+      />
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

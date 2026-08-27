@@ -23,14 +23,55 @@ export default function Login() {
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:5000/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
 
-      const data = await response.json();
-      console.log("LOGIN RESPONSE:", data);
+   const response = await fetch("http://localhost:5000/api/v1/auth/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    email: email.trim().toLowerCase(),
+    password,
+  }),
+});
+
+const rawResponse = await response.text();
+
+console.log("LOGIN STATUS:", response.status);
+console.log("LOGIN RAW RESPONSE:", rawResponse);
+
+let data = {};
+
+try {
+  data = rawResponse ? JSON.parse(rawResponse) : {};
+} catch (parseError) {
+  console.error("LOGIN JSON PARSE ERROR:", parseError);
+}
+
+if (!response.ok) {
+  showErrorToast(data.message || `Login failed (${response.status})`);
+  return;
+}
+
+if (!data.token) {
+  showErrorToast(data.message || "Login succeeded but token was not returned");
+  return;
+}
+
+console.log("LOGIN RESPONSE:", data);
+
+// Save authentication
+localStorage.setItem("autobiller-auth", data.token);
+localStorage.setItem("user", JSON.stringify(data.user));
+
+const userName =
+  `${data.user?.firstName || ""} ${data.user?.lastName || ""}`.trim() ||
+  data.user?.email?.split("@")[0] ||
+  "User";
+
+showSuccessToast("Signed in", userName);
+
+navigate("/dashboard");
 
       if (!response.ok) {
         showErrorToast(data.message || "Login failed");
@@ -45,8 +86,7 @@ export default function Login() {
       localStorage.setItem("autobiller-auth", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      const userName = data.user?.name || data.user?.email?.split("@")[0] || "User";
-
+     
       showSuccessToast("Signed in", userName);
       navigate("/dashboard");
     } catch (err) {
@@ -73,7 +113,9 @@ export default function Login() {
           <div className="relative z-10 max-w-lg text-white">
             <div className="flex items-center gap-3 mb-12">
               <div className="w-10 h-10 bg-white/15 rounded-lg grid place-items-center">
-                <span className="material-symbols-outlined text-white">bolt</span>
+               <span className="material-symbols-outlined text-white">
+  bolt
+</span>
               </div>
               <span className="text-xl font-bold tracking-tight">AutoBillr</span>
             </div>
@@ -127,14 +169,14 @@ export default function Login() {
 
             {/* FORM */}
             <form onSubmit={handleLogin} className="space-y-5">
-              <FormInput
-                label="Email Address"
-                icon="mail"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-              />
+             <FormInput
+  label="Email Address"
+  icon="mail"
+  type="email"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+  placeholder="name@company.com"
+/>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -150,23 +192,23 @@ export default function Login() {
                 </div>
 
                 <FormInput
-                  icon="lock"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={showPassword ? "hgHk@#%123" : "••••••••••"}
-                  rightElement={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-slate-400 hover:text-slate-600"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {showPassword ? "visibility" : "visibility_off"}
-                      </span>
-                    </button>
-                  }
-                />
+  icon="lock"
+  type={showPassword ? "text" : "password"}
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  placeholder={showPassword ? "hgHk@#%123" : "••••••••••"}
+  rightElement={
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="text-slate-400 hover:text-slate-600"
+    >
+      <span className="material-symbols-outlined text-[20px]">
+        {showPassword ? "visibility" : "visibility_off"}
+      </span>
+    </button>
+  }
+/>
               </div>
 
               <label className="flex items-center gap-2.5 cursor-pointer">

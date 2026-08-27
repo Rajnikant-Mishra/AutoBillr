@@ -48,23 +48,31 @@ const convertAmount = (amount, targetCurrency) => {
 
 const getClientName = (client) => {
   if (!client) return "Unknown Client";
-  if (typeof client === "string") return "Client ID: " + client.slice(-6);
-  if (client?.$oid) return "Client ID: " + client.$oid.slice(-6);
+
+  if (typeof client === "string") {
+    return `Client ID: ${client.slice(-6)}`;
+  }
+
   return client.name || "Unknown Client";
 };
 
 const getClientEmail = (client) => {
   if (!client) return "No Email";
-  if (typeof client === "object" && !client.$oid) {
+
+  if (typeof client === "object") {
     return client.email || "No Email";
   }
+
   return "No Email";
 };
 
 const getProjectTitle = (project) => {
   if (!project) return "—";
-  if (typeof project === "string") return "Project ID: " + project.slice(-6);
-  if (project?.$oid) return "Project ID: " + project.$oid.slice(-6);
+
+  if (typeof project === "string") {
+    return `Project ID: ${project.slice(-6)}`;
+  }
+
   return project.title || "—";
 };
 
@@ -135,22 +143,38 @@ useEffect(() => {
     return () => window.removeEventListener("invoice-created", handleInvoiceCreated);
   }, [addNotification, format]);
   const fetchInvoices = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/invoices`);
-      setInvoices(res.data || []);
-      
-      if (res.data?.[0]) {
-        console.log("FIRST INVOICE FULL DATA");
-        console.log(JSON.stringify(res.data[0], null, 2));
-      }
-    } catch (error) {
-      console.error("Failed to fetch invoices", error);
-      showErrorToast("Failed to load invoices");
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+
+   const res = await axios.get(
+  `${import.meta.env.VITE_API_URL}/invoices`,
+  {
+    withCredentials: true,
+  }
+);
+
+setInvoices(res.data?.invoices || []);
+
+    console.log("INVOICES API RESPONSE:", res.data);
+
+    setInvoices(res.data?.invoices || []);
+  } catch (error) {
+    console.error("Failed to fetch invoices:", error);
+
+    if (error.response) {
+      console.error("STATUS:", error.response.status);
+      console.error("DATA:", error.response.data);
+    } else if (error.request) {
+      console.error("NO RESPONSE FROM SERVER:", error.request);
+    } else {
+      console.error("REQUEST ERROR:", error.message);
     }
-  };
+
+    showErrorToast("Failed to load invoices");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filteredData = useMemo(() => {
     return invoices.filter((invoice) => {
@@ -419,7 +443,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
           <div className="flex items-center gap-1">
             <button
               title="Edit"
-              onClick={() => navigate(`/composer/${row.original._id}`)}
+              onClick={() => navigate(`/composer/${row.original.id}`)}
               className="p-2 rounded-lg hover:bg-slate-100 transition"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>

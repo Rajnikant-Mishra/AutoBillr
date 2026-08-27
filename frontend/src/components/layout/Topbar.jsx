@@ -3,6 +3,7 @@ import AdminDrawer from "../topbar/AdminDrawer";
 import Breadcrumb from "../ui/Breadcrumb";
 import { useCurrencyStore } from "../../store/currencyStore";
 import { showToast, showErrorToast } from "../../components/ui/CustomToast";
+import { getAuthToken } from "../../utils/auth";
 import NotificationDrawer from "../topbar/NotificationDrawer";
 export default function Topbar() {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
@@ -26,7 +27,9 @@ const {
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/currencies");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/currencies`, {
+  headers: { Authorization: `Bearer ${getAuthToken()}` },
+});
         if (!res.ok) throw new Error("Failed to fetch currencies");
         
         const data = await res.json();
@@ -108,17 +111,18 @@ if (current) {
       const previousCurrency = selectedCurrency;
 
       const res = await fetch(
-        "http://localhost:5000/api/currencies/select",
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            currency: currency.code,
-          }),
-        }
-      );
+  `${import.meta.env.VITE_API_URL}/currencies/select`,
+  {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify({
+      currency: currency.code,
+    }),
+  }
+);
 
       if (!res.ok) {
         throw new Error("Failed to update currency");

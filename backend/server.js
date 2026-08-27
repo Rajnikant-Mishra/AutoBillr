@@ -4,14 +4,14 @@ const cors = require("cors");
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const clientRoutes = require("./src/routes/clientRoutes");
-const dashboardRoutes = require("./src/routes/dashboardRoutes");
 
 const app = express();
 
+const PORT = process.env.PORT || 5000;
 
-// =========================
+// =====================================================
 // MIDDLEWARE
-// =========================
+// =====================================================
 
 app.use(
   cors({
@@ -23,47 +23,59 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
-// =========================
+// =====================================================
 // API ROUTES
-// =========================
+// =====================================================
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/clients", clientRoutes);
-app.use("/api/v1/dashboard", dashboardRoutes);
 
-
-// =========================
-// TEST ROUTE
-// =========================
+// =====================================================
+// HEALTH CHECK
+// =====================================================
 
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "AutoBillr API is running",
+    message: "AutoBillr backend is running",
   });
 });
 
-
-// =========================
-// 404
-// =========================
+// =====================================================
+// 404 HANDLER
+// =====================================================
 
 app.use((req, res) => {
+  console.log("404 ROUTE:", req.method, req.originalUrl);
+
   res.status(404).json({
     success: false,
     message: "Route not found",
+    path: req.originalUrl,
   });
 });
 
+// =====================================================
+// ERROR HANDLER
+// =====================================================
 
-// =========================
+app.use((err, req, res, next) => {
+  console.error("SERVER ERROR:", err);
+
+  res.status(500).json({
+    success: false,
+    message: "Internal server error",
+    error: err.message,
+  });
+});
+
+// =====================================================
 // START SERVER
-// =========================
-
-const PORT = process.env.PORT || 5000;
+// =====================================================
 
 app.listen(PORT, () => {
-  console.log(`AutoBillr server running on port ${PORT}`);
+  console.log(
+    `AutoBillr backend running on http://localhost:${PORT}`
+  );
 });

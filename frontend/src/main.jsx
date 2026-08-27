@@ -6,7 +6,7 @@ import '@fontsource/inter'
 import App from './App.jsx'        // Make sure extension is .jsx
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>                     
+                   
     <App />
-  </StrictMode>
+  
 )
