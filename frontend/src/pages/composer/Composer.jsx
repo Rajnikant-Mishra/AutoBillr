@@ -4,6 +4,7 @@ import Card from "../../components/ui/Card";
 import Badge from "../../components/ui/Badge";
 import FormInput from "../../components/ui/FormInput";
 import Button from "../../components/ui/Button";
+import { getAuthToken, clearAuth } from "../../utils/auth";
 import { useLocation, useNavigate , useParams } from "react-router-dom";
 import {
   showSuccessToast,
@@ -60,7 +61,19 @@ export default function Composer() {
   const today = new Date();
   const due = new Date();
   due.setDate(today.getDate() + 30);
+const token = getAuthToken();
 
+if (!token) {
+  showErrorToast("Session expired. Please login again.");
+  navigate("/login");
+  return;
+}
+if (response.status === 401) {
+  clearAuth();
+  showErrorToast("Session expired. Please login again.");
+  navigate("/login");
+  return;
+}
   setInvoice({
     ...initialInvoiceState,
     invoiceNumber: newInvoiceNumber,
@@ -112,69 +125,131 @@ const handleToggle = (key) => {
   }));
 };
   // Fetch Clients
- useEffect(() => {
+
+useEffect(() => {
   const fetchClients = async () => {
     setLoadingClients(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
+      const token = localStorage.getItem("autobiller-auth");
 
-      console.log("API URL:", apiUrl);
+      if (!token) {
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
 
-      const response = await fetch(`${apiUrl}/clients`);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/clients`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-      console.log("Response Status:", response.status);
+      console.log("Clients status:", response.status);
 
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`);
+      if (response.status === 401) {
+        localStorage.removeItem("autobiller-auth");
+        localStorage.removeItem("autobillr_subscription");
+        localStorage.removeItem("user");
+
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
       }
 
       const data = await response.json();
 
-      console.log("Clients Response:", data);
+      if (!response.ok) {
+        throw new Error(
+          data.message || `HTTP Error: ${response.status}`
+        );
+      }
 
-      // Handle both formats:
-      // { clients: [...] }
-      // [...]
       setClients(
         Array.isArray(data)
           ? data
           : data.clients || []
       );
+
     } catch (error) {
       console.error("Failed to fetch clients:", error);
-      showErrorToast(error.message);
+      showErrorToast(
+        error.message || "Failed to load clients"
+      );
     } finally {
       setLoadingClients(false);
     }
   };
 
   fetchClients();
-}, []);
+}, [navigate]);
   // Fetch Projects when Client is selected
- useEffect(() => {
+useEffect(() => {
   if (!invoice.client) return;
 
   const fetchProjects = async () => {
+    setLoadingProjects(true);
+
     try {
+      const token = localStorage.getItem("autobiller-auth");
+
+      if (!token) {
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
+
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/projects?clientId=${invoice.client}`
+        `${import.meta.env.VITE_API_URL}/projects?clientId=${invoice.client}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
       );
+
+      if (response.status === 401) {
+        localStorage.removeItem("autobiller-auth");
+        localStorage.removeItem("autobillr_subscription");
+        localStorage.removeItem("user");
+
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
 
       const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(
+          data.message || `HTTP Error: ${response.status}`
+        );
+      }
+
       setProjectsByClient((prev) => ({
         ...prev,
-        [invoice.client]: data.projects || [],
+        [invoice.client]: Array.isArray(data)
+          ? data
+          : data.projects || [],
       }));
+
     } catch (error) {
       console.error("Failed to fetch projects:", error);
-      showErrorToast("Failed to load projects");
+      showErrorToast(error.message || "Failed to load projects");
+    } finally {
+      setLoadingProjects(false);
     }
   };
 
   fetchProjects();
-}, [invoice.client]);
+}, [invoice.client, navigate]);
 
   const currentClientProjects = projectsByClient[invoice.client] || [];
   const selectedClient = clients.find(
@@ -267,19 +342,27 @@ const handleFinalizeInvoice = async () => {
     console.log("Invoice ID:", id);
     console.log("Payload:", payload);
 
-    const response = await fetch(
-      id
-        ? `${import.meta.env.VITE_API_URL}/invoices/${id}`
-        : `${import.meta.env.VITE_API_URL}/invoices`,
-      {
-        method: id ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+   const token = localStorage.getItem("autobiller-auth");
 
+if (!token) {
+  showErrorToast("Session expired. Please login again.");
+  navigate("/login");
+  return;
+}
+
+const response = await fetch(
+  id
+    ? `${import.meta.env.VITE_API_URL}/invoices/${id}`
+    : `${import.meta.env.VITE_API_URL}/invoices`,
+  {
+    method: id ? "PUT" : "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  }
+);
     const data = await response.json();
 
     if (!response.ok) {
@@ -313,9 +396,34 @@ useEffect(() => {
 
   const fetchInvoice = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/invoices/${id}`
-      );
+     const token = localStorage.getItem("autobiller-auth");
+
+if (!token) {
+  showErrorToast("Session expired. Please login again.");
+  navigate("/login");
+  return;
+}
+
+const response = await fetch(
+  `${import.meta.env.VITE_API_URL}/invoices/${id}`,
+  {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  }
+);
+
+if (response.status === 401) {
+  localStorage.removeItem("autobiller-auth");
+  localStorage.removeItem("autobillr_subscription");
+  localStorage.removeItem("user");
+
+  showErrorToast("Session expired. Please login again.");
+  navigate("/login");
+  return;
+}
 
       const data = await response.json();
 
