@@ -17,9 +17,16 @@ export default function ProjectDetailPanel({
   }
 
   // Safe client name extraction
-  const clientName = typeof project.client === "object" && project.client !== null
-    ? project.client.name || project.clientName || "Unknown Client"
-    : project.client || "Unknown Client";
+  const clientName =
+  typeof project.client === "object" &&
+  project.client !== null
+    ? project.client.name ||
+      project.client.clientName ||
+      project.clientName ||
+      "Unknown Client"
+    : project.clientName ||
+      project.client ||
+      "Unknown Client";
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden sticky top-24">
@@ -67,7 +74,7 @@ export default function ProjectDetailPanel({
 
           <Box
             label="Progress"
-            value={`${project.progress || 0}%`}
+            value={`${progress}%`}
           />
         </div>
 
@@ -88,22 +95,25 @@ export default function ProjectDetailPanel({
             <div className="absolute left-1.5 top-2 bottom-2 w-px bg-slate-200" />
 
             {project.milestones.map((milestone, index) => (
-              <MilestoneTimeline
-                key={index}
-                title={milestone.title}
-                date={
-                  milestone.dueDate
-                    ? new Date(milestone.dueDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "-"
-                }
-                  amount={format(milestone.amount || 0)}
-                status={milestone.status}
-                done={milestone.status === "paid"}
-              onClick={() => onMilestoneClick?.(index)}
-              />
+             <MilestoneTimeline
+  key={milestone._id || index}
+  title={milestone.title}
+  date={
+    milestone.dueDate
+      ? new Date(milestone.dueDate).toLocaleDateString(
+          "en-US",
+          {
+            month: "short",
+            day: "numeric",
+          }
+        )
+      : "-"
+  }
+  amount={milestone.amount || 0}
+  status={milestone.status}
+  done={milestone.status === "paid"}
+  onClick={() => onMilestoneClick?.(index)}
+/>
             ))}
           </div>
         ) : (
