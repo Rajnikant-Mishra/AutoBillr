@@ -55,25 +55,15 @@ export default function Composer() {
   const [invoice, setInvoice] = useState(initialInvoiceState);
     const location = useLocation();
     const navigate = useNavigate();
-   const resetInvoiceForm = () => {
-  const newInvoiceNumber = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+  const resetInvoiceForm = () => {
+  const newInvoiceNumber = `INV-${new Date().getFullYear()}-${String(
+    Date.now()
+  ).slice(-4)}`;
 
   const today = new Date();
   const due = new Date();
   due.setDate(today.getDate() + 30);
-const token = getAuthToken();
 
-if (!token) {
-  showErrorToast("Session expired. Please login again.");
-  navigate("/login");
-  return;
-}
-if (response.status === 401) {
-  clearAuth();
-  showErrorToast("Session expired. Please login again.");
-  navigate("/login");
-  return;
-}
   setInvoice({
     ...initialInvoiceState,
     invoiceNumber: newInvoiceNumber,
@@ -127,11 +117,14 @@ const handleToggle = (key) => {
   // Fetch Clients
 
 useEffect(() => {
+  let cancelled = false;
+
   const fetchClients = async () => {
     setLoadingClients(true);
 
     try {
-      const token = localStorage.getItem("autobiller-auth");
+      const token =
+        getAuthToken() || localStorage.getItem("autobiller-auth");
 
       if (!token) {
         showErrorToast("Session expired. Please login again.");
@@ -139,54 +132,76 @@ useEffect(() => {
         return;
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/clients`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const base = (
+        import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+      ).replace(/\/$/, "");
+
+      const response = await fetch(`${base}/clients`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
       console.log("Clients status:", response.status);
 
       if (response.status === 401) {
         localStorage.removeItem("autobiller-auth");
-        localStorage.removeItem("autobillr_subscription");
-        localStorage.removeItem("user");
-
         showErrorToast("Session expired. Please login again.");
         navigate("/login");
         return;
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      console.log("Clients raw response:", data); // ← check this in console
 
       if (!response.ok) {
         throw new Error(
-          data.message || `HTTP Error: ${response.status}`
+          data?.message || `Failed to load clients (${response.status})`
         );
       }
 
-      setClients(
-        Array.isArray(data)
-          ? data
-          : data.clients || []
-      );
+      // Handle every common shape
+      let list = [];
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (Array.isArray(data.clients)) {
+        list = data.clients;
+      } else if (Array.isArray(data.data)) {
+        list = data.data;
+      } else if (Array.isArray(data.result)) {
+        list = data.result;
+      }
 
+      // Normalize id/name (Prisma uses id; old Mongo code used _id)
+      list = list
+        .map((c) => ({
+          ...c,
+          id: c.id || c._id,
+          name: c.name || c.clientName || "Unnamed",
+        }))
+        .filter((c) => c.id);
+
+      console.log("Clients list used in UI:", list);
+
+      if (!cancelled) {
+        setClients(list);
+      }
     } catch (error) {
       console.error("Failed to fetch clients:", error);
-      showErrorToast(
-        error.message || "Failed to load clients"
-      );
+      showErrorToast(error.message || "Failed to load clients");
+      if (!cancelled) setClients([]);
     } finally {
-      setLoadingClients(false);
+      if (!cancelled) setLoadingClients(false);
     }
   };
 
   fetchClients();
+
+  return () => {
+    cancelled = true;
+  };
 }, [navigate]);
   // Fetch Projects when Client is selected
 useEffect(() => {
@@ -253,11 +268,11 @@ useEffect(() => {
 
   const currentClientProjects = projectsByClient[invoice.client] || [];
   const selectedClient = clients.find(
-  (client) => client._id === invoice.client
+  (client) => client.id === invoice.client
 );
 
 const selectedProject = currentClientProjects.find(
-  (project) => project._id === invoice.project
+  (project) => project.id === invoice.project
 );
   const addItem = () => {
     setInvoice((prev) => ({
@@ -431,13 +446,13 @@ if (response.status === 401) {
 
       setInvoice({
         invoiceNumber: invoiceData.invoiceNumber,
-        client: invoiceData.client?._id || invoiceData.client,
-        project: invoiceData.project?._id || invoiceData.project,
+        client: invoiceData.client?.id || invoiceData.client,
+        project: invoiceData.project?.id || invoiceData.project,
         invoiceDate: invoiceData.invoiceDate?.split("T")[0],
         dueDate: invoiceData.dueDate?.split("T")[0],
         items:
           invoiceData.items?.map((item) => ({
-            id: item._id || Date.now(),
+            id: item.id || Date.now(),
             desc: item.desc,
             qty: item.qty,
             rate: item.rate,
@@ -488,7 +503,7 @@ if (response.status === 401) {
                     Client
                   </label>
 
-                 <select
+    <select
   value={invoice.client}
   onChange={handleClientChange}
   className="w-full h-12 px-3 border border-slate-200 rounded-xl bg-white"
@@ -498,10 +513,7 @@ if (response.status === 401) {
   </option>
 
   {clients.map((client) => (
-    <option
-      key={client._id}
-      value={client._id}
-    >
+    <option key={client.id} value={client.id}>
       {client.name}
     </option>
   ))}
@@ -521,7 +533,7 @@ if (response.status === 401) {
                   >
                     <option value="">Select Project</option>
                     {currentClientProjects.map((project) => (
-                      <option key={project._id} value={project._id}>
+                      <option key={project.id} value={project.id}>
                         {project.title}
                       </option>
                     ))}
