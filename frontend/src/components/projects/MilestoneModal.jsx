@@ -19,6 +19,28 @@ export default function MilestoneModal({
   milestoneIndex !== null &&
   milestoneIndex !== undefined &&
   milestoneIndex >= 0;
+
+
+  const formatDateForInput = (date) => {
+  if (!date) return "";
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(
+    parsed.getMonth() + 1
+  ).padStart(2, "0");
+  const day = String(
+    parsed.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
   const handleSave = async () => {
     if (!milestone.title?.trim()) {
       showErrorToast("Milestone name is required");
@@ -60,8 +82,7 @@ const response = await fetch(
     ? "Milestone updated successfully"
     : "Milestone created successfully"
 );
-      onSave();        // Call parent refresh
-      onClose();
+      await onSave();
     } catch (error) {
       console.error(error);
       showErrorToast(error.message || "Failed to save milestone");
@@ -110,11 +131,7 @@ const response = await fetch(
             label="Due Date"
             icon="calendar_month"
             type="date"
-            value={
-              milestone.dueDate
-                ? new Date(milestone.dueDate).toISOString().split("T")[0]
-                : ""
-            }
+            value={formatDateForInput(milestone.dueDate)}
             onChange={(e) =>
               setMilestone({ ...milestone, dueDate: e.target.value })
             }

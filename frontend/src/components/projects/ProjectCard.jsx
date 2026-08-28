@@ -29,7 +29,10 @@ const { format } = useCurrency();
       return initialProgress || 0;
     }
 
-    const paidCount = milestones.filter(m => m.status === "paid").length;
+   const paidCount = milestones.filter(
+  (m) =>
+    String(m?.status || "").toLowerCase() === "paid"
+).length;
     return Math.round((paidCount / milestones.length) * 100);
   };
 
@@ -47,12 +50,17 @@ const { format } = useCurrency();
       return "ACTIVE";
     }
 
-    const allPaid = milestones.every((m) => m.status === "paid");
+   const allPaid = milestones.every(
+  (m) =>
+    String(m?.status || "").toLowerCase() === "paid"
+);
     if (allPaid) return "PAID";
 
     const hasPending = milestones.some((m) =>
-      ["pending", "scheduled"].includes(m.status)
-    );
+  ["pending", "scheduled"].includes(
+    String(m?.status || "").toLowerCase()
+  )
+);
 
     return hasPending ? "PENDING" : "ACTIVE";
   };
