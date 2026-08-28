@@ -146,31 +146,57 @@ useEffect(() => {
   try {
     setLoading(true);
 
-   const res = await axios.get(
-  `${import.meta.env.VITE_API_URL}/invoices`,
-  {
-    withCredentials: true,
-  }
-);
+    const token =
+      localStorage.getItem("autobiller-auth") ||
+      localStorage.getItem("token");
 
-setInvoices(res.data?.invoices || []);
+    if (!token) {
+      showErrorToast("Session expired. Please login again.");
+      navigate("/login");
+      return;
+    }
+
+    const base = (
+      import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+    ).replace(/\/$/, "");
+
+    const res = await axios.get(`${base}/invoices`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
 
     console.log("INVOICES API RESPONSE:", res.data);
 
-    setInvoices(res.data?.invoices || []);
+    // Support common shapes
+    const list = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.invoices)
+      ? res.data.invoices
+      : Array.isArray(res.data?.data)
+      ? res.data.data
+      : [];
+
+    setInvoices(list);
   } catch (error) {
     console.error("Failed to fetch invoices:", error);
 
     if (error.response) {
       console.error("STATUS:", error.response.status);
       console.error("DATA:", error.response.data);
-    } else if (error.request) {
-      console.error("NO RESPONSE FROM SERVER:", error.request);
-    } else {
-      console.error("REQUEST ERROR:", error.message);
+
+      if (error.response.status === 401) {
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
     }
 
-    showErrorToast("Failed to load invoices");
+    showErrorToast(
+      error.response?.data?.message || "Failed to load invoices"
+    );
+    setInvoices([]);
   } finally {
     setLoading(false);
   }
