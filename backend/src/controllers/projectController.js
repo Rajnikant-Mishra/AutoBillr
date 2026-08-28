@@ -574,12 +574,440 @@ const deleteProject = async (req, res) => {
   }
 };
 
+// =====================================================
+// CREATE MILESTONE
+// =====================================================
+
+const createMilestone = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    const { projectId } = req.params;
+
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID not found in authenticated user",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY PROJECT
+    // -------------------------------------------------
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        companyId,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    const {
+      title,
+      amount,
+      dueDate,
+      status,
+    } = req.body;
+
+    // -------------------------------------------------
+    // VALIDATION
+    // -------------------------------------------------
+
+    if (!title?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Milestone name is required",
+      });
+    }
+
+    if (!dueDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Due date is required",
+      });
+    }
+
+    const milestoneAmount = Number(amount);
+
+    if (
+      !Number.isFinite(milestoneAmount) ||
+      milestoneAmount <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be greater than 0",
+      });
+    }
+
+    // -------------------------------------------------
+    // CHECK EXISTING MILESTONES AGAINST BUDGET
+    // -------------------------------------------------
+
+    const existingMilestones =
+      await prisma.milestone.findMany({
+        where: {
+          projectId,
+        },
+      });
+
+    const existingTotal = existingMilestones.reduce(
+      (total, milestone) =>
+        total + Number(milestone.amount || 0),
+      0
+    );
+
+    if (
+      existingTotal + milestoneAmount >
+      Number(project.budget || 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Total milestone amount cannot exceed project budget",
+      });
+    }
+
+    // -------------------------------------------------
+    // CREATE
+    // -------------------------------------------------
+
+    const milestone =
+      await prisma.milestone.create({
+        data: {
+          projectId,
+
+          title: title.trim(),
+
+          amount: milestoneAmount,
+
+          dueDate: new Date(
+            `${dueDate}T00:00:00`
+          ),
+
+          status: String(
+            status || "scheduled"
+          ).toLowerCase(),
+        },
+      });
+
+    return res.status(201).json({
+      success: true,
+      message: "Milestone created successfully",
+      milestone,
+    });
+  } catch (error) {
+    console.error(
+      "CREATE MILESTONE ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error?.message ||
+        "Failed to create milestone",
+    });
+  }
+};
+
+
+// =====================================================
+// UPDATE MILESTONE
+// =====================================================
+
+const updateMilestone = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+
+    const {
+      projectId,
+      milestoneId,
+    } = req.params;
+
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID not found in authenticated user",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY PROJECT
+    // -------------------------------------------------
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        companyId,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY MILESTONE
+    // -------------------------------------------------
+
+    const existingMilestone =
+      await prisma.milestone.findFirst({
+        where: {
+          id: milestoneId,
+          projectId,
+        },
+      });
+
+    if (!existingMilestone) {
+      return res.status(404).json({
+        success: false,
+        message: "Milestone not found",
+      });
+    }
+
+    const {
+      title,
+      amount,
+      dueDate,
+      status,
+    } = req.body;
+
+    // -------------------------------------------------
+    // VALIDATION
+    // -------------------------------------------------
+
+    if (
+      title !== undefined &&
+      !title?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Milestone name is required",
+      });
+    }
+
+    if (dueDate !== undefined && !dueDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Due date is required",
+      });
+    }
+
+    let milestoneAmount;
+
+    if (amount !== undefined) {
+      milestoneAmount = Number(amount);
+
+      if (
+        !Number.isFinite(milestoneAmount) ||
+        milestoneAmount <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount must be greater than 0",
+        });
+      }
+    }
+
+    // -------------------------------------------------
+    // CHECK BUDGET
+    // -------------------------------------------------
+
+    if (milestoneAmount !== undefined) {
+      const otherMilestones =
+        await prisma.milestone.findMany({
+          where: {
+            projectId,
+            NOT: {
+              id: milestoneId,
+            },
+          },
+        });
+
+      const otherTotal =
+        otherMilestones.reduce(
+          (total, milestone) =>
+            total +
+            Number(milestone.amount || 0),
+          0
+        );
+
+      if (
+        otherTotal + milestoneAmount >
+        Number(project.budget || 0)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Total milestone amount cannot exceed project budget",
+        });
+      }
+    }
+
+    // -------------------------------------------------
+    // UPDATE
+    // -------------------------------------------------
+
+    const milestone =
+      await prisma.milestone.update({
+        where: {
+          id: milestoneId,
+        },
+
+        data: {
+          ...(title !== undefined && {
+            title: title.trim(),
+          }),
+
+          ...(milestoneAmount !== undefined && {
+            amount: milestoneAmount,
+          }),
+
+          ...(dueDate !== undefined && {
+            dueDate: new Date(
+              `${dueDate}T00:00:00`
+            ),
+          }),
+
+          ...(status !== undefined && {
+            status: String(
+              status
+            ).toLowerCase(),
+          }),
+        },
+      });
+
+    return res.status(200).json({
+      success: true,
+      message: "Milestone updated successfully",
+      milestone,
+    });
+  } catch (error) {
+    console.error(
+      "UPDATE MILESTONE ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error?.message ||
+        "Failed to update milestone",
+    });
+  }
+};
+
+
+// =====================================================
+// DELETE MILESTONE
+// =====================================================
+
+const deleteMilestone = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+
+    const {
+      projectId,
+      milestoneId,
+    } = req.params;
+
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID not found in authenticated user",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY PROJECT
+    // -------------------------------------------------
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        companyId,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    // -------------------------------------------------
+    // VERIFY MILESTONE
+    // -------------------------------------------------
+
+    const milestone =
+      await prisma.milestone.findFirst({
+        where: {
+          id: milestoneId,
+          projectId,
+        },
+      });
+
+    if (!milestone) {
+      return res.status(404).json({
+        success: false,
+        message: "Milestone not found",
+      });
+    }
+
+    // -------------------------------------------------
+    // DELETE
+    // -------------------------------------------------
+
+    await prisma.milestone.delete({
+      where: {
+        id: milestoneId,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Milestone deleted successfully",
+    });
+  } catch (error) {
+    console.error(
+      "DELETE MILESTONE ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error?.message ||
+        "Failed to delete milestone",
+    });
+  }
+};
+
+
+// =====================================================
+// EXPORT
+// =====================================================
+
 module.exports = {
   getProjects,
   getProjectById,
   createProject,
   updateProject,
   deleteProject,
-};
 
+  // MILESTONES
+  createMilestone,
+  updateMilestone,
+  deleteMilestone,
+};
 

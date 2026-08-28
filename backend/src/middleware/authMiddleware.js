@@ -6,7 +6,8 @@ const authMiddleware = (req, res, next) => {
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        message: "Authentication required",
+         success: false,
+        message: "Authentication token required",
       });
     }
 
@@ -22,7 +23,7 @@ const authMiddleware = (req, res, next) => {
       token,
       process.env.JWT_SECRET
     );
-
+ 
     req.user = {
       userId: decoded.userId,
       companyId: decoded.companyId,
