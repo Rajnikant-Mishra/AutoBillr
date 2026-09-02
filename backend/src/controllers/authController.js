@@ -2,6 +2,8 @@ const bcrypt = require("bcryptjs");
 const prisma = require("../../config/prisma");
 const generateToken = require("../utils/generateToken");
 
+
+
 const register = async (req, res) => {
   try {
     const {
@@ -13,12 +15,64 @@ const register = async (req, res) => {
       role,
       companySize,
       industry,
-      plan,
+      planId,
     } = req.body;
 
-    // ==========================================
+    // =================================================
+    // NORMALIZE EMAIL
+    // =================================================
+
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    // =================================================
+    // BASIC VALIDATION
+    // =================================================
+
+    if (!firstName?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "First name is required",
+      });
+    }
+
+    if (!lastName?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Last name is required",
+      });
+    }
+
+    if (!normalizedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
+      });
+    }
+
+    if (password.length < 12) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 12 characters",
+      });
+    }
+
+    if (!companyName?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Company name is required",
+      });
+    }
+
+    // =================================================
     // ROLE MAPPING
-    // ==========================================
+    // =================================================
 
     const roleMap = {
       Owner: "OWNER",
@@ -37,13 +91,13 @@ const register = async (req, res) => {
       });
     }
 
-    // ==========================================
+    // =================================================
     // CHECK EXISTING USER
-    // ==========================================
+    // =================================================
 
     const existingUser = await prisma.user.findUnique({
       where: {
-        email,
+        email: normalizedEmail,
       },
     });
 
@@ -54,103 +108,123 @@ const register = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // DATABASE TRANSACTION
-    // ==========================================
+    // =================================================
+    // CHECK EMAIL VERIFICATION
+    // =================================================
 
-    const result = await prisma.$transaction(async (tx) => {
-
-      // ----------------------------------------
-      // FIND PLAN
-      // ----------------------------------------
-
-      const selectedPlan = await tx.plan.findUnique({
+    const verifiedEmailRecord =
+      await prisma.emailVerification.findFirst({
         where: {
-          id: plan,
+          email: normalizedEmail,
+          verified: true,
+        },
+        orderBy: {
+          updatedAt: "desc",
         },
       });
 
-      if (!selectedPlan || !selectedPlan.isActive) {
-        const error = new Error(
-          "Invalid subscription plan"
-        );
+    if (!verifiedEmailRecord) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Please verify your email address before creating your account.",
+      });
+    }
 
-        error.statusCode = 400;
+    // =================================================
+    // OPTIONAL VERIFIED AT CHECK
+    // =================================================
 
-        throw error;
-      }
+    if (
+      verifiedEmailRecord.verifiedAt !== undefined &&
+      verifiedEmailRecord.verifiedAt !== null
+    ) {
+      // verifiedAt exists and is valid
+    }
 
-      // ----------------------------------------
+    // =================================================
+    // DATABASE TRANSACTION
+    // =================================================
+
+    const result = await prisma.$transaction(async (tx) => {
+      // ---------------------------------------------
       // HASH PASSWORD
-      // ----------------------------------------
+      // ---------------------------------------------
 
-      const passwordHash = await bcrypt.hash(
-        password,
-        12
-      );
+     const passwordHash = await bcrypt.hash(password, 12);
 
-      // ----------------------------------------
+const plan = await tx.plan.findUnique({
+  where: {
+    id: planId,
+  },
+});
+
+if (!plan) {
+  throw new Error("Invalid subscription plan");
+}
+      // ---------------------------------------------
       // CREATE COMPANY
-      // ----------------------------------------
+      // ---------------------------------------------
 
       const company = await tx.company.create({
         data: {
-          name: companyName,
-          companySize,
-          industry,
+          name: companyName.trim(),
+          companySize: companySize || "1-10",
+          industry: industry || "SaaS / Software",
         },
       });
 
-      // ----------------------------------------
+      // ---------------------------------------------
       // CREATE USER
-      // ----------------------------------------
+      // ---------------------------------------------
 
       const user = await tx.user.create({
         data: {
-          firstName,
-          lastName,
-          email,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: normalizedEmail,
           passwordHash,
           role: userRole,
           companyId: company.id,
         },
       });
+const subscription = await tx.subscription.create({
+    data: {
+      companyId: company.id,
+      planId: plan.id,
+      status: "TRIALING",
+      trialEndsAt: new Date(
+        Date.now() + 14 * 24 * 60 * 60 * 1000
+      ),
+    },
+    include: {
+      plan: true,
+    },
+  });
+      // ---------------------------------------------
+      // DELETE USED VERIFICATION
+      // ---------------------------------------------
 
-      // ----------------------------------------
-      // CREATE 14 DAY TRIAL
-      // ----------------------------------------
+      await tx.emailVerification.delete({
+        where: {
+          id: verifiedEmailRecord.id,
+        },
+      });
 
-      const trialEndsAt = new Date();
-
-      trialEndsAt.setDate(
-        trialEndsAt.getDate() + 14
-      );
-
-      // ----------------------------------------
-      // CREATE SUBSCRIPTION
-      // ----------------------------------------
-
-      const subscription =
-        await tx.subscription.create({
-          data: {
-            companyId: company.id,
-            planId: selectedPlan.id,
-            status: "TRIALING",
-            trialEndsAt,
-          },
-        });
+      // ---------------------------------------------
+      // RETURN
+      // ---------------------------------------------
 
       return {
         company,
         user,
         subscription,
-        selectedPlan,
       };
     });
 
-    // ==========================================
+    // =================================================
     // GENERATE TOKEN
-    // ==========================================
+    // =================================================
 
     const token = generateToken({
       userId: result.user.id,
@@ -158,9 +232,9 @@ const register = async (req, res) => {
       role: result.user.role,
     });
 
-    // ==========================================
+    // =================================================
     // RESPONSE
-    // ==========================================
+    // =================================================
 
     return res.status(201).json({
       success: true,
@@ -184,45 +258,40 @@ const register = async (req, res) => {
       },
 
       subscription: {
-        id: result.subscription.id,
-        plan: result.selectedPlan.name,
-        planId: result.selectedPlan.id,
-        status: result.subscription.status,
-        trialEndsAt: result.subscription.trialEndsAt,
-      },
+  id: result.subscription.id,
+  status: result.subscription.status,
+  trialEndsAt: result.subscription.trialEndsAt,
+  plan: result.subscription.plan,
+},
     });
-
   } catch (error) {
-
     console.error("REGISTER ERROR:", error);
 
     // Prisma unique constraint
     if (error.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message:
-          "An account with this email already exists",
-      });
-    }
-
-    // Known validation/business error
-    if (error.statusCode) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
+        message: "An account with this email already exists",
       });
     }
 
     return res.status(500).json({
       success: false,
-      message:
-        "Registration failed. Please try again later.",
+      message: "Registration failed. Please try again later.",
     });
   }
 };
+
+// =====================================================
+// LOGIN
+// =====================================================
+
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+      password,
+    } = req.body;
 
     const normalizedEmail = email?.trim().toLowerCase();
 
@@ -233,10 +302,15 @@ const login = async (req, res) => {
       });
     }
 
+    // =================================================
+    // FIND USER
+    // =================================================
+
     const user = await prisma.user.findUnique({
       where: {
         email: normalizedEmail,
       },
+
       include: {
         company: true,
       },
@@ -248,6 +322,10 @@ const login = async (req, res) => {
         message: "Invalid email or password",
       });
     }
+
+    // =================================================
+    // CHECK PASSWORD
+    // =================================================
 
     const passwordMatch = await bcrypt.compare(
       password,
@@ -261,16 +339,26 @@ const login = async (req, res) => {
       });
     }
 
+    // =================================================
+    // GENERATE TOKEN
+    // =================================================
+
     const token = generateToken({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
     });
 
+    // =================================================
+    // RESPONSE
+    // =================================================
+
     return res.status(200).json({
       success: true,
       message: "Login successful",
+
       token,
+
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -278,12 +366,15 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
       },
+
       company: {
         id: user.company.id,
         name: user.company.name,
         companySize: user.company.companySize,
         industry: user.company.industry,
       },
+
+      subscription: null,
     });
   } catch (error) {
     console.error("LOGIN ERROR:", error);
@@ -294,6 +385,7 @@ const login = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   register,
   login,

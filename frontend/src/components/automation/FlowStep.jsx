@@ -3,8 +3,8 @@ export default function FlowStep({
   title,
   description,
   active = false,
-  iconColor = "text-slate-600",
-  ringColor = "ring-slate-100",
+  iconColor = "text-text-secondary",
+  ringColor = "ring-surface-secondary",
 }) {
   return (
     <div className="flex flex-col items-center text-center gap-3 flex-1">
@@ -12,19 +12,15 @@ export default function FlowStep({
         className={`
           w-14 h-14 rounded-full
           grid place-items-center
-          shadow-lg transition-all
-
+          shadow-lg transition-all duration-fast
           ${
             active
-              ? "bg-teal-600 text-white ring-8 ring-teal-600/10"
-              : `bg-white ${iconColor} ring-4 ${ringColor}`
+              ? "bg-primary text-text-inverse ring-8 ring-primary/10"
+              : `bg-surface ${iconColor} ring-4 ${ringColor}`
           }
         `}
       >
-        <span
-          className="material-symbols-outlined"
-          style={{ fontSize: 22 }}
-        >
+        <span className="material-symbols-outlined text-[22px]" aria-hidden>
           {icon}
         </span>
       </div>
@@ -32,17 +28,13 @@ export default function FlowStep({
       <div>
         <p
           className={`font-bold text-sm ${
-            active
-              ? "text-teal-700"
-              : "text-slate-900"
+            active ? "text-primary-dark" : "text-text"
           }`}
         >
           {title}
         </p>
 
-        <p className="text-xs text-slate-500 mt-1">
-          {description}
-        </p>
+        <p className="text-xs text-text-muted mt-1">{description}</p>
       </div>
     </div>
   );

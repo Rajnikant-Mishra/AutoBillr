@@ -1,65 +1,77 @@
-// components/ui/Badge.jsx
-
 export default function Badge({
   label,
   variant = "active",
   className = "",
 }) {
-const variants = {
-  active: {
-    bg: "var(--primary-light)",
-    text: "var(--primary)",
-    dot: "var(--primary)",
-  },
+  const variants = {
+    active: {
+      bg: "var(--color-primary-light)",
+      text: "var(--color-primary)",
+      dot: "var(--color-primary)",
+    },
 
-  paid: {
-    bg: "var(--primary-light)",
-    text: "var(--primary)",
-    dot: "var(--primary)",
-  },
+    paid: {
+      bg: "var(--color-success-light)",
+      text: "var(--color-success)",
+      dot: "var(--color-success)",
+    },
 
-  pending: {
-    bg: "var(--warning-light)",
-    text: "var(--warning)",
-    dot: "var(--warning)",
-  },
+    pending: {
+      bg: "var(--color-warning-light)",
+      text: "var(--color-warning)",
+      dot: "var(--color-warning)",
+    },
 
-  risk: {
-    bg: "var(--danger-light)",
-    text: "var(--danger)",
-    dot: "var(--danger)",
-  },
+    risk: {
+      bg: "var(--color-danger-light)",
+      text: "var(--color-danger)",
+      dot: "var(--color-danger)",
+    },
 
-  scheduled: {
-    bg: "var(--info-light)",
-    text: "var(--info)",
-    dot: "var(--info)",
-  },
+    scheduled: {
+      bg: "var(--color-info-light)",
+      text: "var(--color-info)",
+      dot: "var(--color-info)",
+    },
 
-  default: {
-    bg: "#f1f5f9",
-    text: "#475569",
-    dot: "#64748b",
-  },
-};
-  const style =
-    variants[variant] || variants.default;
+    default: {
+      bg: "var(--color-surface-hover)",
+      text: "var(--color-text-secondary)",
+      dot: "var(--color-text-muted)",
+    },
+  };
+
+  const styles = variants[variant] ?? variants.default;
 
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${className}`}
+    <span
+      className={[
+        "inline-flex",
+        "items-center",
+        "gap-1.5",
+        "px-3",
+        "py-1",
+        "rounded-full",
+        "text-[11px]",
+        "font-bold",
+        "uppercase",
+        "tracking-wider",
+        className,
+      ].join(" ")}
       style={{
-        background: style.bg,
-        color: style.text,
+        backgroundColor: styles.bg,
+        color: styles.text,
       }}
     >
       <span
-        className="w-1.5 h-1.5 rounded-full"
+        aria-hidden="true"
+        className="w-1.5 h-1.5 rounded-full shrink-0"
         style={{
-          background: style.dot,
+          backgroundColor: styles.dot,
         }}
       />
-      {label}
-    </div>
+
+      <span>{label}</span>
+    </span>
   );
 }

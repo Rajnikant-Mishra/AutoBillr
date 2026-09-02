@@ -1,21 +1,36 @@
 const validate = (schema) => {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
+    try {
+      const { error, value } = schema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
 
-    if (!result.success) {
-      return res.status(400).json({
+      if (error) {
+        const errors = error.details.map((detail) => ({
+          field: detail.path.join("."),
+          message: detail.message,
+        }));
+
+        return res.status(400).json({
+          success: false,
+          message: errors.map((err) => err.message).join(", "),
+          errors,
+        });
+      }
+
+      // Replace request body with Joi's sanitized/validated value
+      req.body = value;
+
+      next();
+    } catch (error) {
+      console.error("VALIDATION ERROR:", error);
+
+      return res.status(500).json({
         success: false,
-        message: "Validation failed",
-        errors: result.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
+        message: "Request validation failed",
       });
     }
-
-    req.body = result.data;
-
-    next();
   };
 };
 

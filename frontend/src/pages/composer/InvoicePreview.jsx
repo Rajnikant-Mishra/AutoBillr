@@ -9,21 +9,27 @@ export default function InvoicePreview() {
   const params = new URLSearchParams(location.search);
 
   const invoice = JSON.parse(
-    decodeURIComponent(
-      params.get("data") || "{}"
-    )
+    decodeURIComponent(params.get("data") || "{}")
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 py-4 px-4">
+    <div className="min-h-screen bg-background py-4 px-4">
       <button
         onClick={() => window.print()}
-        className="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl bg-teal-600 text-white font-semibold shadow-lg print:hidden"
+        className="
+          fixed top-6 right-6 z-50
+          px-5 py-3 rounded-xl
+          bg-primary hover:bg-primary-hover
+          text-text-inverse font-semibold
+          shadow-lg shadow-primary/20
+          transition
+          print:hidden
+        "
       >
         Print
       </button>
 
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="max-w-5xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
         <InvoiceTemplate
           invoice={invoice}
           subtotal={invoice.subtotal || 0}

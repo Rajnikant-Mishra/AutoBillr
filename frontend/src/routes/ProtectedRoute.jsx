@@ -1,7 +1,19 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 
 export default function ProtectedRoute({ children }) {
-  const token = localStorage.getItem("token");
+  const location = useLocation();
 
-  return token ? children : <Navigate to="/login" />;
+  const token = localStorage.getItem("autobiller-auth");   // ← match the login key
+
+  if (!token) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  return children;
 }

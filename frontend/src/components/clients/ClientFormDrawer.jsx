@@ -9,14 +9,6 @@ import FormInput from "../ui/FormInput";
 import Badge from "../ui/Badge";
 import { useNotificationStore } from "../../store/notificationStore";
 
-/**
- * Production notes
- * - Keeps the existing API payload shape and UI behavior.
- * - Adds defensive normalization, step validation, accessibility attributes,
- *   safer submit handling, and removes avoidable inline duplication.
- * - No API contract changes are introduced intentionally.
- */
-
 const STEPS = [
   { id: 1, label: "Contact" },
   { id: 2, label: "Billing" },
@@ -26,12 +18,12 @@ const STEPS = [
 const TIERS = ["Enterprise", "Mid-Market", "SMB", "Agency"];
 
 const COLORS = [
-  "bg-teal-500",
-  "bg-indigo-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-violet-500",
-  "bg-cyan-500",
+  "bg-primary",
+  "bg-info",
+  "bg-warning",
+  "bg-danger",
+  "bg-secondary",
+  "bg-success",
 ];
 
 const INDUSTRIES = [
@@ -41,21 +33,11 @@ const INDUSTRIES = [
   "E-commerce",
 ];
 
-const COUNTRIES = [
-  "United States",
-  "India",
-  "United Kingdom",
-  "Canada",
-];
+const COUNTRIES = ["United States", "India", "United Kingdom", "Canada"];
 
 const CURRENCIES = ["USD", "INR", "EUR", "GBP"];
 
-const PAYMENT_TERMS = [
-  "Net 30",
-  "Due on receipt",
-  "Net 15",
-  "Net 60",
-];
+const PAYMENT_TERMS = ["Net 30", "Due on receipt", "Net 15", "Net 60"];
 
 const PAYMENT_METHODS = [
   { value: "ACH", label: "ACH", icon: "account_balance" },
@@ -94,8 +76,7 @@ const AUTOMATION_ITEMS = [
     key: "portalAccess",
     icon: "dashboard",
     title: "Enable client portal access",
-    description:
-      "Let them view & pay invoices online at portal.autobillr.io",
+    description: "Let them view & pay invoices online at portal.autobillr.io",
   },
   {
     key: "welcomeEmail",
@@ -111,6 +92,19 @@ const DEFAULT_AUTOMATION = {
   portalAccess: true,
   welcomeEmail: true,
 };
+
+const selectClassName = `
+  w-full rounded-lg border border-border
+  bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text
+  outline-none transition-colors duration-fast
+  focus:border-primary focus:ring-2 focus:ring-primary/20
+`;
+
+const sectionTitleClass =
+  "mb-3 text-[11.5px] font-bold uppercase tracking-widest text-text-secondary";
+
+const labelClass =
+  "mb-1.5 block text-[11.5px] font-semibold text-text-secondary";
 
 const getInitialFormData = () => ({
   companyName: "",
@@ -147,14 +141,10 @@ const getClientId = (client) => client?.id ?? client?._id ?? null;
 
 const getInitials = (companyName) => {
   const name = asString(companyName).trim();
-
   if (!name) return "?";
 
   const words = name.split(/\s+/).filter(Boolean);
-
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
 
   return words
     .slice(0, 2)
@@ -165,7 +155,6 @@ const getInitials = (companyName) => {
 
 const normalizeClientToForm = (client) => {
   const defaults = getInitialFormData();
-
   if (!client) return defaults;
 
   return {
@@ -204,6 +193,26 @@ const getApiErrorMessage = (error) =>
   error?.message ||
   "Unable to save the client. Please try again.";
 
+const SelectField = ({ id, label, value, options, onChange }) => (
+  <div>
+    <label htmlFor={id} className={labelClass}>
+      {label}
+    </label>
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={selectClassName}
+    >
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
 const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
   const { addNotification } = useNotificationStore();
 
@@ -215,29 +224,26 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateForm = useCallback((key, value) => {
-    setFormData((previous) => ({
-      ...previous,
-      [key]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const updateAutomation = useCallback((key) => {
-    setFormData((previous) => ({
-      ...previous,
+    setFormData((prev) => ({
+      ...prev,
       automation: {
-        ...previous.automation,
-        [key]: !Boolean(previous.automation?.[key]),
+        ...prev.automation,
+        [key]: !Boolean(prev.automation?.[key]),
       },
     }));
   }, []);
 
   const toggleTag = useCallback((tag) => {
-    setFormData((previous) => {
-      const currentTags = normalizeTags(previous.selectedTags);
+    setFormData((prev) => {
+      const currentTags = normalizeTags(prev.selectedTags);
       const exists = currentTags.includes(tag);
 
       return {
-        ...previous,
+        ...prev,
         selectedTags: exists
           ? currentTags.filter((item) => item !== tag)
           : [...currentTags, tag],
@@ -246,9 +252,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
   }, []);
 
   const removeTag = useCallback((tag) => {
-    setFormData((previous) => ({
-      ...previous,
-      selectedTags: normalizeTags(previous.selectedTags).filter(
+    setFormData((prev) => ({
+      ...prev,
+      selectedTags: normalizeTags(prev.selectedTags).filter(
         (item) => item !== tag
       ),
     }));
@@ -259,14 +265,8 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
     setStep(1);
   }, []);
 
-  /**
-   * Synchronize the drawer state only when the drawer is opened.
-   * This avoids wiping user input because a parent component re-renders
-   * with an equivalent client object.
-   */
   useEffect(() => {
     if (!isOpen) return;
-
     setFormData(normalizeClientToForm(client));
     setStep(1);
   }, [isOpen, client]);
@@ -281,20 +281,16 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
           showErrorToast("Company name is required");
           return false;
         }
-
         if (!contactEmail) {
           showErrorToast("Contact email is required");
           return false;
         }
-
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
           showErrorToast("Please enter a valid email address");
           return false;
         }
-
         if (formData.website.trim()) {
           const website = formData.website.trim();
-
           if (
             !/^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i.test(website)
           ) {
@@ -309,21 +305,16 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
           showErrorToast("Postal code is too long");
           return false;
         }
-
         if (!CURRENCIES.includes(formData.currency)) {
           showErrorToast("Please select a valid currency");
           return false;
         }
-
         if (!PAYMENT_TERMS.includes(formData.paymentTerms)) {
           showErrorToast("Please select valid payment terms");
           return false;
         }
-
         if (
-          !PAYMENT_METHODS.some(
-            (method) => method.value === formData.paymentMethod
-          )
+          !PAYMENT_METHODS.some((m) => m.value === formData.paymentMethod)
         ) {
           showErrorToast("Please select a valid payment method");
           return false;
@@ -337,7 +328,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
   const handleContinue = useCallback(() => {
     if (!validateStep(step)) return;
-
     setStep((current) => Math.min(current + 1, STEPS.length));
   }, [step, validateStep]);
 
@@ -383,7 +373,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
   const handleSubmit = useCallback(async () => {
     if (isSubmitting) return;
 
-    // Validate every step before allowing a final API request.
     for (const currentStep of STEPS.map((item) => item.id)) {
       if (!validateStep(currentStep)) {
         setStep(currentStep);
@@ -404,17 +393,13 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
       if (isEditing) {
         await updateClient(clientId, payload);
-
         showSuccessToast("Client Updated", companyName);
 
         addNotification({
           type: "client",
           icon: "edit",
-          iconColor: "text-indigo-600",
-          bgColor: "bg-indigo-50",
           title: "Client Updated",
           description: `${companyName} was updated successfully`,
-          borderColor: "border-l-indigo-500",
         });
       } else {
         const createdClient = await createClient(payload);
@@ -425,22 +410,13 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         addNotification({
           type: "client",
           icon: "person_add",
-          iconColor: "text-teal-600",
-          bgColor: "bg-teal-50",
           title: "New Client Added",
           description: `${companyName} has been successfully created`,
-          borderColor: "border-l-teal-500",
         });
 
-        // Prefer the server-generated ID for downstream consumers.
         window.dispatchEvent(
           new CustomEvent("client-updated", {
-            detail: {
-              client: {
-                id: createdId,
-                name: companyName,
-              },
-            },
+            detail: { client: { id: createdId, name: companyName } },
           })
         );
       }
@@ -448,12 +424,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
       if (isEditing) {
         window.dispatchEvent(
           new CustomEvent("client-updated", {
-            detail: {
-              client: {
-                id: clientId,
-                name: companyName,
-              },
-            },
+            detail: { client: { id: clientId, name: companyName } },
           })
         );
       }
@@ -484,14 +455,14 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
   const footer = (
     <div className="flex flex-wrap justify-end gap-2">
-      <button
+      <Button
         type="button"
+        variant="secondary"
         onClick={onClose}
         disabled={isSubmitting}
-        className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Cancel
-      </button>
+      </Button>
 
       {step > 1 && (
         <Button
@@ -551,7 +522,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         {/* Stepper */}
         <nav
           aria-label="Client form progress"
-          className="mb-6 flex items-center gap-2 border-b border-slate-100 pb-5"
+          className="mb-6 flex items-center gap-2 border-b border-border-light pb-5"
         >
           {STEPS.map((currentStep, index) => {
             const isComplete = step > currentStep.id;
@@ -562,19 +533,24 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                 <div
                   className={`flex items-center gap-2 ${
                     step >= currentStep.id
-                      ? "text-teal-600"
-                      : "text-slate-400"
+                      ? "text-primary"
+                      : "text-text-light"
                   }`}
                   aria-current={isCurrent ? "step" : undefined}
                 >
                   <div
-                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold transition-all ${
-                      isComplete
-                        ? "bg-teal-600 text-white"
-                        : isCurrent
-                        ? "bg-teal-600 text-white ring-4 ring-teal-100"
-                        : "bg-slate-200 text-slate-500"
-                    }`}
+                    className={`
+                      grid h-7 w-7 shrink-0 place-items-center
+                      rounded-full text-xs font-bold
+                      transition-all duration-fast
+                      ${
+                        isComplete
+                          ? "bg-primary text-text-inverse"
+                          : isCurrent
+                          ? "bg-primary text-text-inverse ring-4 ring-primary/15"
+                          : "bg-surface-secondary text-text-muted"
+                      }
+                    `}
                   >
                     {isComplete ? (
                       <span className="material-symbols-outlined text-sm">
@@ -584,7 +560,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                       currentStep.id
                     )}
                   </div>
-
                   <span className="text-[12.5px] font-semibold">
                     {currentStep.label}
                   </span>
@@ -592,11 +567,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
                 {index < STEPS.length - 1 && (
                   <div
-                    aria-hidden="true"
+                    aria-hidden
                     className={`h-px flex-1 ${
-                      step > currentStep.id
-                        ? "bg-teal-600"
-                        : "bg-slate-200"
+                      step > currentStep.id ? "bg-primary" : "bg-border"
                     }`}
                   />
                 )}
@@ -609,22 +582,24 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         <Card
           bordered
           padding="p-4"
-          className="flex items-center gap-3 bg-slate-50/50"
+          className="flex items-center gap-3 bg-surface-secondary/50"
         >
           <div
-            className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-sm font-bold text-white ${
-              formData.selectedColor || COLORS[0]
-            }`}
-            aria-hidden="true"
+            className={`
+              grid h-12 w-12 shrink-0 place-items-center
+              rounded-xl text-sm font-bold text-text-inverse
+              ${formData.selectedColor || COLORS[0]}
+            `}
+            aria-hidden
           >
             {previewInitials}
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-slate-900">
+            <div className="truncate text-sm font-bold text-text">
               {formData.companyName || "Unnamed client"}
             </div>
-            <div className="truncate text-[11.5px] text-slate-500">
+            <div className="truncate text-[11.5px] text-text-muted">
               {formData.contactEmail || "No email"} ·{" "}
               {formData.selectedTier || TIERS[0]}
             </div>
@@ -637,10 +612,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         {step === 1 && (
           <div className="space-y-6">
             <section aria-labelledby="company-section">
-              <h4
-                id="company-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="company-section" className={sectionTitleClass}>
                 Company
               </h4>
 
@@ -665,17 +637,14 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   />
 
                   <div>
-                    <label
-                      htmlFor="client-industry"
-                      className="mb-1.5 block text-[11.5px] font-semibold text-slate-600"
-                    >
+                    <label htmlFor="client-industry" className={labelClass}>
                       Industry
                     </label>
                     <select
                       id="client-industry"
                       value={formData.industry}
                       onChange={(e) => updateForm("industry", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                      className={selectClassName}
                     >
                       {INDUSTRIES.map((industry) => (
                         <option key={industry} value={industry}>
@@ -687,10 +656,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11.5px] font-semibold text-slate-600">
-                    Account Tier
-                  </label>
-
+                  <label className={labelClass}>Account Tier</label>
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     {TIERS.map((tier) => {
                       const selected = formData.selectedTier === tier;
@@ -701,11 +667,16 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                           type="button"
                           aria-pressed={selected}
                           onClick={() => updateForm("selectedTier", tier)}
-                          className={`rounded-lg border-2 px-3 py-2.5 text-[12.5px] font-bold transition ${
-                            selected
-                              ? "border-rose-200 bg-rose-50 text-rose-700"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                          }`}
+                          className={`
+                            rounded-lg border-2 px-3 py-2.5
+                            text-[12.5px] font-bold
+                            transition-colors duration-fast
+                            ${
+                              selected
+                                ? "border-primary/30 bg-primary-soft text-primary-dark"
+                                : "border-border bg-surface text-text-secondary hover:border-border-dark"
+                            }
+                          `}
                         >
                           {tier}
                         </button>
@@ -718,12 +689,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
             <section
               aria-labelledby="contact-section"
-              className="border-t border-slate-100 pt-5"
+              className="border-t border-border-light pt-5"
             >
-              <h4
-                id="contact-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="contact-section" className={sectionTitleClass}>
                 Primary Contact
               </h4>
 
@@ -735,7 +703,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   onChange={(e) => updateForm("contactName", e.target.value)}
                   placeholder="Sarah Jenkins"
                 />
-
                 <FormInput
                   label="Phone"
                   icon="phone"
@@ -752,7 +719,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   icon="mail"
                   type="email"
                   value={formData.contactEmail}
-                  onChange={(e) => updateForm("contactEmail", e.target.value)}
+                  onChange={(e) =>
+                    updateForm("contactEmail", e.target.value)
+                  }
                   placeholder="billing@company.com"
                   required
                 />
@@ -761,12 +730,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
             <section
               aria-labelledby="color-section"
-              className="border-t border-slate-100 pt-5"
+              className="border-t border-border-light pt-5"
             >
-              <label className="mb-2 block text-[11.5px] font-semibold text-slate-600">
-                Color Tag
-              </label>
-
+              <label className={labelClass}>Color Tag</label>
               <div className="flex flex-wrap gap-2">
                 {COLORS.map((color) => {
                   const selected = formData.selectedColor === color;
@@ -778,11 +744,16 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                       aria-label={`Select ${color.replace("bg-", "")} color`}
                       aria-pressed={selected}
                       onClick={() => updateForm("selectedColor", color)}
-                      className={`h-9 w-9 rounded-lg transition hover:scale-105 ${
-                        selected
-                          ? "scale-110 ring-2 ring-slate-900 ring-offset-2"
-                          : ""
-                      } ${color}`}
+                      className={`
+                        h-9 w-9 rounded-lg
+                        transition-transform duration-fast hover:scale-105
+                        ${
+                          selected
+                            ? "scale-110 ring-2 ring-text ring-offset-2"
+                            : ""
+                        }
+                        ${color}
+                      `}
                     />
                   );
                 })}
@@ -795,10 +766,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         {step === 2 && (
           <div className="space-y-5">
             <section aria-labelledby="billing-section">
-              <h4
-                id="billing-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="billing-section" className={sectionTitleClass}>
                 Billing Address
               </h4>
 
@@ -819,7 +787,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                     onChange={(e) => updateForm("city", e.target.value)}
                     autoComplete="address-level2"
                   />
-
                   <FormInput
                     label="State / Region"
                     value={formData.stateRegion}
@@ -828,7 +795,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                     }
                     autoComplete="address-level1"
                   />
-
                   <FormInput
                     label="Postal Code"
                     value={formData.postalCode}
@@ -842,10 +808,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label
-                      htmlFor="client-country"
-                      className="mb-1.5 block text-[11.5px] font-semibold text-slate-600"
-                    >
+                    <label htmlFor="client-country" className={labelClass}>
                       Country
                     </label>
                     <select
@@ -853,7 +816,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                       value={formData.country}
                       onChange={(e) => updateForm("country", e.target.value)}
                       autoComplete="country-name"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                      className={selectClassName}
                     >
                       {COUNTRIES.map((country) => (
                         <option key={country} value={country}>
@@ -875,12 +838,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
             <section
               aria-labelledby="payment-section"
-              className="border-t border-slate-100 pt-5"
+              className="border-t border-border-light pt-5"
             >
-              <h4
-                id="payment-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="payment-section" className={sectionTitleClass}>
                 Payment
               </h4>
 
@@ -892,7 +852,6 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   options={CURRENCIES}
                   onChange={(value) => updateForm("currency", value)}
                 />
-
                 <SelectField
                   id="client-payment-terms"
                   label="Payment terms"
@@ -903,13 +862,13 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
               </div>
 
               <div>
-                <label className="mb-2 block text-[11.5px] font-semibold text-slate-600">
+                <label className={labelClass}>
                   Preferred payment method
                 </label>
-
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   {PAYMENT_METHODS.map((method) => {
-                    const selected = formData.paymentMethod === method.value;
+                    const selected =
+                      formData.paymentMethod === method.value;
 
                     return (
                       <button
@@ -919,23 +878,28 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                         onClick={() =>
                           updateForm("paymentMethod", method.value)
                         }
-                        className={`flex flex-col items-center rounded-lg border-2 p-3 transition-all ${
-                          selected
-                            ? "scale-[1.02] border-teal-500 bg-teal-50 ring-2 ring-teal-100"
-                            : "border-slate-200 bg-white hover:border-teal-300"
-                        }`}
+                        className={`
+                          flex flex-col items-center rounded-lg border-2 p-3
+                          transition-all duration-fast
+                          ${
+                            selected
+                              ? "scale-[1.02] border-primary bg-primary-soft ring-2 ring-primary/15"
+                              : "border-border bg-surface hover:border-primary/40"
+                          }
+                        `}
                       >
                         <span
                           className={`material-symbols-outlined mb-1 ${
-                            selected ? "text-teal-600" : "text-slate-400"
+                            selected ? "text-primary" : "text-text-light"
                           }`}
                         >
                           {method.icon}
                         </span>
-
                         <span
                           className={`text-[11.5px] font-bold ${
-                            selected ? "text-teal-700" : "text-slate-700"
+                            selected
+                              ? "text-primary-dark"
+                              : "text-text-secondary"
                           }`}
                         >
                           {method.label}
@@ -953,10 +917,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
         {step === 3 && (
           <section className="space-y-5">
             <section aria-labelledby="automation-section">
-              <h4
-                id="automation-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="automation-section" className={sectionTitleClass}>
                 Automation
               </h4>
 
@@ -967,20 +928,23 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   return (
                     <div
                       key={item.key}
-                      className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50 p-3"
+                      className="
+                        flex items-center justify-between gap-4
+                        rounded-lg border border-border-light
+                        bg-surface-secondary p-3
+                      "
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal-100 text-teal-600">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
                           <span className="material-symbols-outlined text-[18px]">
                             {item.icon}
                           </span>
                         </div>
-
                         <div className="min-w-0">
-                          <div className="text-[13px] font-bold text-slate-900">
+                          <div className="text-[13px] font-bold text-text">
                             {item.title}
                           </div>
-                          <div className="leading-tight text-[11.5px] text-slate-500">
+                          <div className="leading-tight text-[11.5px] text-text-muted">
                             {item.description}
                           </div>
                         </div>
@@ -992,15 +956,19 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                         aria-checked={enabled}
                         aria-label={`Toggle ${item.title}`}
                         onClick={() => updateAutomation(item.key)}
-                        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-                          enabled ? "bg-teal-600" : "bg-slate-300"
-                        }`}
+                        className={`
+                          relative h-6 w-11 shrink-0 rounded-full
+                          transition-colors duration-fast
+                          ${enabled ? "bg-primary" : "bg-border-dark"}
+                        `}
                       >
                         <span
-                          aria-hidden="true"
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                            enabled ? "right-0.5" : "left-0.5"
-                          }`}
+                          aria-hidden
+                          className={`
+                            absolute top-0.5 h-5 w-5 rounded-full
+                            bg-surface shadow-sm transition-all duration-fast
+                            ${enabled ? "right-0.5" : "left-0.5"}
+                          `}
                         />
                       </button>
                     </div>
@@ -1011,33 +979,33 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
             <section
               aria-labelledby="tags-notes-section"
-              className="border-t border-slate-100 pt-5"
+              className="border-t border-border-light pt-5"
             >
-              <h4
-                id="tags-notes-section"
-                className="mb-3 text-[11.5px] font-bold uppercase tracking-widest text-slate-600"
-              >
+              <h4 id="tags-notes-section" className={sectionTitleClass}>
                 Tags & Notes
               </h4>
 
               <div className="mb-4">
-                <label className="mb-2 block text-[11.5px] font-semibold text-slate-600">
-                  Tags
-                </label>
-
+                <label className={labelClass}>Tags</label>
                 <div className="flex flex-wrap gap-2">
                   {normalizeTags(formData.selectedTags).map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-[11.5px] font-bold text-teal-700"
+                      className="
+                        inline-flex items-center gap-1
+                        rounded-full bg-primary-soft
+                        px-2.5 py-1 text-[11.5px] font-bold text-primary-dark
+                      "
                     >
                       {tag}
-
                       <button
                         type="button"
                         onClick={() => removeTag(tag)}
                         aria-label={`Remove ${tag}`}
-                        className="rounded-full hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                        className="
+                          rounded-full hover:text-primary
+                          focus:outline-none focus:ring-2 focus:ring-primary/25
+                        "
                       >
                         <span className="material-symbols-outlined text-[12px]">
                           close
@@ -1047,13 +1015,20 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   ))}
 
                   {AVAILABLE_TAGS.filter(
-                    (tag) => !normalizeTags(formData.selectedTags).includes(tag)
+                    (tag) =>
+                      !normalizeTags(formData.selectedTags).includes(tag)
                   ).map((tag) => (
                     <button
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
-                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2.5 py-1 text-[11.5px] font-bold text-slate-500 transition hover:border-teal-300 hover:text-teal-600"
+                      className="
+                        inline-flex items-center gap-1
+                        rounded-full border border-dashed border-border
+                        px-2.5 py-1 text-[11.5px] font-bold text-text-muted
+                        transition-colors duration-fast
+                        hover:border-primary/40 hover:text-primary
+                      "
                     >
                       <span className="material-symbols-outlined text-[11px]">
                         add
@@ -1065,13 +1040,9 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
               </div>
 
               <div>
-                <label
-                  htmlFor="client-notes"
-                  className="mb-1.5 block text-[11.5px] font-semibold text-slate-600"
-                >
+                <label htmlFor="client-notes" className={labelClass}>
                   Internal notes
                 </label>
-
                 <textarea
                   id="client-notes"
                   rows={4}
@@ -1079,10 +1050,15 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
                   value={formData.notes}
                   onChange={(e) => updateForm("notes", e.target.value)}
                   placeholder="Add internal notes about this client..."
-                  className="w-full resize-none rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15"
+                  className="
+                    w-full resize-none rounded-lg
+                    border border-border px-3.5 py-2.5 text-sm
+                    bg-[var(--input-background)] text-text
+                    outline-none transition-colors duration-fast
+                    focus:border-primary focus:ring-2 focus:ring-primary/15
+                  "
                 />
-
-                <div className="mt-1 text-right text-[10px] text-slate-400">
+                <div className="mt-1 text-right text-[10px] text-text-light">
                   {formData.notes.length}/2000
                 </div>
               </div>
@@ -1093,29 +1069,5 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
     </RightDrawer>
   );
 };
-
-const SelectField = ({ id, label, value, options, onChange }) => (
-  <div>
-    <label
-      htmlFor={id}
-      className="mb-1.5 block text-[11.5px] font-semibold text-slate-600"
-    >
-      {label}
-    </label>
-
-    <select
-      id={id}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-    >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  </div>
-);
 
 export default ClientFormDrawer;

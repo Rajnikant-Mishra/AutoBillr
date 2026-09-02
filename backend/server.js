@@ -1,11 +1,18 @@
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
 
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const clientRoutes = require("./src/routes/clientRoutes");
 const projectRoutes = require("./src/routes/projectRoutes");
 const invoiceRoutes = require("./src/routes/invoiceRoutes");
+const dashboardRoutes = require("./src/routes/dashboardRoutes");
+const emailVerificationRoutes = require("./src/routes/emailVerificationRoutes");
+
+const {
+  initEmailVerificationSocket,
+} = require("./src/websocket/emailVerificationSocket");
 
 const app = express();
 
@@ -34,6 +41,14 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/clients", clientRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+
+app.use(
+  "/api/v1/email-verification",
+  emailVerificationRoutes
+);
+
+
 // =====================================================
 // HEALTH CHECK
 // =====================================================
@@ -46,11 +61,15 @@ app.get("/", (req, res) => {
 });
 
 // =====================================================
-// 404 HANDLER
+// 404
 // =====================================================
 
 app.use((req, res) => {
-  console.log("404 ROUTE:", req.method, req.originalUrl);
+  console.log(
+    "404 ROUTE:",
+    req.method,
+    req.originalUrl
+  );
 
   res.status(404).json({
     success: false,
@@ -60,7 +79,7 @@ app.use((req, res) => {
 });
 
 // =====================================================
-// ERROR HANDLER
+// ERROR
 // =====================================================
 
 app.use((err, req, res, next) => {
@@ -74,11 +93,27 @@ app.use((err, req, res, next) => {
 });
 
 // =====================================================
-// START SERVER
+// HTTP SERVER
 // =====================================================
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+initEmailVerificationSocket(server);
+
+// =====================================================
+// START
+// =====================================================
+
+server.listen(PORT, () => {
   console.log(
     `AutoBillr backend running on http://localhost:${PORT}`
+  );
+
+  console.log(
+    `Email verification WebSocket running on ws://localhost:${PORT}/ws/email-verification`
   );
 });

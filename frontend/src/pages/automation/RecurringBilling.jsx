@@ -5,6 +5,7 @@ import SchedulePreview from "../../components/automation/SchedulePreview";
 import Badge from "../../components/ui/Badge";
 import SectionHeader from "../../components/ui/SectionHeader";
 import useCurrency from "../../hooks/useCurrency";
+
 export default function RecurringBilling() {
   const [previewData, setPreviewData] = useState({
     frequency: "Quarterly",
@@ -24,20 +25,12 @@ export default function RecurringBilling() {
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <Badge
-              label="Active Engines"
-              variant="active"
-            />
-
-            <div className="text-xl font-black text-slate-900">
-              142
-            </div>
+            <Badge label="Active Engines" variant="active" />
+            <div className="text-xl font-black text-text">142</div>
           </div>
 
-          <div className="w-11 h-11 rounded-xl bg-teal-50 text-teal-600 grid place-items-center">
-            <span className="material-symbols-outlined">
-              bolt
-            </span>
+          <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary grid place-items-center">
+            <span className="material-symbols-outlined">bolt</span>
           </div>
         </div>
       </div>
@@ -51,9 +44,7 @@ export default function RecurringBilling() {
         </div>
 
         <div className="lg:col-span-5">
-          <SchedulePreview
-            previewData={previewData}
-          />
+          <SchedulePreview previewData={previewData} />
         </div>
       </div>
 
