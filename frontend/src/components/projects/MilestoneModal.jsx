@@ -1,3 +1,5 @@
+// src/components/.../MilestoneModal.jsx
+
 import Modal from "../ui/Modal";
 import FormInput from "../ui/FormInput";
 import Button from "../ui/Button";
@@ -7,11 +9,9 @@ import {
 } from "../ui/CustomToast";
 import { getAuthToken } from "../../utils/auth";
 
-const API_BASE =
-  (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(
-    /\/$/,
-    ""
-  );
+const API_BASE = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+).replace(/\/$/, "");
 
 export default function MilestoneModal({
   isOpen,
@@ -22,9 +22,7 @@ export default function MilestoneModal({
   onSave,
   projectId,
 }) {
-  if (!milestone) {
-    return null;
-  }
+  if (!milestone) return null;
 
   const isEditing = Boolean(milestone?.id);
   const actualProjectId = projectId || project?.id;
@@ -32,7 +30,6 @@ export default function MilestoneModal({
   const formatDateForInput = (date) => {
     if (!date) return "";
 
-    // Already YYYY-MM-DD
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return date;
     }
@@ -48,9 +45,7 @@ export default function MilestoneModal({
   };
 
   const handleSave = async () => {
-    // -------------------------------------------------
-    // VALIDATION
-    // -------------------------------------------------
+    
     if (!milestone.title?.trim()) {
       showErrorToast("Milestone name is required");
       return;
@@ -71,20 +66,15 @@ export default function MilestoneModal({
       return;
     }
 
-    // -------------------------------------------------
-    // AUTH
-    // -------------------------------------------------
+    // Auth
     const token = getAuthToken();
     if (!token) {
       showErrorToast("Authentication required");
       return;
     }
 
-    // -------------------------------------------------
     // URL
-    // -------------------------------------------------
     let url;
-
     if (isEditing) {
       if (!milestone.id) {
         showErrorToast("Milestone ID is missing");
@@ -95,9 +85,7 @@ export default function MilestoneModal({
       url = `${API_BASE}/projects/${actualProjectId}/milestones`;
     }
 
-    // -------------------------------------------------
-    // PAYLOAD
-    // -------------------------------------------------
+    // Payload
     const payload = {
       title: milestone.title.trim(),
       amount: Number(milestone.amount),
@@ -115,9 +103,6 @@ export default function MilestoneModal({
         body: JSON.stringify(payload),
       });
 
-      // -------------------------------------------------
-      // SAFE JSON RESPONSE
-      // -------------------------------------------------
       const contentType = response.headers.get("content-type");
       let data = {};
 
@@ -130,9 +115,6 @@ export default function MilestoneModal({
         );
       }
 
-      // -------------------------------------------------
-      // ERROR
-      // -------------------------------------------------
       if (!response.ok) {
         throw new Error(
           data?.message ||
@@ -140,9 +122,6 @@ export default function MilestoneModal({
         );
       }
 
-      // -------------------------------------------------
-      // SUCCESS
-      // -------------------------------------------------
       showSuccessToast(
         isEditing
           ? "Milestone updated successfully"
@@ -165,7 +144,7 @@ export default function MilestoneModal({
       position="right-modal"
     >
       <div className="space-y-5">
-        {/* ROW 1 */}
+        {/* Row 1 */}
         <div className="grid grid-cols-2 gap-3">
           <FormInput
             label="Milestone Name"
@@ -189,14 +168,13 @@ export default function MilestoneModal({
             onChange={(e) =>
               setMilestone({
                 ...milestone,
-                amount:
-                  e.target.value === "" ? "" : Number(e.target.value),
+                amount: e.target.value === "" ? "" : Number(e.target.value),
               })
             }
           />
         </div>
 
-        {/* ROW 2 */}
+        {/* Row 2 */}
         <div className="grid grid-cols-2 gap-3">
           <FormInput
             label="Due Date"
@@ -212,7 +190,7 @@ export default function MilestoneModal({
           />
 
           <div>
-            <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
               Status
             </label>
 
@@ -224,7 +202,17 @@ export default function MilestoneModal({
                   status: e.target.value,
                 })
               }
-              className="w-full h-[42px] px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              className="
+                w-full h-[42px] px-3
+                bg-[var(--input-background)]
+                border border-border
+                rounded-lg
+                text-sm text-text
+                focus:outline-none
+                focus:ring-2 focus:ring-primary/20
+                focus:border-primary
+                transition-colors duration-fast
+              "
             >
               <option value="scheduled">Scheduled</option>
               <option value="pending">Pending</option>
@@ -233,8 +221,8 @@ export default function MilestoneModal({
           </div>
         </div>
 
-        {/* FOOTER */}
-        <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+        {/* Footer */}
+        <div className="flex justify-end gap-2 pt-4 border-t border-border-light">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

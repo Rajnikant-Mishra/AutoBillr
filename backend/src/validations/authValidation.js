@@ -1,82 +1,132 @@
-const { z } = require("zod");
+const Joi = require("joi");
 
-const registerSchema = z
-  .object({
-    firstName: z
-      .string()
-      .trim()
-      .min(2, "First name must be at least 2 characters")
-      .max(50),
+const registerSchema = Joi.object({
+  firstName: Joi.string()
+    .trim()
+    .min(2)
+    .max(50)
+    .required()
+    .messages({
+      "string.empty": "First name is required",
+      "string.min": "First name must be at least 2 characters",
+      "any.required": "First name is required",
+    }),
 
-    lastName: z
-      .string()
-      .trim()
-      .min(2, "Last name must be at least 2 characters")
-      .max(50),
+  lastName: Joi.string()
+    .trim()
+    .min(2)
+    .max(50)
+    .required()
+    .messages({
+      "string.empty": "Last name is required",
+      "string.min": "Last name must be at least 2 characters",
+      "any.required": "Last name is required",
+    }),
 
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email("Invalid email address")
-      .max(254),
+  email: Joi.string()
+    .trim()
+    .lowercase()
+    .email()
+    .max(254)
+    .required()
+    .messages({
+      "string.empty": "Email is required",
+      "string.email": "Please enter a valid email address",
+      "any.required": "Email is required",
+    }),
 
-    password: z
-      .string()
-      .min(12, "Password must be at least 12 characters")
-      .max(128),
+  password: Joi.string()
+    .min(12)
+    .max(128)
+    .required()
+    .messages({
+      "string.empty": "Password is required",
+      "string.min": "Password must be at least 12 characters",
+      "string.max": "Password is too long",
+      "any.required": "Password is required",
+    }),
 
-    companyName: z
-      .string()
-      .trim()
-      .min(2, "Company name is required")
-      .max(150),
+  companyName: Joi.string()
+    .trim()
+    .min(2)
+    .max(150)
+    .required()
+    .messages({
+      "string.empty": "Company name is required",
+      "string.min": "Company name must be at least 2 characters",
+      "any.required": "Company name is required",
+    }),
 
-    companySize: z.enum([
-      "1-10",
-      "11-50",
-      "51-200",
-      "201-500",
-      "501-1000",
-      "1000+",
-    ]),
-
-    industry: z
-      .string()
-      .trim()
-      .min(2)
-      .max(100),
-
-    role: z.enum([
+  role: Joi.string()
+    .valid(
       "Owner",
       "CFO / VP Finance",
       "Controller",
       "Finance Manager",
-      "Other",
-    ]),
+      "Other"
+    )
+    .default("Owner"),
 
-    plan: z.enum([
-      "starter",
-      "professional",
-      "enterprise",
-    ]),
-  })
-  .strict();
+  companySize: Joi.string()
+    .valid(
+      "1-10",
+      "11-50",
+      "51-250",
+      "251-1000",
+      "1000+"
+    )
+    .default("1-10"),
 
-const loginSchema = z
-  .object({
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email(),
+    industry: Joi.string()
+    .valid(
+      "SaaS / Software",
+      "Agency / Consulting",
+      "Professional Services",
+      "E-commerce",
+      "Finance & Banking",
+      "Healthcare",
+      "Other"
+    )
+    .default("SaaS / Software"),
 
-    password: z
-      .string()
-      .min(1)
-      .max(128),
-  })
-  .strict();
+    planId: Joi.string()
+    .valid("starter", "professional", "enterprise")
+    .required()
+    .messages({
+      "string.empty": "Subscription plan is required",
+      "any.only": "Invalid subscription plan",
+      "any.required": "Subscription plan is required",
+    }),
+}).options({
+  abortEarly: false,
+  stripUnknown: true,
+});
+
+
+
+const loginSchema = Joi.object({
+  email: Joi.string()
+    .trim()
+    .lowercase()
+    .email()
+    .max(254)
+    .required()
+    .messages({
+      "string.empty": "Email is required",
+      "string.email": "Please enter a valid email address",
+      "any.required": "Email is required",
+    }),
+
+  password: Joi.string()
+    .required()
+    .messages({
+      "string.empty": "Password is required",
+      "any.required": "Password is required",
+    }),
+}).options({
+  abortEarly: false,
+  stripUnknown: true,
+});
 
 module.exports = {
   registerSchema,

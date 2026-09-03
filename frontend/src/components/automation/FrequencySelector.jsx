@@ -27,35 +27,45 @@ export default function FrequencySelector({
 
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-3">
+      <label className="block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-3">
         Billing Frequency
       </label>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3" role="radiogroup" aria-label="Billing frequency">
         {options(currencySymbol).map((option) => {
           const active = option.label === value;
 
           return (
             <button
               key={option.label}
+              type="button"
+              role="radio"
+              aria-checked={active}
               onClick={() => onChange?.(option.label)}
-              className={`p-4 rounded-xl border-2 transition ${
-                active
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-slate-200 hover:border-teal-300"
-              }`}
+              className={`
+                p-4 rounded-xl border-2
+                transition-colors duration-fast
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25
+                ${
+                  active
+                    ? "border-primary bg-primary-soft"
+                    : "border-border hover:border-primary/40"
+                }
+              `}
             >
               <div
                 className={`text-xs font-bold ${
-                  active
-                    ? "text-teal-700"
-                    : "text-slate-700"
+                  active ? "text-primary-dark" : "text-text-secondary"
                 }`}
               >
                 {option.label}
               </div>
 
-              <div className="text-[10px] mt-1">
+              <div
+                className={`text-[10px] mt-1 ${
+                  active ? "text-primary" : "text-text-muted"
+                }`}
+              >
                 {option.sub}
               </div>
             </button>

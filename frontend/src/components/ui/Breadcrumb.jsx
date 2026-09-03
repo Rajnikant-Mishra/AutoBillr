@@ -1,17 +1,23 @@
 import { Link, useLocation } from "react-router-dom";
 
-const routeNames = {
-  "/": "Dashboard",
+const ROUTE_NAMES = {
   "/dashboard": "Dashboard",
-  "/invoices": "Invoices",
-  "/invoice-composer": "Invoice Composer",
+  "/invoice": "Invoices",
+  "/composer": "Invoice Composer",
   "/clients": "Clients",
   "/projects": "Projects",
   "/analytics": "Analytics",
   "/settings": "Settings",
   "/team": "Team & Permissions",
   "/pricing": "Pricing",
+  "/automation": "Recurring Billing",
 };
+
+function formatSegment(value) {
+  return value
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function Breadcrumb() {
   const location = useLocation();
@@ -21,28 +27,30 @@ export default function Breadcrumb() {
     .filter(Boolean);
 
   return (
-    <nav className="flex items-center text-sm text-slate-500">
+    <nav
+      aria-label="Breadcrumb"
+      className="flex items-center text-sm text-slate-500"
+    >
       <Link
         to="/dashboard"
-        className="hover:text-teal-600 transition"
+        className="hover:text-primary transition-colors"
       >
         AutoBillr
       </Link>
 
       {pathnames.map((value, index) => {
         const currentPath =
-          "/" + pathnames.slice(0, index + 1).join("/");
+          "/" +
+          pathnames
+            .slice(0, index + 1)
+            .join("/");
 
         const isLast =
           index === pathnames.length - 1;
 
         const pageName =
-          routeNames[currentPath] ||
-          value
-            .replace(/-/g, " ")
-            .replace(/\b\w/g, (c) =>
-              c.toUpperCase()
-            );
+          ROUTE_NAMES[currentPath] ||
+          formatSegment(value);
 
         return (
           <div
@@ -50,20 +58,23 @@ export default function Breadcrumb() {
             className="flex items-center"
           >
             <span
-              className="material-symbols-outlined mx-1"
-              style={{ fontSize: "14px" }}
+              className="material-symbols-outlined mx-1 text-[14px]"
+              aria-hidden="true"
             >
               chevron_right
             </span>
 
             {isLast ? (
-              <span className="font-semibold text-slate-900">
+              <span
+                aria-current="page"
+                className="font-semibold text-slate-900"
+              >
                 {pageName}
               </span>
             ) : (
               <Link
                 to={currentPath}
-                className="hover:text-teal-600 transition"
+                className="hover:text-primary transition-colors"
               >
                 {pageName}
               </Link>

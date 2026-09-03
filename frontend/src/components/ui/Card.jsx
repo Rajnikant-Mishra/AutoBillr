@@ -1,5 +1,3 @@
-// components/ui/Card.jsx
-
 import React from "react";
 
 export default function Card({
@@ -12,37 +10,56 @@ export default function Card({
   hover = false,
   bordered = true,
   bgGradient = false,
+  onClick,
   ...props
 }) {
   return (
     <div
       {...props}
-      className={`
-        bg-white
-        rounded-xl
-        overflow-hidden
-        transition-all duration-300
-        shadow-sm
-        ${bordered ? "border border-slate-200/70" : ""}
-        ${hover ? "hover:shadow-xl hover:-translate-y-1" : ""}
-        ${
-          bgGradient
-            ? "bg-gradient-to-br from-teal-600 to-teal-700 text-white shadow-xl shadow-teal-600/20"
-            : ""
-        }
-        ${props.onClick ? "cursor-pointer" : ""}
-        ${padding}
-        ${className}
-      `}
+      onClick={onClick}
+      className={[
+        "bg-surface",
+        "rounded-xl",
+        "overflow-hidden",
+        "transition-all",
+        "duration-300",
+        "shadow-sm",
+
+        bordered
+          ? "border border-border"
+          : "",
+
+        hover
+          ? "hover:shadow-xl hover:-translate-y-1"
+          : "",
+
+        bgGradient
+          ? "bg-gradient-to-br from-primary to-primary-dark text-white shadow-xl shadow-primary/20"
+          : "",
+
+        onClick
+          ? "cursor-pointer"
+          : "",
+
+        padding,
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {(title || subtitle || action) && (
-        <div className="flex items-start justify-between mb-6">
-          <div>
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="min-w-0">
             {title && (
               <h3
-                className={`text-2xl font-bold tracking-tight ${
-                  bgGradient ? "text-white" : "text-slate-900"
-                }`}
+                className={[
+                  "text-xl",
+                  "font-bold",
+                  "tracking-tight",
+                  bgGradient
+                    ? "text-white"
+                    : "text-text",
+                ].join(" ")}
               >
                 {title}
               </h3>
@@ -50,16 +67,24 @@ export default function Card({
 
             {subtitle && (
               <p
-                className={`text-sm mt-1.5 ${
-                  bgGradient ? "text-white/80" : "text-slate-500"
-                }`}
+                className={[
+                  "text-sm",
+                  "mt-1.5",
+                  bgGradient
+                    ? "text-white/80"
+                    : "text-text-muted",
+                ].join(" ")}
               >
                 {subtitle}
               </p>
             )}
           </div>
 
-          {action && <div>{action}</div>}
+          {action && (
+            <div className="shrink-0">
+              {action}
+            </div>
+          )}
         </div>
       )}
 

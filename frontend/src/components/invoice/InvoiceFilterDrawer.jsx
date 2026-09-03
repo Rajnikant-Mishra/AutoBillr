@@ -3,6 +3,7 @@ import RightDrawer from "../layout/RightDrawer";
 import Button from "../ui/Button";
 import FormInput from "../ui/FormInput";
 import useCurrency from "../../hooks/useCurrency";
+
 const DEFAULT_FILTERS = {
   status: [],
   fromDate: "",
@@ -20,38 +21,41 @@ const STATUSES = [
   { label: "Scheduled", value: "scheduled" },
 ];
 
-function FilterCheckboxGroup({
-  title,
-  options,
-  selected = [],
-  onToggle,
-}) {
+function FilterCheckboxGroup({ title, options, selected = [], onToggle }) {
   return (
     <div>
-      <label className="block text-[11.5px] font-semibold text-slate-600 uppercase tracking-wider mb-2">
+      <label className="block text-[11.5px] font-semibold text-text-secondary uppercase tracking-wider mb-2">
         {title}
       </label>
 
       <div className="flex flex-wrap gap-2">
-        {options.map((item) => (
-          <label
-            key={item.value}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer text-[12.5px] font-medium transition-all border
-              ${
-                selected.includes(item.value)
-                  ? "bg-teal-50 text-teal-700 border-teal-200"
-                  : "bg-slate-100 hover:bg-teal-50 border-transparent"
-              }`}
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(item.value)}
-              onChange={() => onToggle(item.value)}
-              className="rounded"
-            />
-            {item.label}
-          </label>
-        ))}
+        {options.map((item) => {
+          const isActive = selected.includes(item.value);
+
+          return (
+            <label
+              key={item.value}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-lg
+                cursor-pointer text-[12.5px] font-medium
+                border transition-colors duration-fast
+                ${
+                  isActive
+                    ? "bg-primary-soft text-primary-dark border-primary/20"
+                    : "bg-surface-secondary text-text-secondary border-transparent hover:bg-surface-hover"
+                }
+              `}
+            >
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={() => onToggle(item.value)}
+                className="rounded accent-primary"
+              />
+              {item.label}
+            </label>
+          );
+        })}
       </div>
     </div>
   );
@@ -63,9 +67,10 @@ export default function InvoiceFilterDrawer({
   filters,
   setFilters,
   onApply,
-  onReset,           // ← Now properly supported
+  onReset,
 }) {
-  const { selectedCurrency, format } = useCurrency();
+  const { selectedCurrency } = useCurrency();
+
   const updateFilter = (key, value) => {
     setFilters((prev) => ({
       ...prev,
@@ -87,9 +92,9 @@ export default function InvoiceFilterDrawer({
 
   const handleReset = () => {
     if (onReset) {
-      onReset();                    // Use parent's reset
+      onReset();
     } else {
-      setFilters(DEFAULT_FILTERS);  // Fallback
+      setFilters(DEFAULT_FILTERS);
     }
   };
 
@@ -103,7 +108,6 @@ export default function InvoiceFilterDrawer({
       <Button variant="secondary" onClick={handleReset}>
         Reset
       </Button>
-
       <Button onClick={handleApply}>Apply Filters</Button>
     </div>
   );
@@ -128,61 +132,65 @@ export default function InvoiceFilterDrawer({
 
         {/* Date Range */}
         <div className="grid grid-cols-2 gap-3">
-         <FormInput
-  label={`Min Amount (${selectedCurrency?.code})`}
-  type="number"
-  value={filters.minAmount}
-  onChange={(e) =>
-    updateFilter(
-      "minAmount",
-      e.target.value.replace(/[^\d.]/g, "")
-    )
-  }
-/>
-
-<FormInput
-  label={`Max Amount (${selectedCurrency?.code})`}
-  type="number"
-  value={filters.maxAmount}
-  onChange={(e) =>
-    updateFilter("maxAmount", e.target.value)
-  }
-/>
+          <FormInput
+            label="From Date"
+            type="date"
+            value={filters.fromDate || ""}
+            onChange={(e) => updateFilter("fromDate", e.target.value)}
+          />
+          <FormInput
+            label="To Date"
+            type="date"
+            value={filters.toDate || ""}
+            onChange={(e) => updateFilter("toDate", e.target.value)}
+          />
         </div>
 
         {/* Amount Range */}
         <div className="grid grid-cols-2 gap-3">
           <FormInput
-            label="Min Amount"
+            label={`Min Amount (${selectedCurrency?.code || "USD"})`}
             type="number"
-            placeholder="$0"
+            placeholder="0"
             value={filters.minAmount}
             onChange={(e) =>
-  updateFilter(
-    "minAmount",
-    e.target.value.replace(/[^\d.]/g, "")
-  )
-}
+              updateFilter(
+                "minAmount",
+                e.target.value.replace(/[^\d.]/g, "")
+              )
+            }
           />
-
           <FormInput
-            label="Max Amount"
+            label={`Max Amount (${selectedCurrency?.code || "USD"})`}
             type="number"
-            placeholder="$1,000,000"
+            placeholder="1000000"
             value={filters.maxAmount}
-            onChange={(e) => updateFilter("maxAmount", e.target.value)}
+            onChange={(e) =>
+              updateFilter(
+                "maxAmount",
+                e.target.value.replace(/[^\d.]/g, "")
+              )
+            }
           />
         </div>
 
         {/* Currency */}
         <div>
-          <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
+          <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
             Currency
           </label>
           <select
             value={filters.currency || "All"}
             onChange={(e) => updateFilter("currency", e.target.value)}
-            className="w-full h-11 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="
+              w-full h-11 px-3
+              border border-border rounded-lg text-sm
+              bg-[var(--input-background)] text-text
+              focus:outline-none
+              focus:ring-2 focus:ring-primary/20
+              focus:border-primary
+              transition-colors duration-fast
+            "
           >
             <option value="All">All</option>
             <option value="USD">USD</option>

@@ -1,48 +1,39 @@
-require("dotenv/config");
+require("dotenv").config();
 
-const { PrismaClient } = require("@prisma/client");
-const { PrismaPg } = require("@prisma/adapter-pg");
-
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const prisma = new PrismaClient({
-  adapter,
-});
+const prisma = require("../config/prisma");
 
 const plans = [
   {
     id: "starter",
     name: "Starter",
-    price: 29.00,
+    price: 49.0,
     currency: "USD",
     interval: "month",
-    description: "For small businesses getting started",
+    description: "Up to 100 invoices/mo",
     isActive: true,
   },
   {
     id: "professional",
     name: "Professional",
-    price: 79.00,
+    price: 199.0,
     currency: "USD",
     interval: "month",
-    description: "For growing businesses",
+    description: "Unlimited invoices",
     isActive: true,
   },
   {
-    id: "business",
-    name: "Business",
-    price: 149.00,
+    id: "enterprise",
+    name: "Enterprise",
+    price: 0.0,
     currency: "USD",
     interval: "month",
-    description: "For established businesses",
+    description: "Everything + SSO + SLA",
     isActive: true,
   },
 ];
 
 async function main() {
-  console.log("🌱 Starting database seed...");
+  console.log("🌱 Seeding subscription plans...");
 
   for (const plan of plans) {
     await prisma.plan.upsert({
@@ -61,15 +52,23 @@ async function main() {
     });
   }
 
-  console.log("✅ Plans seeded successfully");
+  console.log("✅ Subscription plans seeded successfully");
 
-  const allPlans = await prisma.plan.findMany({
+  const savedPlans = await prisma.plan.findMany({
     orderBy: {
       price: "asc",
     },
   });
 
-  console.table(allPlans);
+  console.table(
+    savedPlans.map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      price: plan.price.toString(),
+      currency: plan.currency,
+      active: plan.isActive,
+    }))
+  );
 }
 
 main()

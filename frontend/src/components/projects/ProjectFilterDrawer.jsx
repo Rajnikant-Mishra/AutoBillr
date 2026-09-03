@@ -14,22 +14,16 @@ const PROJECT_STATUSES = [
 export const DEFAULT_PROJECT_FILTERS = {
   projectStatus: [],
   milestoneStatus: [],
-  budgetRange: [0,0],
+  budgetRange: [0, 0],
   minBilled: "",
   maxBilled: "",
   sortBy: "newest",
 };
 
-function BadgeSelector({
-  title,
-  options,
-  selected = [],
-  onToggle,
-   counts = {},
-}) {
+function BadgeSelector({ title, options, selected = [], onToggle, counts = {} }) {
   return (
     <div>
-      <label className="block mb-2 text-[11px] font-semibold uppercase text-slate-600">
+      <label className="block mb-2 text-[11px] font-semibold uppercase text-text-secondary">
         {title}
       </label>
 
@@ -42,21 +36,30 @@ function BadgeSelector({
               key={value}
               type="button"
               onClick={() => onToggle(value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
-                isActive
-                  ? "bg-teal-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={`
+                px-3 py-1.5 rounded-full text-xs font-semibold
+                transition-colors duration-fast
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25
+                ${
+                  isActive
+                    ? "bg-primary text-text-inverse"
+                    : "bg-surface-secondary text-text-secondary hover:bg-surface-hover"
+                }
+              `}
             >
-              {label} <span
-    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-      isActive
-        ? "bg-white/20 text-white"
-        : "bg-white text-slate-700"
-    }`}
-  >
-    {counts[value] || 0}
-  </span>
+              {label}{" "}
+              <span
+                className={`
+                  px-2 py-0.5 rounded-full text-[10px] font-bold
+                  ${
+                    isActive
+                      ? "bg-white/20 text-text-inverse"
+                      : "bg-surface text-text-secondary"
+                  }
+                `}
+              >
+                {counts[value] || 0}
+              </span>
             </button>
           );
         })}
@@ -74,10 +77,8 @@ export default function ProjectFilterDrawer({
   maxBudgetAvailable,
   statusCounts = {},
 }) {
-const {
-  format,
-  selectedCurrency,
-} = useCurrency();
+  const { format, selectedCurrency } = useCurrency();
+
   const budgetRange = filters.budgetRange ?? [
     minBudgetAvailable,
     maxBudgetAvailable,
@@ -104,31 +105,22 @@ const {
   };
 
   const resetFilters = () => {
-  setFilters({
-    projectStatus: [],
-    milestoneStatus: [],
-    budgetRange: [
-      minBudgetAvailable,
-      maxBudgetAvailable,
-    ],
-    minBilled: "",
-    maxBilled: "",
-    sortBy: "newest",
-  });
-};
+    setFilters({
+      projectStatus: [],
+      milestoneStatus: [],
+      budgetRange: [minBudgetAvailable, maxBudgetAvailable],
+      minBilled: "",
+      maxBilled: "",
+      sortBy: "newest",
+    });
+  };
 
   const footer = (
     <div className="flex justify-end gap-2">
-      <Button
-        variant="secondary"
-        onClick={resetFilters}
-      >
+      <Button variant="secondary" onClick={resetFilters}>
         Reset
       </Button>
-
-      <Button onClick={onClose}>
-        Apply Filters
-      </Button>
+      <Button onClick={onClose}>Apply Filters</Button>
     </div>
   );
 
@@ -142,20 +134,17 @@ const {
       footer={footer}
     >
       <div className="space-y-6">
-
         <BadgeSelector
           title="Project Status"
           options={PROJECT_STATUSES}
           counts={statusCounts}
           selected={filters.projectStatus}
-          onToggle={(value) =>
-            toggleArrayFilter("projectStatus", value)
-          }
+          onToggle={(value) => toggleArrayFilter("projectStatus", value)}
         />
 
         {/* Budget Range */}
         <div>
-          <label className="block mb-2 text-[11px] font-semibold uppercase text-slate-600">
+          <label className="block mb-2 text-[11px] font-semibold uppercase text-text-secondary">
             Budget Range
           </label>
 
@@ -170,65 +159,57 @@ const {
                 Number(e.target.value),
               ])
             }
-            className="w-full accent-[var(--primary)]"
+            className="w-full accent-primary"
           />
 
-         <div className="mt-2 text-sm font-semibold text-teal-600">
-  {format(budgetRange[0])} - {format(budgetRange[1])}
-</div>
+          <div className="mt-2 text-sm font-semibold text-primary">
+            {format(budgetRange[0])} – {format(budgetRange[1])}
+          </div>
         </div>
 
         {/* Billed Range */}
         <div className="grid grid-cols-2 gap-3">
-         <FormInput
-  label={`Min Billed (${selectedCurrency?.code})`}
-  type="number"
-  value={filters.minBilled}
-  onChange={(e) =>
-    updateFilter("minBilled", e.target.value)
-  }
-/>
+          <FormInput
+            label={`Min Billed (${selectedCurrency?.code})`}
+            type="number"
+            value={filters.minBilled}
+            onChange={(e) => updateFilter("minBilled", e.target.value)}
+          />
 
-<FormInput
-  label={`Max Billed (${selectedCurrency?.code})`}
-  type="number"
-  value={filters.maxBilled}
-  onChange={(e) =>
-    updateFilter("maxBilled", e.target.value)
-  }
-/>
+          <FormInput
+            label={`Max Billed (${selectedCurrency?.code})`}
+            type="number"
+            value={filters.maxBilled}
+            onChange={(e) => updateFilter("maxBilled", e.target.value)}
+          />
         </div>
 
         {/* Sort */}
         <div>
-          <label className="block mb-2 text-[11px] font-semibold uppercase text-slate-600">
+          <label className="block mb-2 text-[11px] font-semibold uppercase text-text-secondary">
             Sort By
           </label>
 
           <select
             value={filters.sortBy}
-            onChange={(e) =>
-              updateFilter("sortBy", e.target.value)
-            }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            onChange={(e) => updateFilter("sortBy", e.target.value)}
+            className="
+              w-full rounded-lg
+              border border-border
+              bg-[var(--input-background)] text-text
+              px-3 py-2 text-sm
+              focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20
+              transition-colors duration-fast
+            "
           >
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
-            <option value="budgetHigh">
-              Budget High → Low
-            </option>
-            <option value="budgetLow">
-              Budget Low → High
-            </option>
-            <option value="progressHigh">
-              Progress High → Low
-            </option>
-            <option value="progressLow">
-              Progress Low → High
-            </option>
+            <option value="budgetHigh">Budget High → Low</option>
+            <option value="budgetLow">Budget Low → High</option>
+            <option value="progressHigh">Progress High → Low</option>
+            <option value="progressLow">Progress Low → High</option>
           </select>
         </div>
-
       </div>
     </RightDrawer>
   );

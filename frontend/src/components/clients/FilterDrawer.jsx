@@ -30,27 +30,18 @@ const BILLING_OPTIONS = Object.freeze([
   { label: "Annual", value: "Annual" },
 ]);
 
-/**
- * Creates a clean copy of the default filters.
- * Prevents accidental mutation of DEFAULT_FILTERS.
- */
 const createDefaultFilters = () => ({
   ...DEFAULT_FILTERS,
   status: [],
   billing: [],
 });
 
-/**
- * Removes everything except digits and a single decimal point.
- * Useful when validating numeric filter values.
- */
 const parseAmount = (value) => {
   if (value === "" || value === null || value === undefined) {
     return null;
   }
 
   const parsed = Number(value);
-
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 };
 
@@ -64,7 +55,7 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
 
   return (
     <fieldset>
-      <legend className="mb-2 block text-[11.5px] font-semibold uppercase tracking-wider text-slate-600">
+      <legend className="mb-2 block text-[11.5px] font-semibold uppercase tracking-wider text-text-secondary">
         {title}
       </legend>
 
@@ -80,21 +71,31 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
             <label
               key={value}
               htmlFor={id}
-              className={[
-                "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5",
-                "bg-slate-100 text-[12.5px] font-medium text-slate-700",
-                "transition-colors hover:bg-teal-50",
-                "focus-within:ring-2 focus-within:ring-teal-500/30",
-              ].join(" ")}
+              className={`
+                flex cursor-pointer items-center gap-2
+                rounded-lg px-3 py-1.5
+                text-[12.5px] font-medium
+                transition-colors duration-fast
+                focus-within:ring-2 focus-within:ring-primary/25
+                ${
+                  checked
+                    ? "bg-primary-soft text-primary-dark"
+                    : "bg-surface-secondary text-text-secondary hover:bg-surface-hover"
+                }
+              `}
             >
               <input
                 id={id}
                 type="checkbox"
                 checked={checked}
                 onChange={() => onToggle(value)}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                className="
+                  h-4 w-4 rounded
+                  border-border
+                  accent-primary
+                  focus:ring-primary
+                "
               />
-
               <span>{label}</span>
             </label>
           );
@@ -114,10 +115,6 @@ export default function FilterDrawer({
 }) {
   const { format } = useCurrency();
 
-  /**
-   * Safely normalize incoming filters.
-   * This prevents crashes if the parent passes an incomplete object.
-   */
   const currentFilters = useMemo(
     () => ({
       ...DEFAULT_FILTERS,
@@ -128,31 +125,15 @@ export default function FilterDrawer({
     [filters]
   );
 
-  /**
-   * Extract currency symbol from the current formatter.
-   *
-   * Example:
-   * "$0" -> "$"
-   * "₹0" -> "₹"
-   * "€0" -> "€"
-   */
   const currencySymbol = useMemo(() => {
     try {
       const formatted = format(0);
-
-      return (
-        formatted
-          ?.replace(/[\d.,\s\u00A0]/g, "")
-          .trim() || ""
-      );
+      return formatted?.replace(/[\d.,\s\u00A0]/g, "").trim() || "";
     } catch {
       return "";
     }
   }, [format]);
 
-  /**
-   * Generic filter updater.
-   */
   const updateFilter = useCallback(
     (key, value) => {
       if (typeof setFilters !== "function") return;
@@ -166,9 +147,6 @@ export default function FilterDrawer({
     [setFilters]
   );
 
-  /**
-   * Handles checkbox filters.
-   */
   const toggleArrayFilter = useCallback(
     (key, value) => {
       if (typeof setFilters !== "function") return;
@@ -192,47 +170,24 @@ export default function FilterDrawer({
     [setFilters]
   );
 
-  /**
-   * Reset all filters.
-   */
   const handleReset = useCallback(() => {
     if (typeof setFilters !== "function") return;
-
     setFilters(createDefaultFilters());
   }, [setFilters]);
 
-  /**
-   * Apply filters.
-   *
-   * Validation is performed before closing the drawer.
-   */
   const handleApply = useCallback(() => {
     const fromDate = currentFilters.fromDate;
     const toDate = currentFilters.toDate;
-
     const minAmount = parseAmount(currentFilters.minAmount);
     const maxAmount = parseAmount(currentFilters.maxAmount);
 
-    // Prevent invalid date range.
-    if (fromDate && toDate && fromDate > toDate) {
+    if (fromDate && toDate && fromDate > toDate) return;
+    if (minAmount !== null && maxAmount !== null && minAmount > maxAmount)
       return;
-    }
-
-    // Prevent invalid amount range.
-    if (
-      minAmount !== null &&
-      maxAmount !== null &&
-      minAmount > maxAmount
-    ) {
-      return;
-    }
 
     onClose?.();
   }, [currentFilters, onClose]);
 
-  /**
-   * Prevent selecting an invalid date range from the UI.
-   */
   const dateValidationMessage = useMemo(() => {
     if (
       currentFilters.fromDate &&
@@ -241,13 +196,9 @@ export default function FilterDrawer({
     ) {
       return "The start date cannot be later than the end date.";
     }
-
     return "";
   }, [currentFilters.fromDate, currentFilters.toDate]);
 
-  /**
-   * Amount validation.
-   */
   const amountValidationMessage = useMemo(() => {
     const min = parseAmount(currentFilters.minAmount);
     const max = parseAmount(currentFilters.maxAmount);
@@ -255,7 +206,6 @@ export default function FilterDrawer({
     if (min !== null && max !== null && min > max) {
       return "Minimum amount cannot be greater than maximum amount.";
     }
-
     return "";
   }, [currentFilters.minAmount, currentFilters.maxAmount]);
 
@@ -265,7 +215,6 @@ export default function FilterDrawer({
         <Button variant="secondary" onClick={handleReset}>
           Reset
         </Button>
-
         <Button
           onClick={handleApply}
           disabled={
@@ -294,31 +243,24 @@ export default function FilterDrawer({
       width="max-w-lg"
       footer={footer}
     >
-      <div
-        className="space-y-5"
-        aria-label="Filter options"
-      >
-        {/* STATUS */}
+      <div className="space-y-5" aria-label="Filter options">
+        {/* Status */}
         <FilterCheckboxGroup
           title="Status"
           options={STATUSES}
           selected={currentFilters.status}
-          onToggle={(value) =>
-            toggleArrayFilter("status", value)
-          }
+          onToggle={(value) => toggleArrayFilter("status", value)}
         />
 
-        {/* BILLING FREQUENCY */}
+        {/* Billing Frequency */}
         <FilterCheckboxGroup
           title="Billing Frequency"
           options={BILLING_OPTIONS}
           selected={currentFilters.billing}
-          onToggle={(value) =>
-            toggleArrayFilter("billing", value)
-          }
+          onToggle={(value) => toggleArrayFilter("billing", value)}
         />
 
-        {/* DATE RANGE */}
+        {/* Date Range */}
         <div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormInput
@@ -326,35 +268,27 @@ export default function FilterDrawer({
               type="date"
               value={currentFilters.fromDate}
               max={currentFilters.toDate || undefined}
-              onChange={(event) =>
-                updateFilter("fromDate", event.target.value)
-              }
+              onChange={(e) => updateFilter("fromDate", e.target.value)}
               aria-label="Filter from date"
             />
-
             <FormInput
               label="To"
               type="date"
               value={currentFilters.toDate}
               min={currentFilters.fromDate || undefined}
-              onChange={(event) =>
-                updateFilter("toDate", event.target.value)
-              }
+              onChange={(e) => updateFilter("toDate", e.target.value)}
               aria-label="Filter to date"
             />
           </div>
 
           {dateValidationMessage && (
-            <p
-              className="mt-2 text-xs font-medium text-red-600"
-              role="alert"
-            >
+            <p className="mt-2 text-xs font-medium text-danger" role="alert">
               {dateValidationMessage}
             </p>
           )}
         </div>
 
-        {/* AMOUNT RANGE */}
+        {/* Amount Range */}
         <div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormInput
@@ -364,12 +298,9 @@ export default function FilterDrawer({
               step="0.01"
               value={currentFilters.minAmount}
               placeholder={`${currencySymbol} 0`}
-              onChange={(event) =>
-                updateFilter("minAmount", event.target.value)
-              }
+              onChange={(e) => updateFilter("minAmount", e.target.value)}
               aria-label="Minimum amount"
             />
-
             <FormInput
               label="Max Amount"
               type="number"
@@ -377,18 +308,13 @@ export default function FilterDrawer({
               step="0.01"
               value={currentFilters.maxAmount}
               placeholder={`${currencySymbol} 100000`}
-              onChange={(event) =>
-                updateFilter("maxAmount", event.target.value)
-              }
+              onChange={(e) => updateFilter("maxAmount", e.target.value)}
               aria-label="Maximum amount"
             />
           </div>
 
           {amountValidationMessage && (
-            <p
-              className="mt-2 text-xs font-medium text-red-600"
-              role="alert"
-            >
+            <p className="mt-2 text-xs font-medium text-danger" role="alert">
               {amountValidationMessage}
             </p>
           )}

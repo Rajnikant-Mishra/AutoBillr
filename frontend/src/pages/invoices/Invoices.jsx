@@ -26,10 +26,12 @@ const normalizeStatus = (status) => {
 
 const getDisplayStatus = (status) => {
   if (!status) return "Draft";
-  return status.toString().trim().charAt(0).toUpperCase() + status.toString().trim().slice(1).toLowerCase();
+  return (
+    status.toString().trim().charAt(0).toUpperCase() +
+    status.toString().trim().slice(1).toLowerCase()
+  );
 };
 
-// Safe amount extractor
 const getInvoiceAmount = (invoice) => {
   const raw =
     invoice.total ??
@@ -42,37 +44,21 @@ const getInvoiceAmount = (invoice) => {
     : parseFloat(String(raw).replace(/,/g, "").replace(/[^\d.-]/g, "")) || 0;
 };
 
-const convertAmount = (amount, targetCurrency) => {
-  return amount; // Extend later with real conversion if needed
-};
-
 const getClientName = (client) => {
   if (!client) return "Unknown Client";
-
-  if (typeof client === "string") {
-    return `Client ID: ${client.slice(-6)}`;
-  }
-
+  if (typeof client === "string") return `Client ID: ${client.slice(-6)}`;
   return client.name || "Unknown Client";
 };
 
 const getClientEmail = (client) => {
   if (!client) return "No Email";
-
-  if (typeof client === "object") {
-    return client.email || "No Email";
-  }
-
+  if (typeof client === "object") return client.email || "No Email";
   return "No Email";
 };
 
 const getProjectTitle = (project) => {
   if (!project) return "—";
-
-  if (typeof project === "string") {
-    return `Project ID: ${project.slice(-6)}`;
-  }
-
+  if (typeof project === "string") return `Project ID: ${project.slice(-6)}`;
   return project.title || "—";
 };
 
@@ -81,7 +67,8 @@ const getProjectTitle = (project) => {
 export default function Invoices() {
   const navigate = useNavigate();
   const { format } = useCurrency();
-const { addNotification } = useNotificationStore();
+  const { addNotification } = useNotificationStore();
+
   const [activeFilter, setActiveFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [rowSelection, setRowSelection] = useState({});
@@ -103,7 +90,7 @@ const { addNotification } = useNotificationStore();
     pageSize: 10,
   });
 
-  // Counts with normalized status
+  // Counts
   const counts = useMemo(() => {
     const normalizedInvoices = invoices.map((inv) => ({
       ...inv,
@@ -123,7 +110,8 @@ const { addNotification } = useNotificationStore();
   useEffect(() => {
     fetchInvoices();
   }, []);
-useEffect(() => {
+
+  useEffect(() => {
     const handleInvoiceCreated = (e) => {
       fetchInvoices();
 
@@ -131,97 +119,88 @@ useEffect(() => {
       addNotification({
         type: "invoice",
         icon: "receipt_long",
-        iconColor: "text-teal-600",
-        bgColor: "bg-teal-50",
+        iconColor: "text-primary",
+        bgColor: "bg-primary-soft",
         title: `New Invoice Created #${invoice?.invoiceNumber || ""}`,
-        description: `${getClientName(invoice?.client)} • ${format(getInvoiceAmount(invoice))}`,
-        borderColor: "border-l-teal-500",
+        description: `${getClientName(invoice?.client)} • ${format(
+          getInvoiceAmount(invoice)
+        )}`,
+        borderColor: "border-l-primary",
       });
     };
 
     window.addEventListener("invoice-created", handleInvoiceCreated);
     return () => window.removeEventListener("invoice-created", handleInvoiceCreated);
   }, [addNotification, format]);
+
   const fetchInvoices = async () => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const token =
-      localStorage.getItem("autobiller-auth") ||
-      localStorage.getItem("token");
+      const token =
+        localStorage.getItem("autobiller-auth") ||
+        localStorage.getItem("token");
 
-    if (!token) {
-      showErrorToast("Session expired. Please login again.");
-      navigate("/login");
-      return;
-    }
-
-    const base = (
-      import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
-    ).replace(/\/$/, "");
-
-    const res = await axios.get(`${base}/invoices`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-
-    console.log("INVOICES API RESPONSE:", res.data);
-
-    // Support common shapes
-    const list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.invoices)
-      ? res.data.invoices
-      : Array.isArray(res.data?.data)
-      ? res.data.data
-      : [];
-
-    setInvoices(list);
-  } catch (error) {
-    console.error("Failed to fetch invoices:", error);
-
-    if (error.response) {
-      console.error("STATUS:", error.response.status);
-      console.error("DATA:", error.response.data);
-
-      if (error.response.status === 401) {
+      if (!token) {
         showErrorToast("Session expired. Please login again.");
         navigate("/login");
         return;
       }
-    }
 
-    showErrorToast(
-      error.response?.data?.message || "Failed to load invoices"
-    );
-    setInvoices([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      const base = (
+        import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+      ).replace(/\/$/, "");
+
+      const res = await axios.get(`${base}/invoices`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.invoices)
+        ? res.data.invoices
+        : Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
+
+      setInvoices(list);
+    } catch (error) {
+      console.error("Failed to fetch invoices:", error);
+
+      if (error.response?.status === 401) {
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
+
+      showErrorToast(
+        error.response?.data?.message || "Failed to load invoices"
+      );
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredData = useMemo(() => {
     return invoices.filter((invoice) => {
       const normStatus = normalizeStatus(invoice.status);
 
-      // Top Tabs Filter
       const matchesTab =
         activeFilter === "all" || normStatus === activeFilter;
 
-      // Search
       const searchTerm = search.toLowerCase();
       const matchesSearch =
         getClientName(invoice.client).toLowerCase().includes(searchTerm) ||
         invoice.invoiceNumber?.toLowerCase().includes(searchTerm);
 
-      // Drawer Status Filter
       const matchesStatus =
         invoiceFilters.status.length === 0 ||
         invoiceFilters.status.includes(normStatus);
 
-      // Date Filters
       let invoiceDate;
       try {
         invoiceDate = new Date(invoice.invoiceDate);
@@ -230,7 +209,8 @@ useEffect(() => {
       }
 
       const matchesFromDate =
-        !invoiceFilters.fromDate || invoiceDate >= new Date(invoiceFilters.fromDate);
+        !invoiceFilters.fromDate ||
+        invoiceDate >= new Date(invoiceFilters.fromDate);
 
       const endDate = invoiceFilters.toDate
         ? new Date(invoiceFilters.toDate)
@@ -239,34 +219,24 @@ useEffect(() => {
 
       const matchesToDate = !endDate || invoiceDate <= endDate;
 
-      // Amount Filters
-      // const baseAmount = getInvoiceAmount(invoice);
-      // const convertedAmount = convertAmount(baseAmount, selectedCurrency);
+      const amount = Number(getInvoiceAmount(invoice));
 
-      // const minAmount = invoiceFilters.minAmount ? Number(invoiceFilters.minAmount) : null;
-      // const maxAmount = invoiceFilters.maxAmount ? Number(invoiceFilters.maxAmount) : null;
+      const minAmount =
+        invoiceFilters.minAmount !== ""
+          ? Number(invoiceFilters.minAmount)
+          : null;
 
-      // const matchesMinAmount = minAmount === null || convertedAmount >= minAmount;
-      // const matchesMaxAmount = maxAmount === null || convertedAmount <= maxAmount;
-// Amount Filters
-const amount = Number(getInvoiceAmount(invoice));
+      const maxAmount =
+        invoiceFilters.maxAmount !== ""
+          ? Number(invoiceFilters.maxAmount)
+          : null;
 
-const minAmount =
-  invoiceFilters.minAmount !== ""
-    ? Number(invoiceFilters.minAmount)
-    : null;
+      const matchesMinAmount =
+        minAmount === null || amount >= minAmount;
 
-const maxAmount =
-  invoiceFilters.maxAmount !== ""
-    ? Number(invoiceFilters.maxAmount)
-    : null;
+      const matchesMaxAmount =
+        maxAmount === null || amount <= maxAmount;
 
-const matchesMinAmount =
-  minAmount === null || amount >= minAmount;
-
-const matchesMaxAmount =
-  maxAmount === null || amount <= maxAmount;
-      // Currency
       const matchesCurrency =
         invoiceFilters.currency === "All" ||
         (invoice.currency || "USD") === invoiceFilters.currency;
@@ -298,41 +268,47 @@ const matchesMaxAmount =
     setSelectedInvoice(null);
   };
 
- const handleReminder = React.useCallback((invoice) => {
-    showReminderToast(getClientName(invoice.client));
+  const handleReminder = React.useCallback(
+    (invoice) => {
+      showReminderToast(getClientName(invoice.client));
 
-    addNotification({
-      type: "reminder",
-      icon: "notifications_active",
-      iconColor: "text-amber-600",
-      bgColor: "bg-amber-50",
-      title: `Payment Reminder Sent`,
-      description: `Invoice #${invoice.invoiceNumber} to ${getClientName(invoice.client)}`,
-      borderColor: "border-l-amber-500",
-    });
-  }, [addNotification]);
-const updateInvoiceStatus = async (invoiceId, newStatus) => {
+      addNotification({
+        type: "reminder",
+        icon: "notifications_active",
+        iconColor: "text-warning",
+        bgColor: "bg-warning-soft",
+        title: "Payment Reminder Sent",
+        description: `Invoice #${invoice.invoiceNumber} to ${getClientName(
+          invoice.client
+        )}`,
+        borderColor: "border-l-warning",
+      });
+    },
+    [addNotification]
+  );
+
+  const updateInvoiceStatus = async (invoiceId, newStatus) => {
     try {
       // ... your API call to update status
 
       addNotification({
         type: "status",
         icon: "task_alt",
-        iconColor: "text-emerald-600",
-        bgColor: "bg-emerald-50",
-        title: `Invoice Status Updated`,
+        iconColor: "text-success",
+        bgColor: "bg-success-soft",
+        title: "Invoice Status Updated",
         description: `#${invoiceId} → ${newStatus.toUpperCase()}`,
-        borderColor: "border-l-emerald-500",
+        borderColor: "border-l-success",
       });
 
-      fetchInvoices(); // Refresh list
+      fetchInvoices();
     } catch (error) {
       showErrorToast("Failed to update status");
     }
   };
+
   const columns = useMemo(
     () => [
-      // Select column (unchanged)
       {
         id: "select",
         header: ({ table }) => (
@@ -355,7 +331,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
         accessorKey: "invoiceNumber",
         header: "Invoice",
         cell: ({ row }) => (
-          <span className="font-semibold text-slate-800">
+          <span className="font-semibold text-text">
             #{row.original.invoiceNumber}
           </span>
         ),
@@ -368,14 +344,14 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
           const client = row.original.client;
           return (
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-semibold">
+              <div className="w-9 h-9 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center font-semibold">
                 {getClientName(client).slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="font-semibold text-slate-800">
+                <p className="font-semibold text-text">
                   {getClientName(client)}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-text-muted">
                   {getClientEmail(client)}
                 </p>
               </div>
@@ -388,7 +364,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
         accessorKey: "project",
         header: "Project",
         cell: ({ row }) => (
-          <span className="text-slate-600">
+          <span className="text-text-secondary">
             {getProjectTitle(row.original.project)}
           </span>
         ),
@@ -400,7 +376,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
         cell: ({ row }) => {
           const date = new Date(row.original.invoiceDate);
           return (
-            <span className="text-slate-600">
+            <span className="text-text-secondary">
               {date.toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
@@ -415,7 +391,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
         id: "amount",
         header: "Amount",
         cell: ({ row }) => (
-          <span className="font-bold text-slate-800">
+          <span className="font-bold text-text">
             {format(getInvoiceAmount(row.original))}
           </span>
         ),
@@ -428,32 +404,35 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
           const displayStatus = getDisplayStatus(row.original.status);
 
           const styles = {
-            Paid: "bg-emerald-50 text-emerald-700",
-            Overdue: "bg-rose-50 text-rose-700",
-            Draft: "bg-slate-100 text-slate-600",
-            Scheduled: "bg-indigo-50 text-indigo-700",
-            Pending: "bg-amber-50 text-amber-700",
-            Sent: "bg-blue-50 text-blue-700",
+            Paid: "bg-success-soft text-success",
+            Overdue: "bg-danger-soft text-danger",
+            Draft: "bg-surface-secondary text-text-muted",
+            Scheduled: "bg-info-soft text-info",
+            Pending: "bg-warning-soft text-warning",
+            Sent: "bg-info-soft text-info",
           };
 
           const dotStyles = {
-            Paid: "bg-emerald-500",
-            Overdue: "bg-rose-500",
-            Draft: "bg-slate-400",
-            Scheduled: "bg-indigo-500",
-            Pending: "bg-amber-500",
-            Sent: "bg-blue-500",
+            Paid: "bg-success",
+            Overdue: "bg-danger",
+            Draft: "bg-text-light",
+            Scheduled: "bg-info",
+            Pending: "bg-warning",
+            Sent: "bg-info",
           };
 
           return (
             <span
-              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${
-                styles[displayStatus] || "bg-gray-100 text-gray-600"
-              }`}
+              className={`
+                inline-flex items-center gap-2
+                px-3 py-1 rounded-full
+                text-[11px] font-bold uppercase tracking-wide
+                ${styles[displayStatus] || "bg-surface-secondary text-text-muted"}
+              `}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  dotStyles[displayStatus] || "bg-gray-400"
+                  dotStyles[displayStatus] || "bg-text-light"
                 }`}
               />
               {displayStatus}
@@ -470,7 +449,7 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
             <button
               title="Edit"
               onClick={() => navigate(`/composer/${row.original.id}`)}
-              className="p-2 rounded-lg hover:bg-slate-100 transition"
+              className="p-2 rounded-lg text-text-light hover:bg-surface-hover hover:text-primary transition"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
             </button>
@@ -478,14 +457,16 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
             <button
               title="View"
               onClick={() => openInvoiceModal(row.original)}
-              className="p-2 rounded-lg hover:bg-slate-100 transition"
+              className="p-2 rounded-lg text-text-light hover:bg-surface-hover hover:text-primary transition"
             >
-              <span className="material-symbols-outlined text-[18px]">visibility</span>
+              <span className="material-symbols-outlined text-[18px]">
+                visibility
+              </span>
             </button>
 
             <button
               title="Send"
-              className="p-2 rounded-lg hover:bg-slate-100 transition"
+              className="p-2 rounded-lg text-text-light hover:bg-surface-hover hover:text-primary transition"
               onClick={() => handleReminder(row.original)}
             >
               <span className="material-symbols-outlined text-[18px]">send</span>
@@ -505,13 +486,24 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
   const stats = useMemo(() => {
     const getAmount = (invoice) => getInvoiceAmount(invoice);
 
-    const paidInvoices = invoices.filter((inv) => normalizeStatus(inv.status) === "paid");
-    const pendingInvoices = invoices.filter((inv) => normalizeStatus(inv.status) === "pending");
-    const overdueInvoices = invoices.filter((inv) => normalizeStatus(inv.status) === "overdue");
-    const scheduledInvoices = invoices.filter((inv) => normalizeStatus(inv.status) === "scheduled");
+    const paidInvoices = invoices.filter(
+      (inv) => normalizeStatus(inv.status) === "paid"
+    );
+    const pendingInvoices = invoices.filter(
+      (inv) => normalizeStatus(inv.status) === "pending"
+    );
+    const overdueInvoices = invoices.filter(
+      (inv) => normalizeStatus(inv.status) === "overdue"
+    );
+    const scheduledInvoices = invoices.filter(
+      (inv) => normalizeStatus(inv.status) === "scheduled"
+    );
 
     return {
-      outstandingAmount: pendingInvoices.reduce((sum, inv) => sum + getAmount(inv), 0),
+      outstandingAmount: pendingInvoices.reduce(
+        (sum, inv) => sum + getAmount(inv),
+        0
+      ),
       paidAmount: paidInvoices.reduce((sum, inv) => sum + getAmount(inv), 0),
       totalInvoices: invoices.length,
       overdueCount: overdueInvoices.length,
@@ -588,9 +580,9 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
           />
         </div>
 
-        {/* Filters & Search - unchanged */}
+        {/* Filters & Search */}
         <div className="flex flex-col md:flex-row gap-3 justify-between">
-          <div className="inline-flex p-1 bg-slate-100 rounded-lg gap-1">
+          <div className="inline-flex p-1 bg-surface-secondary rounded-lg gap-1">
             {[
               { key: "all", label: "All", count: counts.all },
               { key: "paid", label: "Paid", count: counts.paid },
@@ -602,14 +594,18 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
               <button
                 key={filter.key}
                 onClick={() => setActiveFilter(filter.key)}
-                className={`px-3.5 py-1.5 rounded-md text-[12.5px] font-semibold transition flex items-center gap-1.5 ${
-                  activeFilter === filter.key
-                    ? "bg-white text-teal-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`
+                  px-3.5 py-1.5 rounded-md text-[12.5px] font-semibold transition
+                  flex items-center gap-1.5
+                  ${
+                    activeFilter === filter.key
+                      ? "bg-surface text-primary shadow-sm"
+                      : "text-text-muted hover:text-text"
+                  }
+                `}
               >
                 {filter.label}
-                <span className="ml-1.5 text-[10px] tabular px-1.5 py-0.5 rounded-full font-bold bg-white text-slate-500">
+                <span className="ml-1.5 text-[10px] tabular-nums px-1.5 py-0.5 rounded-full font-bold bg-surface text-text-muted">
                   {filter.count}
                 </span>
               </button>
@@ -626,23 +622,29 @@ const updateInvoiceStatus = async (invoiceId, newStatus) => {
           </div>
         </div>
 
-        {/* Bulk Actions Bar - unchanged */}
+        {/* Bulk Actions Bar */}
         {selectedCount > 0 && (
-          <div className="fade-in mb-3 p-3 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-between">
-            <div className="text-sm text-slate-700">
-              <b className="text-teal-700">{selectedCount}</b> selected
+          <div className="fade-in mb-3 p-3 bg-primary-soft border border-primary/20 rounded-xl flex items-center justify-between">
+            <div className="text-sm text-text-secondary">
+              <b className="text-primary-dark">{selectedCount}</b> selected
             </div>
             <div className="flex gap-2">
-              <button className="px-3 py-1.5 bg-white border border-teal-300 text-teal-700 rounded-lg text-xs font-semibold hover:bg-teal-50 flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>send</span>
+              <button className="px-3 py-1.5 bg-surface border border-primary/30 text-primary-dark rounded-lg text-xs font-semibold hover:bg-primary-soft flex items-center gap-1 transition">
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  send
+                </span>
                 Send
               </button>
-              <button className="px-3 py-1.5 bg-white border border-teal-300 text-teal-700 rounded-lg text-xs font-semibold hover:bg-teal-50 flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>notifications_active</span>
+              <button className="px-3 py-1.5 bg-surface border border-primary/30 text-primary-dark rounded-lg text-xs font-semibold hover:bg-primary-soft flex items-center gap-1 transition">
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  notifications_active
+                </span>
                 Remind
               </button>
-              <button className="px-3 py-1.5 bg-white border border-rose-300 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-50 flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>delete</span>
+              <button className="px-3 py-1.5 bg-surface border border-danger/30 text-danger rounded-lg text-xs font-semibold hover:bg-danger-soft flex items-center gap-1 transition">
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  delete
+                </span>
                 Delete
               </button>
             </div>
