@@ -11,28 +11,16 @@ export default function RightDrawer({
   footer,
   width = "max-w-2xl",
 }) {
-  const openOverlay = useUIStore(
-    (state) => state.openOverlay
-  );
-
-  const closeOverlay = useUIStore(
-    (state) => state.closeOverlay
-  );
+  const openOverlay = useUIStore((state) => state.openOverlay);
+  const closeOverlay = useUIStore((state) => state.closeOverlay);
 
   // Global Overlay Counter
   useEffect(() => {
     if (!isOpen) return;
 
     openOverlay();
-
-    return () => {
-      closeOverlay();
-    };
-  }, [
-    isOpen,
-    openOverlay,
-    closeOverlay,
-  ]);
+    return () => closeOverlay();
+  }, [isOpen, openOverlay, closeOverlay]);
 
   // Body Scroll Lock + ESC Key
   useEffect(() => {
@@ -41,22 +29,14 @@ export default function RightDrawer({
     document.body.style.overflow = "hidden";
 
     const handleEsc = (e) => {
-      if (e.key === "Escape") {
-        onClose?.();
-      }
+      if (e.key === "Escape") onClose?.();
     };
 
-    window.addEventListener(
-      "keydown",
-      handleEsc
-    );
+    window.addEventListener("keydown", handleEsc);
 
     return () => {
       document.body.style.overflow = "";
-      window.removeEventListener(
-        "keydown",
-        handleEsc
-      );
+      window.removeEventListener("keydown", handleEsc);
     };
   }, [isOpen, onClose]);
 
@@ -69,11 +49,7 @@ export default function RightDrawer({
           fixed inset-0 z-[100]
           bg-black/40 backdrop-blur-[2px]
           transition-all duration-300
-          ${
-            isOpen
-              ? "opacity-100"
-              : "opacity-0 pointer-events-none"
-          }
+          ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}
         `}
       />
 
@@ -82,30 +58,25 @@ export default function RightDrawer({
         className={`
           fixed top-0 right-0 bottom-0 z-[101]
           w-full ${width}
-          bg-white
-          border-l border-slate-200
-          shadow-2xl
+          bg-surface
+          border-l border-border
+          shadow-xl
           flex flex-col
           transition-transform duration-300 ease-out
-          ${
-            isOpen
-              ? "translate-x-0"
-              : "translate-x-full"
-          }
+          ${isOpen ? "translate-x-0" : "translate-x-full"}
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-light">
+          <h3 className="flex items-center gap-2.5 text-base font-bold text-text">
             {icon && (
               <span
-                className="material-symbols-outlined text-teal-600"
+                className="material-symbols-outlined text-primary"
                 style={{ fontSize: 18 }}
               >
                 {icon}
               </span>
             )}
-
             {title}
           </h3>
 
@@ -113,10 +84,12 @@ export default function RightDrawer({
             onClick={onClose}
             className="
               p-1 rounded-lg
-              text-slate-400
-              hover:text-slate-700
-              hover:bg-slate-100
-              transition
+              text-text-light
+              hover:text-text
+              hover:bg-surface-hover
+              transition-colors duration-200
+              outline-none
+              focus-visible:ring-2 focus-visible:ring-primary
             "
           >
             <CloseIcon sx={{ fontSize: 20 }} />
@@ -130,7 +103,7 @@ export default function RightDrawer({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div className="px-6 py-4 border-t border-border-light bg-surface-secondary">
             {footer}
           </div>
         )}

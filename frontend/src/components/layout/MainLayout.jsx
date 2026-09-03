@@ -1,4 +1,4 @@
-import React,{useEffect} from "react";
+import React, { useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import Footer from "./Footer";
@@ -6,17 +6,14 @@ import GlobalFab from "../floating/GlobalFab";
 import { useNotificationStore } from "../../store/notificationStore.js";
 
 export default function MainLayout({ children }) {
-  const {
+  const { fetchNotifications } = useNotificationStore();
 
-    fetchNotifications,
-    
-  } = useNotificationStore();
-    useEffect(() => {
+  useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [fetchNotifications]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <Sidebar />
       <Topbar />
 
@@ -27,6 +24,7 @@ export default function MainLayout({ children }) {
 
         <Footer />
       </div>
+
       <GlobalFab />
     </div>
   );

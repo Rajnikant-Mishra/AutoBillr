@@ -1,613 +1,1449 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import ProjectCard from "../../components/projects/ProjectCard";
 import ProjectDetailPanel from "../../components/projects/ProjectDetailPanel";
-import { useNotificationStore } from "../../store/notificationStore";
 import SectionHeader from "../../components/ui/SectionHeader";
-import StatCard from "../../../src/components/ui/StatCard";
+import StatCard from "../../components/ui/StatCard";
 import ProjectDrawer from "../../components/projects/ProjectDrawer";
 import ProjectFilterDrawer from "../../components/projects/ProjectFilterDrawer";
 import MilestoneModal from "../../components/projects/MilestoneModal";
+
+import { createColumnHelper } from "@tanstack/react-table";
+
 import useCurrency from "../../hooks/useCurrency";
+import { getAuthToken } from "../../utils/auth";
 import useProjectNotifications from "../../hooks/useProjectNotifications";
 
-export default function Projects() {
-const { format } = useCurrency();
-const [milestoneModalOpen, setMilestoneModalOpen] = useState(false);
-const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState(null);
-const [milestone, setMilestone] = useState(null);
- const [projects, setProjects] = useState([]);
- const [activeFilter, setActiveFilter] =
-  useState("all");
-  const {
+/* =========================================================
+   CONFIG
+========================================================= */
 
-    notifyProjectCreated,
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
 
-    notifyMilestoneCreated,
+const API_URL = `${API_BASE_URL.replace(/\/$/, "")}/projects`;
 
-    notifyMilestonePaid,
-
-    notifyOverdue,
-
-} = useProjectNotifications();
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-const [filters, setFilters] = useState({
+const DEFAULT_FILTERS = {
   projectStatus: [],
   milestoneStatus: [],
   budgetRange: [0, 0],
   minBilled: "",
   maxBilled: "",
   sortBy: "newest",
-});
-useEffect(() => {
-  if (projects.length > 0) {
-    const maxBudget = Math.max(
-      ...projects.map((p) => Number(p.budget || 0))
-    );
-
-    setFilters((prev) => ({
-      ...prev,
-      budgetRange: [0, maxBudget],
-    }));
-  }
-}, [projects]);
- const getProjectStatus = (project) => {
-  const milestones = project.milestones || [];
-
-  // Budget exceeded
-  if (Number(project.billed || 0) > Number(project.budget || 0)) {
-    return "risk";
-  }
-
-  // No milestone yet
-  if (milestones.length === 0) {
-    return "active";
-  }
-
-  // All milestones paid
-  if (
-    milestones.every(
-      (m) => m.status?.toLowerCase() === "paid"
-    )
-  ) {
-    return "paid";
-  }
-
-  // Any pending/scheduled milestone
-  if (
-    milestones.some((m) =>
-      ["pending", "scheduled"].includes(
-        m.status?.toLowerCase()
-      )
-    )
-  ) {
-    return "pending";
-  }
-
-  return "active";
-};
-const filteredProjects = React.useMemo(() => {
-  let result = [...projects];
-
-  // Top Filter Buttons
- if (
-  activeFilter !== "all" &&
-  filters.projectStatus.length === 0
-) {
-  result = result.filter(
-    (project) =>
-      getProjectStatus(project) === activeFilter
-  );
-}
-
-  // Drawer Project Status Filter
-  if (filters.projectStatus.length > 0) {
-    result = result.filter((project) =>
-      filters.projectStatus.includes(
-        getProjectStatus(project)
-      )
-    );
-  }
-
-  // Budget Range Filter
-  result = result.filter((project) => {
-    const budget = Number(project.budget || 0);
-
-    return (
-      budget >= filters.budgetRange[0] &&
-      budget <= filters.budgetRange[1]
-    );
-  });
-
-  // Min Billed
-  if (filters.minBilled) {
-    result = result.filter(
-      (project) =>
-        Number(project.billed || 0) >=
-        Number(filters.minBilled)
-    );
-  }
-
-  // Max Billed
-  if (filters.maxBilled) {
-    result = result.filter(
-      (project) =>
-        Number(project.billed || 0) <=
-        Number(filters.maxBilled)
-    );
-  }
-
-  // Sorting
-  switch (filters.sortBy) {
-    case "budgetHigh":
-      result.sort(
-        (a, b) =>
-          Number(b.budget || 0) -
-          Number(a.budget || 0)
-      );
-      break;
-
-    case "budgetLow":
-      result.sort(
-        (a, b) =>
-          Number(a.budget || 0) -
-          Number(b.budget || 0)
-      );
-      break;
-
-    case "newest":
-      result.sort(
-        (a, b) =>
-          new Date(b.createdAt || 0) -
-          new Date(a.createdAt || 0)
-      );
-      break;
-
-    case "oldest":
-      result.sort(
-        (a, b) =>
-          new Date(a.createdAt || 0) -
-          new Date(b.createdAt || 0)
-      );
-      break;
-
-    default:
-      break;
-  }
-
-  return result;
-}, [projects, activeFilter, filters]);
-const stats = React.useMemo(() => {
-  const totalProjects = projects.length;
-
-  let totalMilestones = 0;
-  let totalRevenue = 0;
-  let overdueAmount = 0;
-  let overdueCount = 0;
-  let pendingMilestones = 0; // ✅ ADD THIS
-
-  projects.forEach((project) => {
-    const milestones = project.milestones || [];
-
-    totalMilestones += milestones.length;
-
-    milestones.forEach((m) => {
-      totalRevenue += Number(m.amount || 0);
-
-      // Count pending milestones
-      if (
-        m.status === "pending" ||
-        m.status === "scheduled"
-      ) {
-        pendingMilestones++;
-      }
-
-      const due = new Date(m.dueDate);
-      const today = new Date();
-
-      if (m.status !== "paid" && due < today) {
-        overdueAmount += Number(m.amount || 0);
-        overdueCount += 1;
-      }
-    });
-  });
-
-  return [
-    {
-      title: "TOTAL PROJECTS",
-      value: totalProjects,
-      change: `${totalMilestones} milestones`,
-      icon: "folder",
-      iconColor: "text-teal-600",
-      changeColor: "text-slate-600",
-      type: "progress",
-    },
-
-    {
-      title: "TOTAL REVENUE",
-      value: format(totalRevenue),
-      change: "From all milestones",
-      icon: "payments",
-      iconColor: "text-indigo-600",
-      changeColor: "text-slate-500",
-      type: "bars",
-    },
-
-    {
-      title: "OVERDUE",
-      value: format(overdueAmount),
-      change: `${overdueCount} overdue milestones`,
-      icon: "warning",
-      iconColor: "text-rose-600",
-      changeColor: "text-rose-600",
-      type: "danger",
-    },
-
-    {
-      title: "PENDING MILESTONES",
-      value: pendingMilestones,
-      change: "Awaiting payment",
-      icon: "schedule",
-      iconColor: "text-amber-600",
-      changeColor: "text-amber-700",
-      type: "bars",
-    },
-  ];
-}, [projects]);
-
-  const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
-
- const selectedProject =
-  projects[selectedProjectIndex] || null;
-  const [projectDrawer, setProjectDrawer] = useState(false);
-  const [editingMilestone, setEditingMilestone] = useState(null);
-  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
-
- const addMilestone = () => {
-  setEditingMilestone({
-    title: "",
-    amount: 0,
-    dueDate: "",
-    status: "scheduled",
-  });
-
-  setShowMilestoneModal(true);
 };
 
+const MILESTONE_STATUSES = ["scheduled", "pending", "paid"];
 
+/* =========================================================
+   HELPERS
+========================================================= */
 
-useEffect(() => {
-  fetchProjects();
-}, []);
-useEffect(() => {
+const normalizeProject = (project) => {
+  if (!project) return null;
 
-    const handleProjectCreated = (e) => {
+  return {
+    ...project,
 
-        fetchProjects();
+    id: project?.id,
 
-        if (e.detail?.project) {
+    title:
+      project?.title ||
+      project?.name ||
+      "Untitled Project",
 
-            notifyProjectCreated(
+    clientName:
+      project?.clientName ||
+      project?.client?.name ||
+      "No Client",
 
-                e.detail.project,
+    budget: Number(project?.budget || 0),
 
-                format
+    billed: Number(project?.billed || 0),
 
-            );
+    progress: Math.min(
+      Math.max(Number(project?.progress || 0), 0),
+      100
+    ),
 
-        }
+    milestones: Array.isArray(project?.milestones)
+      ? project.milestones.map((milestone) => ({
+          ...milestone,
 
-    };
+          id: milestone?.id,
 
-    window.addEventListener(
+          title: milestone?.title || "",
 
-        "project-created",
+          amount: Number(milestone?.amount || 0),
 
-        handleProjectCreated
+          status: String(
+            milestone?.status || "scheduled"
+          ).toLowerCase(),
 
-    );
+          dueDate: milestone?.dueDate || "",
+        }))
+      : [],
+  };
+};
 
-    return () =>
+/* =========================================================
+   COMPONENT
+========================================================= */
 
-        window.removeEventListener(
+export default function Projects() {
+  const { format } = useCurrency();
 
-            "project-created",
+  const {
+    notifyProjectCreated,
+    notifyMilestoneCreated,
+    notifyMilestonePaid,
+    notifyOverdue,
+  } = useProjectNotifications();
 
-            handleProjectCreated
+  /* =======================================================
+     STATE
+  ======================================================= */
 
-        );
+  const [projects, setProjects] = useState([]);
 
-}, [format]);
-  useEffect(() => {
-    const checkOverdue = () => {
-      projects.forEach(project => {
+  const [selectedProjectId, setSelectedProjectId] =
+    useState(null);
 
-    project.milestones.forEach(milestone => {
+  const [activeFilter, setActiveFilter] =
+    useState("all");
 
-        if (
+  const [filters, setFilters] =
+    useState(DEFAULT_FILTERS);
 
-            milestone.status !== "paid" &&
+  const [showFilterDrawer, setShowFilterDrawer] =
+    useState(false);
 
-            new Date(milestone.dueDate) < new Date()
+  const [projectDrawer, setProjectDrawer] =
+    useState(false);
 
-        ) {
+  const [showMilestoneModal, setShowMilestoneModal] =
+    useState(false);
 
-            notifyOverdue(
+  const [editingMilestone, setEditingMilestone] =
+    useState(null);
 
-                project,
+  const [loading, setLoading] =
+    useState(false);
 
-                milestone
+  const [error, setError] =
+    useState("");
 
-            );
+  const notifiedOverdueRef =
+    useRef(new Set());
 
-        }
+  /* =======================================================
+     PROJECT STATUS
+  ======================================================= */
 
-    });
+  const getProjectStatus = useCallback((project) => {
+    const milestones = Array.isArray(project?.milestones)
+      ? project.milestones
+      : [];
 
-});
-    };
+    const budget = Number(project?.budget || 0);
 
-    if (projects.length > 0) {
-      checkOverdue();
+    const billed = Number(project?.billed || 0);
+
+    if (budget > 0 && billed > budget) {
+      return "risk";
     }
-  }, [projects]);
 
-const fetchProjects = async () => {
-  try {
-    const response = await fetch("http://localhost:5000/api/projects");
-    const text = await response.text();
-  
+    if (milestones.length === 0) {
+      return "active";
+    }
 
-    const data = JSON.parse(text);
-   
+    const statuses = milestones.map((milestone) =>
+      String(
+        milestone?.status || ""
+      ).toLowerCase()
+    );
 
-    setProjects(data.projects || data || []);
-  } catch (error) {
-    console.error("Error fetching projects:", error);
-  }
-};
+    if (
+      statuses.length > 0 &&
+      statuses.every((status) => status === "paid")
+    ) {
+      return "paid";
+    }
 
-const updateMilestoneStatus = (milestoneIndex) => {
-  const statuses = [
-    "scheduled",
-    "pending",
-    "paid",
-  ];
+    if (
+      statuses.some((status) =>
+        ["pending", "scheduled"].includes(status)
+      )
+    ) {
+      return "pending";
+    }
 
-  setProjects((prevProjects) =>
-    prevProjects.map((project, projectIndex) => {
-      if (projectIndex !== selectedProjectIndex) {
-        return project;
+    return "active";
+  }, []);
+
+  /* =======================================================
+     TABLE COLUMNS
+  ======================================================= */
+
+  const columnHelper = useMemo(
+    () => createColumnHelper(),
+    []
+  );
+
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("title", {
+        header: "Project",
+
+        cell: ({ row }) => (
+          <div className="font-semibold text-text">
+            {row.original.title || "Untitled"}
+          </div>
+        ),
+      }),
+
+      columnHelper.accessor(
+        (row) =>
+          row.clientName ||
+          row.client?.name ||
+          "No Client",
+        {
+          id: "client",
+          header: "Client",
+        }
+      ),
+
+      columnHelper.accessor("budget", {
+        header: "Budget",
+
+        cell: ({ getValue }) =>
+          format(Number(getValue()) || 0),
+      }),
+
+      columnHelper.accessor("billed", {
+        header: "Billed",
+
+        cell: ({ getValue }) =>
+          format(Number(getValue()) || 0),
+      }),
+
+      columnHelper.accessor("progress", {
+        header: "Progress",
+
+        cell: ({ getValue }) =>
+          `${Number(getValue()) || 0}%`,
+      }),
+
+      columnHelper.display({
+        id: "status",
+
+        header: "Status",
+
+        cell: ({ row }) =>
+          getProjectStatus(row.original),
+      }),
+    ],
+    [
+      columnHelper,
+      format,
+      getProjectStatus,
+    ]
+  );
+
+  void columns;
+
+  /* =======================================================
+     FETCH PROJECTS
+  ======================================================= */
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const token = getAuthToken();
+
+      const response = await fetch(API_URL, {
+        method: "GET",
+
+        headers: {
+          Accept: "application/json",
+
+          ...(token
+            ? {
+                Authorization: `Bearer ${token}`,
+              }
+            : {}),
+        },
+      });
+
+      if (!response.ok) {
+        let message =
+          `Failed to fetch projects: ${response.status}`;
+
+        try {
+          const errorData =
+            await response.json();
+
+          if (errorData?.message) {
+            message = errorData.message;
+          }
+        } catch {
+          // Ignore JSON parsing error
+        }
+
+        throw new Error(message);
       }
 
-      return {
-        ...project,
-        milestones: project.milestones.map(
-          (milestone, index) => {
-            if (index !== milestoneIndex) {
-              return milestone;
-            }
+      const data = await response.json();
 
-         const currentIndex = statuses.indexOf(
-    milestone.status
-);
+      let projectList = [];
 
-const nextStatus =
-    statuses[
-        (currentIndex + 1) %
-        statuses.length
-    ];
+      if (Array.isArray(data)) {
+        projectList = data;
+      } else if (Array.isArray(data?.projects)) {
+        projectList = data.projects;
+      } else if (Array.isArray(data?.data)) {
+        projectList = data.data;
+      }
 
-if (
-    nextStatus === "paid" &&
-    milestone.status !== "paid"
-) {
-    notifyMilestonePaid(
-        project,
-        milestone,
-        format
-    );
-}
+      const normalizedProjects =
+        projectList
+          .map(normalizeProject)
+          .filter(Boolean);
 
-return {
-    ...milestone,
-    status: nextStatus,
-};
-          }
-        ),
-      };
-    })
-  );
-};
+      setProjects(normalizedProjects);
 
-const counts = {
-  all: filteredProjects.length,
-  active: filteredProjects.filter(
-    (p) => getProjectStatus(p) === "active"
-  ).length,
-  pending: filteredProjects.filter(
-    (p) => getProjectStatus(p) === "pending"
-  ).length,
-  paid: filteredProjects.filter(
-    (p) => getProjectStatus(p) === "paid"
-  ).length,
-  risk: filteredProjects.filter(
-    (p) => getProjectStatus(p) === "risk"
-  ).length,
-};
-const saveMilestone = async () => {
+      return normalizedProjects;
+    } catch (err) {
+      console.error(
+        "Error fetching projects:",
+        err
+      );
 
-    try {
+      setError(
+        err?.message ||
+          "Unable to load projects."
+      );
+
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /* =======================================================
+     INITIAL FETCH
+  ======================================================= */
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  /* =======================================================
+     PROJECT CREATED
+     
+     IMPORTANT:
+     This is the only project-created handler.
+  ======================================================= */
+
+  const handleProjectCreated = useCallback(
+    async (createdProject) => {
+      console.log(
+        "NEW PROJECT CREATED:",
+        createdProject
+      );
+
+      if (!createdProject) {
+        console.warn(
+          "Project created but no project data returned."
+        );
 
         await fetchProjects();
 
-        if (editingMilestone?.index === undefined) {
+        setProjectDrawer(false);
 
-            notifyMilestoneCreated(
-                selectedProject,
-                editingMilestone,
-                format
+        return;
+      }
+
+      const normalizedProject =
+        normalizeProject(createdProject);
+
+      if (!normalizedProject?.id) {
+        console.warn(
+          "Created project has no ID:",
+          normalizedProject
+        );
+
+        await fetchProjects();
+
+        setProjectDrawer(false);
+
+        return;
+      }
+
+      /* -----------------------------------------------
+         STEP 1
+         Immediately add project to UI
+      ------------------------------------------------ */
+
+      setProjects((previousProjects) => {
+        const alreadyExists =
+          previousProjects.some(
+            (project) =>
+              String(project?.id) ===
+              String(normalizedProject.id)
+          );
+
+        if (alreadyExists) {
+          return previousProjects.map(
+            (project) =>
+              String(project?.id) ===
+              String(normalizedProject.id)
+                ? normalizedProject
+                : project
+          );
+        }
+
+        return [
+          normalizedProject,
+          ...previousProjects,
+        ];
+      });
+
+      /* -----------------------------------------------
+         STEP 2
+         Remove filters so the new project is visible
+      ------------------------------------------------ */
+
+      setActiveFilter("all");
+
+      setFilters({
+        ...DEFAULT_FILTERS,
+        budgetRange: [0, 0],
+      });
+
+      /* -----------------------------------------------
+         STEP 3
+         Select newly created project
+      ------------------------------------------------ */
+
+      setSelectedProjectId(
+        normalizedProject.id
+      );
+
+      /* -----------------------------------------------
+         STEP 4
+         Show notification
+      ------------------------------------------------ */
+
+      notifyProjectCreated(
+        normalizedProject,
+        format
+      );
+
+      /* -----------------------------------------------
+         STEP 5
+         Refresh from database
+         
+         This makes sure the UI is synchronized
+         with PostgreSQL.
+      ------------------------------------------------ */
+
+      await fetchProjects();
+
+      /* -----------------------------------------------
+         STEP 6
+         Keep the newly created project selected
+      ------------------------------------------------ */
+
+      setSelectedProjectId(
+        normalizedProject.id
+      );
+
+      /* -----------------------------------------------
+         STEP 7
+         Close drawer
+      ------------------------------------------------ */
+
+      setProjectDrawer(false);
+    },
+    [
+      fetchProjects,
+      notifyProjectCreated,
+      format,
+    ]
+  );
+
+  /* =======================================================
+     MAX BUDGET
+  ======================================================= */
+
+  const maxBudgetAvailable = useMemo(() => {
+    if (!projects.length) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      ...projects.map((project) =>
+        Number(project?.budget || 0)
+      )
+    );
+  }, [projects]);
+
+  /* =======================================================
+     INITIALIZE BUDGET RANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!projects.length) {
+      return;
+    }
+
+    setFilters((previousFilters) => {
+      const currentMax = Number(
+        previousFilters?.budgetRange?.[1] || 0
+      );
+
+      if (
+        currentMax > 0 ||
+        maxBudgetAvailable === 0
+      ) {
+        return previousFilters;
+      }
+
+      return {
+        ...previousFilters,
+
+        budgetRange: [
+          0,
+          maxBudgetAvailable,
+        ],
+      };
+    });
+  }, [
+    projects,
+    maxBudgetAvailable,
+  ]);
+
+  /* =======================================================
+     FILTERED PROJECTS
+  ======================================================= */
+
+  const filteredProjects = useMemo(() => {
+    const projectList =
+      Array.isArray(projects)
+        ? projects
+        : [];
+
+    let result = [...projectList];
+
+    /* -----------------------------------------------
+       ACTIVE FILTER
+    ------------------------------------------------ */
+
+    if (
+      activeFilter !== "all" &&
+      filters.projectStatus.length === 0
+    ) {
+      result = result.filter(
+        (project) =>
+          getProjectStatus(project) ===
+          activeFilter
+      );
+    }
+
+    /* -----------------------------------------------
+       PROJECT STATUS
+    ------------------------------------------------ */
+
+    if (
+      Array.isArray(filters.projectStatus) &&
+      filters.projectStatus.length > 0
+    ) {
+      result = result.filter((project) =>
+        filters.projectStatus.includes(
+          getProjectStatus(project)
+        )
+      );
+    }
+
+    /* -----------------------------------------------
+       MILESTONE STATUS
+    ------------------------------------------------ */
+
+    if (
+      Array.isArray(
+        filters.milestoneStatus
+      ) &&
+      filters.milestoneStatus.length > 0
+    ) {
+      result = result.filter((project) => {
+        const milestones =
+          Array.isArray(project?.milestones)
+            ? project.milestones
+            : [];
+
+        return milestones.some(
+          (milestone) =>
+            filters.milestoneStatus.includes(
+              String(
+                milestone?.status || ""
+              ).toLowerCase()
+            )
+        );
+      });
+    }
+
+    /* -----------------------------------------------
+       BUDGET FILTER
+    ------------------------------------------------ */
+
+    const minBudget = Number(
+      filters.budgetRange?.[0] || 0
+    );
+
+    const maxBudget =
+      filters.budgetRange?.[1] !== undefined &&
+      filters.budgetRange?.[1] !== null
+        ? Number(filters.budgetRange[1])
+        : Infinity;
+
+    /*
+      Only apply budget filtering when the user
+      actually has a budget range selected.
+    */
+
+    if (
+      maxBudget > 0 ||
+      maxBudgetAvailable === 0
+    ) {
+      result = result.filter((project) => {
+        const budget = Number(
+          project?.budget || 0
+        );
+
+        return (
+          budget >= minBudget &&
+          budget <= maxBudget
+        );
+      });
+    }
+
+    /* -----------------------------------------------
+       MIN BILLED
+    ------------------------------------------------ */
+
+    if (
+      filters.minBilled !== "" &&
+      filters.minBilled != null
+    ) {
+      const minBilled =
+        Number(filters.minBilled);
+
+      if (!Number.isNaN(minBilled)) {
+        result = result.filter(
+          (project) =>
+            Number(project?.billed || 0) >=
+            minBilled
+        );
+      }
+    }
+
+    /* -----------------------------------------------
+       MAX BILLED
+    ------------------------------------------------ */
+
+    if (
+      filters.maxBilled !== "" &&
+      filters.maxBilled != null
+    ) {
+      const maxBilled =
+        Number(filters.maxBilled);
+
+      if (!Number.isNaN(maxBilled)) {
+        result = result.filter(
+          (project) =>
+            Number(project?.billed || 0) <=
+            maxBilled
+        );
+      }
+    }
+
+    /* -----------------------------------------------
+       SORT
+    ------------------------------------------------ */
+
+    result.sort((a, b) => {
+      switch (filters.sortBy) {
+        case "budgetHigh":
+          return (
+            Number(b?.budget || 0) -
+            Number(a?.budget || 0)
+          );
+
+        case "budgetLow":
+          return (
+            Number(a?.budget || 0) -
+            Number(b?.budget || 0)
+          );
+
+        case "progressHigh":
+          return (
+            Number(b?.progress || 0) -
+            Number(a?.progress || 0)
+          );
+
+        case "progressLow":
+          return (
+            Number(a?.progress || 0) -
+            Number(b?.progress || 0)
+          );
+
+        case "oldest":
+          return (
+            new Date(
+              a?.createdAt || 0
+            ).getTime() -
+            new Date(
+              b?.createdAt || 0
+            ).getTime()
+          );
+
+        case "newest":
+        default:
+          return (
+            new Date(
+              b?.createdAt || 0
+            ).getTime() -
+            new Date(
+              a?.createdAt || 0
+            ).getTime()
+          );
+      }
+    });
+
+    return result;
+  }, [
+    projects,
+    activeFilter,
+    filters,
+    maxBudgetAvailable,
+    getProjectStatus,
+  ]);
+
+  /* =======================================================
+     STATS
+  ======================================================= */
+
+  const stats = useMemo(() => {
+    const projectList =
+      Array.isArray(projects)
+        ? projects
+        : [];
+
+    const totalProjects =
+      projectList.length;
+
+    let totalMilestones = 0;
+
+    let totalRevenue = 0;
+
+    let overdueAmount = 0;
+
+    let overdueCount = 0;
+
+    let pendingMilestones = 0;
+
+    projectList.forEach((project) => {
+      const milestones =
+        Array.isArray(project?.milestones)
+          ? project.milestones
+          : [];
+
+      totalMilestones +=
+        milestones.length;
+
+      milestones.forEach((milestone) => {
+        const amount = Number(
+          milestone?.amount || 0
+        );
+
+        const status = String(
+          milestone?.status || ""
+        ).toLowerCase();
+
+        totalRevenue += amount;
+
+        if (
+          status === "pending" ||
+          status === "scheduled"
+        ) {
+          pendingMilestones++;
+        }
+
+        if (
+          milestone?.dueDate &&
+          status !== "paid"
+        ) {
+          const dueDate =
+            new Date(
+              milestone.dueDate
             );
 
+          if (
+            !Number.isNaN(
+              dueDate.getTime()
+            ) &&
+            dueDate < new Date()
+          ) {
+            overdueAmount += amount;
+            overdueCount++;
+          }
+        }
+      });
+    });
+
+    return [
+      {
+        title: "TOTAL PROJECTS",
+
+        value: totalProjects,
+
+        change:
+          `${totalMilestones} milestones`,
+
+        icon: "folder",
+
+        iconColor: "text-primary",
+
+        changeColor:
+          "text-text-secondary",
+
+        type: "progress",
+      },
+
+      {
+        title: "TOTAL REVENUE",
+
+        value:
+          format(totalRevenue),
+
+        change:
+          "From all milestones",
+
+        icon: "payments",
+
+        iconColor: "text-info",
+
+        changeColor:
+          "text-text-muted",
+
+        type: "bars",
+      },
+
+      {
+        title: "OVERDUE",
+
+        value:
+          format(overdueAmount),
+
+        change:
+          `${overdueCount} overdue milestones`,
+
+        icon: "warning",
+
+        iconColor: "text-danger",
+
+        changeColor:
+          "text-danger",
+
+        type: "danger",
+      },
+
+      {
+        title:
+          "PENDING MILESTONES",
+
+        value:
+          pendingMilestones,
+
+        change:
+          "Awaiting payment",
+
+        icon: "schedule",
+
+        iconColor:
+          "text-warning",
+
+        changeColor:
+          "text-warning",
+
+        type: "bars",
+      },
+    ];
+  }, [projects, format]);
+
+  /* =======================================================
+     STATUS COUNTS
+  ======================================================= */
+
+  const statusCounts = useMemo(() => {
+    const projectList =
+      Array.isArray(projects)
+        ? projects
+        : [];
+
+    return {
+      active: projectList.filter(
+        (project) =>
+          getProjectStatus(project) ===
+          "active"
+      ).length,
+
+      pending: projectList.filter(
+        (project) =>
+          getProjectStatus(project) ===
+          "pending"
+      ).length,
+
+      paid: projectList.filter(
+        (project) =>
+          getProjectStatus(project) ===
+          "paid"
+      ).length,
+
+      risk: projectList.filter(
+        (project) =>
+          getProjectStatus(project) ===
+          "risk"
+      ).length,
+    };
+  }, [
+    projects,
+    getProjectStatus,
+  ]);
+
+  /* =======================================================
+     SELECTED PROJECT
+  ======================================================= */
+
+  useEffect(() => {
+    if (!filteredProjects.length) {
+      setSelectedProjectId(null);
+      return;
+    }
+
+    if (
+      selectedProjectId === null ||
+      selectedProjectId === undefined
+    ) {
+      setSelectedProjectId(
+        filteredProjects[0]?.id ?? null
+      );
+
+      return;
+    }
+
+    const exists =
+      filteredProjects.some(
+        (project) =>
+          String(project?.id) ===
+          String(selectedProjectId)
+      );
+
+    if (!exists) {
+      setSelectedProjectId(
+        filteredProjects[0]?.id ?? null
+      );
+    }
+  }, [
+    filteredProjects,
+    selectedProjectId,
+  ]);
+
+  const selectedProject = useMemo(() => {
+    if (!filteredProjects.length) {
+      return null;
+    }
+
+    if (
+      selectedProjectId === null ||
+      selectedProjectId === undefined
+    ) {
+      return filteredProjects[0];
+    }
+
+    return (
+      filteredProjects.find(
+        (project) =>
+          String(project?.id) ===
+          String(selectedProjectId)
+      ) ||
+      filteredProjects[0]
+    );
+  }, [
+    filteredProjects,
+    selectedProjectId,
+  ]);
+
+  /* =======================================================
+     OVERDUE NOTIFICATIONS
+  ======================================================= */
+
+  useEffect(() => {
+    if (!Array.isArray(projects)) {
+      return;
+    }
+
+    projects.forEach((project) => {
+      const milestones =
+        Array.isArray(project?.milestones)
+          ? project.milestones
+          : [];
+
+      milestones.forEach((milestone) => {
+        if (
+          milestone?.status === "paid" ||
+          !milestone?.dueDate
+        ) {
+          return;
+        }
+
+        const dueDate =
+          new Date(
+            milestone.dueDate
+          );
+
+        if (
+          Number.isNaN(
+            dueDate.getTime()
+          ) ||
+          dueDate >= new Date()
+        ) {
+          return;
+        }
+
+        const notificationKey =
+          `${project?.id}-${
+            milestone?.id ||
+            milestone?.index ||
+            milestone?.title
+          }`;
+
+        if (
+          notifiedOverdueRef.current.has(
+            notificationKey
+          )
+        ) {
+          return;
+        }
+
+        notifiedOverdueRef.current.add(
+          notificationKey
+        );
+
+        notifyOverdue(
+          project,
+          milestone
+        );
+      });
+    });
+  }, [
+    projects,
+    notifyOverdue,
+  ]);
+
+  /* =======================================================
+     ADD MILESTONE
+  ======================================================= */
+
+  const addMilestone = useCallback(() => {
+    setEditingMilestone({
+      title: "",
+      amount: 0,
+      dueDate: "",
+      status: "scheduled",
+    });
+
+    setShowMilestoneModal(true);
+  }, []);
+
+  /* =======================================================
+     UPDATE MILESTONE STATUS
+  ======================================================= */
+
+  const updateMilestoneStatus =
+    useCallback(
+      (milestoneIndex) => {
+        if (
+          selectedProjectId === null ||
+          selectedProjectId === undefined
+        ) {
+          return;
+        }
+
+        setProjects(
+          (previousProjects) =>
+            previousProjects.map(
+              (project) => {
+                if (
+                  String(project?.id) !==
+                  String(selectedProjectId)
+                ) {
+                  return project;
+                }
+
+                const milestones =
+                  Array.isArray(
+                    project?.milestones
+                  )
+                    ? project.milestones
+                    : [];
+
+                return {
+                  ...project,
+
+                  milestones:
+                    milestones.map(
+                      (
+                        milestone,
+                        index
+                      ) => {
+                        if (
+                          index !==
+                          milestoneIndex
+                        ) {
+                          return milestone;
+                        }
+
+                        const currentStatus =
+                          String(
+                            milestone?.status ||
+                              "scheduled"
+                          ).toLowerCase();
+
+                        const currentIndex =
+                          MILESTONE_STATUSES.indexOf(
+                            currentStatus
+                          );
+
+                        const safeIndex =
+                          currentIndex >= 0
+                            ? currentIndex
+                            : 0;
+
+                        const nextStatus =
+                          MILESTONE_STATUSES[
+                            (safeIndex + 1) %
+                              MILESTONE_STATUSES.length
+                          ];
+
+                        if (
+                          nextStatus ===
+                            "paid" &&
+                          currentStatus !==
+                            "paid"
+                        ) {
+                          notifyMilestonePaid(
+                            project,
+                            milestone,
+                            format
+                          );
+                        }
+
+                        return {
+                          ...milestone,
+                          status:
+                            nextStatus,
+                        };
+                      }
+                    ),
+                };
+              }
+            )
+        );
+      },
+      [
+        selectedProjectId,
+        notifyMilestonePaid,
+        format,
+      ]
+    );
+
+  void updateMilestoneStatus;
+
+  /* =======================================================
+     SAVE MILESTONE
+  ======================================================= */
+
+  const saveMilestone =
+    useCallback(async () => {
+      try {
+        await fetchProjects();
+
+        if (
+          editingMilestone &&
+          !editingMilestone.id &&
+          selectedProject
+        ) {
+          notifyMilestoneCreated(
+            selectedProject,
+            editingMilestone,
+            format
+          );
         }
 
         setShowMilestoneModal(false);
+
         setEditingMilestone(null);
+      } catch (error) {
+        console.error(
+          "Error refreshing milestones:",
+          error
+        );
+      }
+    }, [
+      fetchProjects,
+      editingMilestone,
+      selectedProject,
+      notifyMilestoneCreated,
+      format,
+    ]);
 
-    } catch (err) {
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
-        console.log(err);
+  return (
+    <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
+      <div className="page-in">
 
-    }
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
-};
+        <SectionHeader
+          title="Projects & Milestones"
+          description="Track project budgets, milestones and milestone-based billing."
+          secondaryAction={{
+            label: "Filter",
+            icon: "filter_list",
+            onClick: () =>
+              setShowFilterDrawer(true),
+          }}
+          primaryAction={{
+            label: "New Project",
+            icon: "add",
+            onClick: () =>
+              setProjectDrawer(true),
+          }}
+        />
 
-const maxBudgetAvailable = React.useMemo(() => {
-  return projects.length
-    ? Math.max(
-        ...projects.map((p) => Number(p.budget || 0))
-      )
-    : 0;
-}, [projects]);
-const statusCounts = {
-  active: projects.filter(
-    (p) => getProjectStatus(p) === "active"
-  ).length,
+        {/* =================================================
+            ERROR
+        ================================================= */}
 
-  pending: projects.filter(
-    (p) => getProjectStatus(p) === "pending"
-  ).length,
+        {error && (
+          <div className="mb-5 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+            {error}
+          </div>
+        )}
 
-  paid: projects.filter(
-    (p) => getProjectStatus(p) === "paid"
-  ).length,
+        {/* =================================================
+            STATS
+        ================================================= */}
 
-  risk: projects.filter(
-    (p) => getProjectStatus(p) === "risk"
-  ).length,
-};
-return (
-  <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
-    <div className="page-in">
-
-      {/* HEADER */}
-      <SectionHeader
-  title="Projects & Milestones"
-  description="Track project budgets, milestones and milestone-based billing."
-  secondaryAction={{
-    label: "Filter",
-    icon: "filter_list",
-    onClick: () => setShowFilterDrawer(true),
-  }}
-  primaryAction={{
-    label: "New Project",
-    icon: "add",
-    onClick: () => setProjectDrawer(true),
-  }}
-/>
-
-      {/* ✅ ADD THIS STATS SECTION (MISSING IN YOUR CODE) */}
-      {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-5">
-        {stats.map((item, index) => (
-          <StatCard
-            key={index}
-            title={item.title}
-            value={item.value}
-            change={item.change}
-            icon={item.icon}
-            iconColor={item.iconColor}
-            changeColor={item.changeColor}
-            variant="dashboard"
-            showProgress={item.type === "progress"}
-            progressValue={
-  item.title === "ACTIVE PROJECTS"
-    ? Math.min(projects.length * 10, 100)
-    : item.type === "progress"
-    ? 70
-    : 0
-} // Adjust as needed
-          />
-        ))}
-      </div>
-
-
-
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-12 gap-5">
-
-        {/* LEFT SIDE */}
-        <div className="col-span-12 lg:col-span-7 space-y-4">
-
-        {filteredProjects.length === 0 ? (
-  <div className="bg-white rounded-xl p-10 text-center text-slate-500">
-    No Projects Found
-  </div>
-) : (
-  filteredProjects.map((project, index) => (
-    <ProjectCard
-      key={project._id || index}
-      {...project}
-      isSelected={selectedProjectIndex === index}
-      onClick={() => setSelectedProjectIndex(index)}
-    />
-  ))
-)}
-
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-5">
+          {stats.map((item) => (
+            <StatCard
+              key={item.title}
+              title={item.title}
+              value={item.value}
+              change={item.change}
+              icon={item.icon}
+              iconColor={item.iconColor}
+              changeColor={item.changeColor}
+              variant="dashboard"
+              showProgress={
+                item.type === "progress"
+              }
+              progressValue={
+                item.type === "progress"
+                  ? Math.min(
+                      projects.length * 10,
+                      100
+                    )
+                  : 0
+              }
+            />
+          ))}
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="col-span-12 lg:col-span-5">
-        {selectedProject && (
-  <ProjectDetailPanel
-    project={selectedProject}
-    onAddMilestone={addMilestone}
-    onMilestoneClick={(index) => {
-  setEditingMilestone({
-    ...selectedProject.milestones[index],
-    index,                    // Keep this
-  });
-  setShowMilestoneModal(true);
-}}
-  />
-)}
+        {/* =================================================
+            MAIN GRID
+        ================================================= */}
+
+        <div className="grid grid-cols-12 gap-5">
+
+          {/* =================================================
+              LEFT - PROJECT LIST
+          ================================================= */}
+
+          <div className="col-span-12 lg:col-span-7 space-y-4">
+
+            {loading &&
+            projects.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-10 text-center text-text-muted">
+                Loading projects...
+              </div>
+            ) : filteredProjects.length ===
+              0 ? (
+              <div className="bg-surface border border-border rounded-xl p-10 text-center">
+                <div className="text-text font-semibold mb-1">
+                  No Projects Found
+                </div>
+
+                <div className="text-sm text-text-muted">
+                  Try changing your filters
+                  or create a new project.
+                </div>
+              </div>
+            ) : (
+              filteredProjects.map(
+                (project, index) => (
+                  <ProjectCard
+                    key={
+                      project?.id ??
+                      `project-${index}`
+                    }
+                    {...project}
+                    isSelected={
+                      String(
+                        selectedProjectId
+                      ) ===
+                      String(project?.id)
+                    }
+                    onClick={() =>
+                      setSelectedProjectId(
+                        project?.id
+                      )
+                    }
+                  />
+                )
+              )
+            )}
+          </div>
+
+          {/* =================================================
+              RIGHT - PROJECT DETAILS
+          ================================================= */}
+
+          <div className="col-span-12 lg:col-span-5">
+            {selectedProject ? (
+              <ProjectDetailPanel
+                project={selectedProject}
+
+                onAddMilestone={
+                  addMilestone
+                }
+
+                onMilestoneClick={(
+                  index
+                ) => {
+                  const milestones =
+                    Array.isArray(
+                      selectedProject?.milestones
+                    )
+                      ? selectedProject.milestones
+                      : [];
+
+                  const selectedMilestone =
+                    milestones[index];
+
+                  if (
+                    !selectedMilestone
+                  ) {
+                    return;
+                  }
+
+                  setEditingMilestone({
+                    ...selectedMilestone,
+                  });
+
+                  setShowMilestoneModal(
+                    true
+                  );
+                }}
+              />
+            ) : (
+              <div className="bg-surface border border-border rounded-xl p-10 text-center text-text-muted">
+                Select a project to view
+                details.
+              </div>
+            )}
+          </div>
         </div>
-
       </div>
-    </div>
-    <ProjectDrawer
-  isOpen={projectDrawer}
-  onClose={() => setProjectDrawer(false)}
-/>
- <ProjectFilterDrawer
-  isOpen={showFilterDrawer}
-  onClose={() => setShowFilterDrawer(false)}
-  filters={filters}
-  setFilters={setFilters}
-  minBudgetAvailable={0}
- maxBudgetAvailable={maxBudgetAvailable}
- statusCounts={statusCounts}
-/>
 
- {showMilestoneModal && (
-  <MilestoneModal
-    isOpen={showMilestoneModal}
-    onClose={() => {
-      setShowMilestoneModal(false);
-      setEditingMilestone(null);
-    }}
-    milestone={editingMilestone}
-    setMilestone={setEditingMilestone}
-    onSave={saveMilestone}
-    projectId={selectedProject?._id}
-     project={selectedProject}
-     milestoneIndex={
-    typeof editingMilestone?.index === "number"
-      ? editingMilestone.index
-      : undefined
-  }
-  />
-)}
-  </main>
-);
+      {/* =====================================================
+          PROJECT DRAWER
+      ===================================================== */}
 
-};
+      <ProjectDrawer
+        isOpen={projectDrawer}
+        onClose={() =>
+          setProjectDrawer(false)
+        }
+        onProjectCreated={
+          handleProjectCreated
+        }
+      />
+
+      {/* =====================================================
+          FILTER DRAWER
+      ===================================================== */}
+
+      <ProjectFilterDrawer
+        isOpen={showFilterDrawer}
+        onClose={() =>
+          setShowFilterDrawer(false)
+        }
+        filters={filters}
+        setFilters={setFilters}
+        minBudgetAvailable={0}
+        maxBudgetAvailable={
+          maxBudgetAvailable
+        }
+        statusCounts={statusCounts}
+        activeFilter={activeFilter}
+        setActiveFilter={setActiveFilter}
+      />
+
+      {/* =====================================================
+          MILESTONE MODAL
+      ===================================================== */}
+
+      {showMilestoneModal && (
+        <MilestoneModal
+          isOpen={showMilestoneModal}
+          onClose={() => {
+            setShowMilestoneModal(false);
+            setEditingMilestone(null);
+          }}
+          milestone={editingMilestone}
+          setMilestone={setEditingMilestone}
+          onSave={saveMilestone}
+          projectId={selectedProject?.id}
+          project={selectedProject}
+        />
+      )}
+    </main>
+  );
+}

@@ -1,35 +1,38 @@
 // components/ui/ProjectCard.jsx
+
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import useCurrency from "../../hooks/useCurrency";
+
 export default function ProjectCard({
   title,
   client,
   dueDate,
   budget = 0,
   billed = 0,
-  progress: initialProgress = 0, // fallback
+  progress: initialProgress = 0,
   milestones = [],
   members = 8,
   icon = "folder",
-  iconBg = "bg-teal-100",
-  iconColor = "text-teal-700",
   onClick,
   isSelected = false,
 }) {
-const { format } = useCurrency();
-  // Safe client name extraction
-  const clientName = typeof client === "object" && client !== null 
-    ? client.name || client.clientName || "Unknown Client"
-    : client || "Unknown Client";
+  const { format } = useCurrency();
 
-  // Calculate progress based on paid milestones
+  const clientName =
+    typeof client === "object" && client !== null
+      ? client.name || client.clientName || "Unknown Client"
+      : client || "Unknown Client";
+
   const calculateProgress = () => {
     if (!milestones || milestones.length === 0) {
       return initialProgress || 0;
     }
 
-    const paidCount = milestones.filter(m => m.status === "paid").length;
+    const paidCount = milestones.filter(
+      (m) => String(m?.status || "").toLowerCase() === "paid"
+    ).length;
+
     return Math.round((paidCount / milestones.length) * 100);
   };
 
@@ -47,11 +50,15 @@ const { format } = useCurrency();
       return "ACTIVE";
     }
 
-    const allPaid = milestones.every((m) => m.status === "paid");
+    const allPaid = milestones.every(
+      (m) => String(m?.status || "").toLowerCase() === "paid"
+    );
     if (allPaid) return "PAID";
 
     const hasPending = milestones.some((m) =>
-      ["pending", "scheduled"].includes(m.status)
+      ["pending", "scheduled"].includes(
+        String(m?.status || "").toLowerCase()
+      )
     );
 
     return hasPending ? "PENDING" : "ACTIVE";
@@ -76,93 +83,96 @@ const { format } = useCurrency();
 
   const badgeProps = getBadgeProps(projectStatus);
 
+  const formattedDueDate = dueDate
+    ? new Date(dueDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+
   return (
     <Card
       hover
-      className={`group border-2 transition-all duration-300 cursor-pointer
-      ${
-        isSelected
-          ? "border-teal-500 shadow-md"
-          : "border-transparent hover:border-teal-200"
-      }`}
       onClick={onClick}
+      className={`
+        group border-2 cursor-pointer
+        transition-all duration-fast
+        ${
+          isSelected
+            ? "border-primary shadow-md"
+            : "border-transparent hover:border-primary/30"
+        }
+      `}
     >
       <div className="p-0">
-        <div className="flex items-start justify-between mb-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div
-              className={`w-11 h-11 rounded-xl grid place-items-center ${iconBg}`}
+              className="
+                w-11 h-11 rounded-xl
+                bg-primary-soft
+                grid place-items-center
+                shrink-0
+              "
             >
-              <span
-                className={`material-symbols-outlined ${iconColor}`}
-                style={{ fontSize: "22px" }}
-              >
+              <span className="material-symbols-outlined text-[22px] text-primary">
                 {icon}
               </span>
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="text-base font-bold text-slate-900 leading-tight">
+              <div className="text-base font-bold text-text leading-tight truncate">
                 {title}
               </div>
-
-              <div className="text-xs text-slate-500">
-                {clientName} ·{" "}
-                {dueDate
-                  ? new Date(dueDate).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "-"}
+              <div className="text-xs text-text-muted truncate">
+                {clientName} · {formattedDueDate}
               </div>
             </div>
           </div>
 
-          <Badge
-            label={badgeProps.label}
-            variant={badgeProps.variant}
-          />
+          <Badge label={badgeProps.label} variant={badgeProps.variant} />
         </div>
 
+        {/* Stats + Progress */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500">
+            <span className="text-text-muted">
               Budget ·{" "}
-              <span className="tabular font-semibold text-slate-900">
-               {format(budget || 0)}
+              <span className="tabular-nums font-semibold text-text">
+                {format(budget || 0)}
               </span>
             </span>
 
-            <span className="text-slate-500">
+            <span className="text-text-muted">
               Billed ·{" "}
-              <span className="tabular font-semibold text-teal-600">
-                 {format(billed || 0)}
+              <span className="tabular-nums font-semibold text-primary">
+                {format(billed || 0)}
               </span>
             </span>
           </div>
 
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          {/* Progress bar */}
+          <div className="h-2 bg-surface-secondary rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-teal-500 to-indigo-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
+              className="
+                h-full rounded-full
+                bg-gradient-to-r from-primary to-info
+                transition-all duration-slow
+              "
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
             />
           </div>
 
           <div className="flex items-center justify-between text-[11px]">
-            <span className="font-bold text-slate-700 tabular">
+            <span className="font-bold text-text-secondary tabular-nums">
               {progress}% complete
             </span>
-
-            <span className="text-slate-500">
-              {members} members
-            </span>
+            <span className="text-text-muted">{members} members</span>
           </div>
         </div>
       </div>
     </Card>
   );
 }
-
-
-

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import RightDrawer from "../layout/RightDrawer";
 import { createClient, updateClient } from "../../services/clientService";
 import { showErrorToast, showSuccessToast } from "../ui/CustomToast";
@@ -8,13 +9,57 @@ import FormInput from "../ui/FormInput";
 import Badge from "../ui/Badge";
 import { useNotificationStore } from "../../store/notificationStore";
 
-const tiers = ["Enterprise", "Mid-Market", "SMB", "Agency"];
-const colors = [
-  "bg-teal-500", "bg-indigo-500", "bg-amber-500",
-  "bg-rose-500", "bg-violet-500", "bg-cyan-500",
+const STEPS = [
+  { id: 1, label: "Contact" },
+  { id: 2, label: "Billing" },
+  { id: 3, label: "Preferences" },
 ];
 
-const automationItems = [
+const TIERS = ["Enterprise", "Mid-Market", "SMB", "Agency"];
+
+const COLORS = [
+  "bg-primary",
+  "bg-info",
+  "bg-warning",
+  "bg-danger",
+  "bg-secondary",
+  "bg-success",
+];
+
+const INDUSTRIES = [
+  "SaaS / Software",
+  "Agency / Consulting",
+  "Professional Services",
+  "E-commerce",
+];
+
+const COUNTRIES = ["United States", "India", "United Kingdom", "Canada"];
+
+const CURRENCIES = ["USD", "INR", "EUR", "GBP"];
+
+const PAYMENT_TERMS = ["Net 30", "Due on receipt", "Net 15", "Net 60"];
+
+const PAYMENT_METHODS = [
+  { value: "ACH", label: "ACH", icon: "account_balance" },
+  { value: "Card", label: "Card", icon: "credit_card" },
+  { value: "Wire", label: "Wire", icon: "swap_horiz" },
+  { value: "Check", label: "Check", icon: "request_quote" },
+];
+
+const AVAILABLE_TAGS = [
+  "Strategic",
+  "Net-30",
+  "Auto-Pay",
+  "Q1",
+  "Q2",
+  "Q3",
+  "Q4",
+  "VIP",
+  "Priority",
+  "Annual",
+];
+
+const AUTOMATION_ITEMS = [
   {
     key: "autoCharge",
     icon: "bolt",
@@ -41,26 +86,35 @@ const automationItems = [
   },
 ];
 
-const paymentMethods = [
-  { value: "ACH", label: "ACH", icon: "account_balance" },
-  { value: "Card", label: "Card", icon: "credit_card" },
-  { value: "Wire", label: "Wire", icon: "swap_horiz" },
-  { value: "Check", label: "Check", icon: "request_quote" },
-];
+const DEFAULT_AUTOMATION = {
+  autoCharge: true,
+  reminders: true,
+  portalAccess: true,
+  welcomeEmail: true,
+};
 
-const availableTags = [
-  "Strategic", "Net-30", "Auto-Pay", "Q1", "Q2", "Q3", "Q4",
-  "VIP", "Priority", "Annual",
-];
-const initialFormData = {
+const selectClassName = `
+  w-full rounded-lg border border-border
+  bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text
+  outline-none transition-colors duration-fast
+  focus:border-primary focus:ring-2 focus:ring-primary/20
+`;
+
+const sectionTitleClass =
+  "mb-3 text-[11.5px] font-bold uppercase tracking-widest text-text-secondary";
+
+const labelClass =
+  "mb-1.5 block text-[11.5px] font-semibold text-text-secondary";
+
+const getInitialFormData = () => ({
   companyName: "",
   contactName: "",
   contactEmail: "",
   phone: "",
   website: "",
-  industry: "SaaS / Software",
-  selectedTier: "Enterprise",
-  selectedColor: "bg-teal-500",
+  industry: INDUSTRIES[0],
+  selectedTier: TIERS[0],
+  selectedColor: COLORS[0],
   billingAddress: "",
   city: "",
   stateRegion: "",
@@ -71,258 +125,394 @@ const initialFormData = {
   paymentTerms: "Net 30",
   paymentMethod: "ACH",
   notes: "",
-  automation: {
-    autoCharge: true,
-    reminders: true,
-    portalAccess: true,
-    welcomeEmail: true,
-  },
+  automation: { ...DEFAULT_AUTOMATION },
   selectedTags: [],
+});
+
+const asString = (value, fallback = "") =>
+  typeof value === "string" ? value : value == null ? fallback : String(value);
+
+const normalizeTags = (tags) =>
+  Array.isArray(tags)
+    ? [...new Set(tags.map((tag) => asString(tag).trim()).filter(Boolean))]
+    : [];
+
+const getClientId = (client) => client?.id ?? client?._id ?? null;
+
+const getInitials = (companyName) => {
+  const name = asString(companyName).trim();
+  if (!name) return "?";
+
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+
+  return words
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase();
 };
-export default function ClientFormDrawer({
-  isOpen,
-  onClose,
-  client = null,           // null = create, object = edit
-}) {
+
+const normalizeClientToForm = (client) => {
+  const defaults = getInitialFormData();
+  if (!client) return defaults;
+
+  return {
+    ...defaults,
+    companyName: asString(client.name),
+    contactName: asString(client.contactName),
+    contactEmail: asString(client.email),
+    phone: asString(client.phone),
+    website: asString(client.website),
+    industry: asString(client.industry, defaults.industry),
+    selectedTier: asString(client.tier, defaults.selectedTier),
+    selectedColor: asString(client.color, defaults.selectedColor),
+    billingAddress: asString(client.address?.street),
+    city: asString(client.address?.city),
+    stateRegion: asString(client.address?.state),
+    postalCode: asString(client.address?.postalCode),
+    country: asString(client.address?.country, defaults.country),
+    taxId: asString(client.taxId),
+    currency: asString(client.currency, defaults.currency),
+    paymentTerms: asString(client.paymentTerms, defaults.paymentTerms),
+    paymentMethod: asString(client.paymentMethod, defaults.paymentMethod),
+    notes: asString(client.notes),
+    automation: {
+      ...DEFAULT_AUTOMATION,
+      ...(client.automation && typeof client.automation === "object"
+        ? client.automation
+        : {}),
+    },
+    selectedTags: normalizeTags(client.tags),
+  };
+};
+
+const getApiErrorMessage = (error) =>
+  error?.response?.data?.message ||
+  error?.response?.data?.error ||
+  error?.message ||
+  "Unable to save the client. Please try again.";
+
+const SelectField = ({ id, label, value, options, onChange }) => (
+  <div>
+    <label htmlFor={id} className={labelClass}>
+      {label}
+    </label>
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={selectClassName}
+    >
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
   const { addNotification } = useNotificationStore();
-  const isEditing = !!client;
+
+  const isEditing = Boolean(client);
+  const clientId = getClientId(client);
 
   const [step, setStep] = useState(1);
-
-
-const [formData, setFormData] = useState(initialFormData);
-const resetForm = () => {
-  setFormData(initialFormData);
-  setStep(1);
-};
-  
-
-  // Populate form when editing
-  useEffect(() => {
-    if (isEditing && client) {
-      setFormData({
-  companyName: client.name || "",
-  contactName: client.contactName || "",
-  contactEmail: client.email || "",
-  phone: client.phone || "",
-
-  website: client.website || "",
-  industry: client.industry || "SaaS / Software",
-
-  selectedTier: client.tier || "Enterprise",
-  selectedColor: client.color || "bg-teal-500",
-
-  billingAddress: client.address?.street || "",
-  city: client.address?.city || "",
-  stateRegion: client.address?.state || "",
-  postalCode: client.address?.postalCode || "",
-  country: client.address?.country || "United States",
-
-  taxId: client.taxId || "",
-
-  currency: client.currency || "USD",
-  paymentTerms: client.paymentTerms || "Net 30",
-  paymentMethod: client.paymentMethod || "ACH",
-
-  notes: client.notes || "",
-
-  automation: client.automation || {
-    autoCharge: true,
-    reminders: true,
-    portalAccess: true,
-    welcomeEmail: true,
-  },
-
-  selectedTags: client.tags || [],
-});
-    }
-    setStep(1);
-  }, [client, isEditing]);
+  const [formData, setFormData] = useState(getInitialFormData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateForm = useCallback((key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const updateAutomation = useCallback((key) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      automation: { ...prev.automation, [key]: !prev.automation[key] },
+      automation: {
+        ...prev.automation,
+        [key]: !Boolean(prev.automation?.[key]),
+      },
     }));
   }, []);
 
   const toggleTag = useCallback((tag) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedTags: prev.selectedTags.includes(tag)
-        ? prev.selectedTags.filter(t => t !== tag)
-        : [...prev.selectedTags, tag],
-    }));
+    setFormData((prev) => {
+      const currentTags = normalizeTags(prev.selectedTags);
+      const exists = currentTags.includes(tag);
+
+      return {
+        ...prev,
+        selectedTags: exists
+          ? currentTags.filter((item) => item !== tag)
+          : [...currentTags, tag],
+      };
+    });
   }, []);
 
   const removeTag = useCallback((tag) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      selectedTags: prev.selectedTags.filter(t => t !== tag),
+      selectedTags: normalizeTags(prev.selectedTags).filter(
+        (item) => item !== tag
+      ),
     }));
   }, []);
 
-  const handleContinue = () => setStep(s => Math.min(s + 1, 3));
-  const handleBack = () => setStep(s => Math.max(s - 1, 1));
+  const resetForm = useCallback(() => {
+    setFormData(getInitialFormData());
+    setStep(1);
+  }, []);
 
-  const handleSubmit = async () => {
-    const initials = formData.companyName
-      .trim()
-      .split(" ")
-      .map(w => w[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
+  useEffect(() => {
+    if (!isOpen) return;
+    setFormData(normalizeClientToForm(client));
+    setStep(1);
+  }, [isOpen, client]);
 
-    const payload = {
-  initials,
+  const validateStep = useCallback(
+    (targetStep = step) => {
+      const companyName = formData.companyName.trim();
+      const contactEmail = formData.contactEmail.trim();
 
-  name: formData.companyName,
-  contactName: formData.contactName,
-  email: formData.contactEmail,
-  phone: formData.phone,
+      if (targetStep === 1) {
+        if (!companyName) {
+          showErrorToast("Company name is required");
+          return false;
+        }
+        if (!contactEmail) {
+          showErrorToast("Contact email is required");
+          return false;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+          showErrorToast("Please enter a valid email address");
+          return false;
+        }
+        if (formData.website.trim()) {
+          const website = formData.website.trim();
+          if (
+            !/^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i.test(website)
+          ) {
+            showErrorToast("Please enter a valid website");
+            return false;
+          }
+        }
+      }
 
-  website: formData.website,
-  industry: formData.industry,
+      if (targetStep === 2) {
+        if (formData.postalCode.trim().length > 20) {
+          showErrorToast("Postal code is too long");
+          return false;
+        }
+        if (!CURRENCIES.includes(formData.currency)) {
+          showErrorToast("Please select a valid currency");
+          return false;
+        }
+        if (!PAYMENT_TERMS.includes(formData.paymentTerms)) {
+          showErrorToast("Please select valid payment terms");
+          return false;
+        }
+        if (
+          !PAYMENT_METHODS.some((m) => m.value === formData.paymentMethod)
+        ) {
+          showErrorToast("Please select a valid payment method");
+          return false;
+        }
+      }
 
-  tier: formData.selectedTier,
-  color: formData.selectedColor,
+      return true;
+    },
+    [formData, step]
+  );
 
-  currency: formData.currency,
-  paymentTerms: formData.paymentTerms,
-  paymentMethod: formData.paymentMethod,
+  const handleContinue = useCallback(() => {
+    if (!validateStep(step)) return;
+    setStep((current) => Math.min(current + 1, STEPS.length));
+  }, [step, validateStep]);
 
-  taxId: formData.taxId,
+  const handleBack = useCallback(() => {
+    setStep((current) => Math.max(current - 1, 1));
+  }, []);
 
-  notes: formData.notes,
+  const buildPayload = useCallback(() => {
+    const companyName = formData.companyName.trim();
 
-  tags: formData.selectedTags,
+    return {
+      initials: getInitials(companyName),
+      name: companyName,
+      contactName: formData.contactName.trim(),
+      email: formData.contactEmail.trim(),
+      phone: formData.phone.trim(),
+      website: formData.website.trim(),
+      industry: formData.industry,
+      tier: formData.selectedTier,
+      color: formData.selectedColor,
+      currency: formData.currency,
+      paymentTerms: formData.paymentTerms,
+      paymentMethod: formData.paymentMethod,
+      taxId: formData.taxId.trim(),
+      notes: formData.notes.trim(),
+      tags: normalizeTags(formData.selectedTags),
+      automation: {
+        autoCharge: Boolean(formData.automation?.autoCharge),
+        reminders: Boolean(formData.automation?.reminders),
+        portalAccess: Boolean(formData.automation?.portalAccess),
+        welcomeEmail: Boolean(formData.automation?.welcomeEmail),
+      },
+      address: {
+        street: formData.billingAddress.trim(),
+        city: formData.city.trim(),
+        state: formData.stateRegion.trim(),
+        postalCode: formData.postalCode.trim(),
+        country: formData.country,
+      },
+    };
+  }, [formData]);
 
-  automation: formData.automation,
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitting) return;
 
-  address: {
-    street: formData.billingAddress,
-    city: formData.city,
-    state: formData.stateRegion,
-    postalCode: formData.postalCode,
-    country: formData.country,
-  },
-};
+    for (const currentStep of STEPS.map((item) => item.id)) {
+      if (!validateStep(currentStep)) {
+        setStep(currentStep);
+        return;
+      }
+    }
+
+    if (isEditing && !clientId) {
+      showErrorToast("Client ID is missing");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-  if (isEditing) {
-    await updateClient(client._id, payload);
+      const payload = buildPayload();
+      const companyName = payload.name;
 
-    showSuccessToast("Client Updated", formData.companyName);
+      if (isEditing) {
+        await updateClient(clientId, payload);
+        showSuccessToast("Client Updated", companyName);
 
-    addNotification({
-      type: "client",
-      icon: "edit",
-      iconColor: "text-indigo-600",
-      bgColor: "bg-indigo-50",
-      title: "Client Updated",
-      description: `${formData.companyName} was updated successfully`,
-      borderColor: "border-l-indigo-500",
-    });
-  } else {
-    await createClient(payload);
+        addNotification({
+          type: "client",
+          icon: "edit",
+          title: "Client Updated",
+          description: `${companyName} was updated successfully`,
+        });
+      } else {
+        const createdClient = await createClient(payload);
+        const createdId = getClientId(createdClient);
 
-    showSuccessToast("Client Created", formData.companyName);
+        showSuccessToast("Client Created", companyName);
 
-    addNotification({
-      type: "client",
-      icon: "person_add",
-      iconColor: "text-teal-600",
-      bgColor: "bg-teal-50",
-      title: "New Client Added",
-      description: `${formData.companyName} has been successfully created`,
-      borderColor: "border-l-teal-500",
-    });
+        addNotification({
+          type: "client",
+          icon: "person_add",
+          title: "New Client Added",
+          description: `${companyName} has been successfully created`,
+        });
 
-    resetForm();
-  }
+        window.dispatchEvent(
+          new CustomEvent("client-updated", {
+            detail: { client: { id: createdId, name: companyName } },
+          })
+        );
+      }
 
-  onClose();
+      if (isEditing) {
+        window.dispatchEvent(
+          new CustomEvent("client-updated", {
+            detail: { client: { id: clientId, name: companyName } },
+          })
+        );
+      }
 
-  window.dispatchEvent(
-    new CustomEvent("client-updated", {
-      detail: {
-        client: {
-          name: formData.companyName,
-        },
-      },
-    })
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error("Client save error:", error);
+      showErrorToast(getApiErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    addNotification,
+    buildPayload,
+    clientId,
+    isEditing,
+    isSubmitting,
+    onClose,
+    resetForm,
+    validateStep,
+  ]);
+
+  const previewInitials = useMemo(
+    () => getInitials(formData.companyName),
+    [formData.companyName]
   );
-} catch (error) {
-  showErrorToast(
-    error?.response?.data?.message || "Operation failed"
-  );
-}
-  };
-
-  // ✅ FIXED: Preview definition
-  const preview = useMemo(() => ({
-    initials: formData.companyName
-      .trim()
-      .split(" ")
-      .map(w => w[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "?",
-  }), [formData.companyName]);
 
   const footer = (
-    <div className="flex justify-end gap-2">
-      <button
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button
+        type="button"
+        variant="secondary"
         onClick={onClose}
-        className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+        disabled={isSubmitting}
       >
         Cancel
-      </button>
+      </Button>
 
       {step > 1 && (
-       <Button
-  variant="secondary"
-  onClick={handleBack}
-  icon={
-    <span className="material-symbols-outlined text-sm">
-      arrow_back
-    </span>
-  }
->
-  Back
-</Button>
+        <Button
+          variant="secondary"
+          onClick={handleBack}
+          disabled={isSubmitting}
+          icon={
+            <span className="material-symbols-outlined text-sm">
+              arrow_back
+            </span>
+          }
+        >
+          Back
+        </Button>
       )}
 
       <Button
-  onClick={step === 3 ? handleSubmit : handleContinue}
-  icon={
-    <span className="material-symbols-outlined text-sm">
-      {step === 3
-        ? isEditing
-          ? "save"
-          : "person_add"
-        : "arrow_forward"}
-    </span>
-  }
->
-  {step === 3
-    ? isEditing
-      ? "Save Changes"
-      : "Add Client"
-    : "Continue"}
-</Button>
+        onClick={step === 3 ? handleSubmit : handleContinue}
+        disabled={isSubmitting}
+        icon={
+          <span
+            className={`material-symbols-outlined text-sm ${
+              isSubmitting ? "animate-spin" : ""
+            }`}
+          >
+            {isSubmitting
+              ? "progress_activity"
+              : step === 3
+              ? isEditing
+                ? "save"
+                : "person_add"
+              : "arrow_forward"}
+          </span>
+        }
+      >
+        {isSubmitting
+          ? "Saving..."
+          : step === 3
+          ? isEditing
+            ? "Save Changes"
+            : "Add Client"
+          : "Continue"}
+      </Button>
     </div>
   );
 
   return (
     <RightDrawer
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={isSubmitting ? undefined : onClose}
       title={isEditing ? "Edit Client" : "New Client"}
       icon={isEditing ? "edit" : "person_add"}
       width="max-w-2xl"
@@ -330,342 +520,554 @@ const resetForm = () => {
     >
       <div className="space-y-6">
         {/* Stepper */}
-        <div className="flex items-center gap-2 mb-6 pb-5 border-b border-slate-100">
-          {[1, 2, 3].map((s, i) => (
-            <React.Fragment key={s}>
-              <div className={`flex items-center gap-2 ${step >= s ? "text-teal-600" : "text-slate-400"}`}>
-                <div className={`w-7 h-7 rounded-full grid place-items-center font-bold text-xs transition-all
-                  ${step > s ? "bg-teal-600 text-white" : step === s ? "bg-teal-600 text-white ring-4 ring-teal-100" : "bg-slate-200"}`}
-                >
-                  {step > s ? <span className="material-symbols-outlined text-sm">check</span> : s}
-                </div>
-                <span className="text-[12.5px] font-semibold">
-                  {s === 1 && "Contact"}
-                  {s === 2 && "Billing"}
-                  {s === 3 && "Preferences"}
-                </span>
-              </div>
-              {i < 2 && <div className={`flex-1 h-px ${step > s ? "bg-teal-600" : "bg-slate-200"}`} />}
-            </React.Fragment>
-          ))}
-        </div>
+        <nav
+          aria-label="Client form progress"
+          className="mb-6 flex items-center gap-2 border-b border-border-light pb-5"
+        >
+          {STEPS.map((currentStep, index) => {
+            const isComplete = step > currentStep.id;
+            const isCurrent = step === currentStep.id;
 
-        {/* Preview Card */}
+            return (
+              <React.Fragment key={currentStep.id}>
+                <div
+                  className={`flex items-center gap-2 ${
+                    step >= currentStep.id
+                      ? "text-primary"
+                      : "text-text-light"
+                  }`}
+                  aria-current={isCurrent ? "step" : undefined}
+                >
+                  <div
+                    className={`
+                      grid h-7 w-7 shrink-0 place-items-center
+                      rounded-full text-xs font-bold
+                      transition-all duration-fast
+                      ${
+                        isComplete
+                          ? "bg-primary text-text-inverse"
+                          : isCurrent
+                          ? "bg-primary text-text-inverse ring-4 ring-primary/15"
+                          : "bg-surface-secondary text-text-muted"
+                      }
+                    `}
+                  >
+                    {isComplete ? (
+                      <span className="material-symbols-outlined text-sm">
+                        check
+                      </span>
+                    ) : (
+                      currentStep.id
+                    )}
+                  </div>
+                  <span className="text-[12.5px] font-semibold">
+                    {currentStep.label}
+                  </span>
+                </div>
+
+                {index < STEPS.length - 1 && (
+                  <div
+                    aria-hidden
+                    className={`h-px flex-1 ${
+                      step > currentStep.id ? "bg-primary" : "bg-border"
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </nav>
+
+        {/* Live preview */}
         <Card
-                 bordered
-               padding="p-4"
-               className="bg-slate-50/50 flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-xl grid place-items-center font-bold text-sm text-white ${formData.selectedColor}`}>
-            {preview.initials}
+          bordered
+          padding="p-4"
+          className="flex items-center gap-3 bg-surface-secondary/50"
+        >
+          <div
+            className={`
+              grid h-12 w-12 shrink-0 place-items-center
+              rounded-xl text-sm font-bold text-text-inverse
+              ${formData.selectedColor || COLORS[0]}
+            `}
+            aria-hidden
+          >
+            {previewInitials}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold text-slate-900 truncate">{formData.companyName || "Unnamed client"}</div>
-            <div className="text-[11.5px] text-slate-500 truncate">
-              {formData.contactEmail} · {formData.selectedTier}
+
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold text-text">
+              {formData.companyName || "Unnamed client"}
             </div>
-           
+            <div className="truncate text-[11.5px] text-text-muted">
+              {formData.contactEmail || "No email"} ·{" "}
+              {formData.selectedTier || TIERS[0]}
+            </div>
           </div>
-          <Badge
-  label="Preview"
-  variant="active"
-/>
+
+          <Badge label="Preview" variant="active" />
         </Card>
 
+        {/* STEP 1 */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <section aria-labelledby="company-section">
+              <h4 id="company-section" className={sectionTitleClass}>
+                Company
+              </h4>
 
-        {step === 1 && ( 
-                <>
-            <section>
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Company</h4>
               <div className="space-y-4">
-                <div>
-                 <FormInput
-  label="Company Name *"
-  icon="business"
-  value={formData.companyName}
-  onChange={(e) => updateForm("companyName", e.target.value)}
-  placeholder="Acme Dynamics Corp"
-/>
-                </div>
+                <FormInput
+                  label="Company Name *"
+                  icon="business"
+                  value={formData.companyName}
+                  onChange={(e) => updateForm("companyName", e.target.value)}
+                  placeholder="Acme Dynamics Corp"
+                  required
+                />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormInput
+                    label="Website"
+                    icon="language"
+                    value={formData.website}
+                    onChange={(e) => updateForm("website", e.target.value)}
+                    placeholder="company.com"
+                    type="text"
+                  />
+
                   <div>
-                    <FormInput
-  label="Website"
-  icon="language"
-  value={formData.website}
-  onChange={(e) => updateForm("website", e.target.value)}
-  placeholder="company.com"
-/>
-                  </div>
-                  <div>
-                    <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">Industry</label>
+                    <label htmlFor="client-industry" className={labelClass}>
+                      Industry
+                    </label>
                     <select
-  value={formData.industry}
-  onChange={(e) => updateForm("industry", e.target.value)}
-  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm"
->
-                      <option>SaaS / Software</option>
-                      <option>Agency / Consulting</option>
-                      <option>Professional Services</option>
-                      <option>E-commerce</option>
+                      id="client-industry"
+                      value={formData.industry}
+                      onChange={(e) => updateForm("industry", e.target.value)}
+                      className={selectClassName}
+                    >
+                      {INDUSTRIES.map((industry) => (
+                        <option key={industry} value={industry}>
+                          {industry}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11.5px] font-semibold text-slate-600 mb-2">Account Tier</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {tiers.map((tier) => (
-                      <button
-                        key={tier}
-                        type="button"
-                        onClick={() => updateForm("selectedTier", tier)}
-                        className={`px-3 py-2.5 rounded-lg border-2 text-[12.5px] font-bold transition ${
-                          formData.selectedTier === tier
-                            ? "bg-rose-50 text-rose-700 border-rose-200"
-                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
-                      >
-                        {tier}
-                      </button>
-                    ))}
+                  <label className={labelClass}>Account Tier</label>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    {TIERS.map((tier) => {
+                      const selected = formData.selectedTier === tier;
+
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => updateForm("selectedTier", tier)}
+                          className={`
+                            rounded-lg border-2 px-3 py-2.5
+                            text-[12.5px] font-bold
+                            transition-colors duration-fast
+                            ${
+                              selected
+                                ? "border-primary/30 bg-primary-soft text-primary-dark"
+                                : "border-border bg-surface text-text-secondary hover:border-border-dark"
+                            }
+                          `}
+                        >
+                          {tier}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </section>
 
-            <section className="pt-5 border-t border-slate-100">
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Primary Contact</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <FormInput
-  label="Contact Name"
-  icon="person"
-  value={formData.contactName}
-  onChange={(e) => updateForm("contactName", e.target.value)}
-  placeholder="Sarah Jenkins"
-/>
-                </div>
-                <div>
-                  <FormInput
-  label="Phone"
-  icon="phone"
-  value={formData.phone}
-  onChange={(e) => updateForm("phone", e.target.value)}
-  placeholder="+91 9876543210"
-/>
-                </div>
+            <section
+              aria-labelledby="contact-section"
+              className="border-t border-border-light pt-5"
+            >
+              <h4 id="contact-section" className={sectionTitleClass}>
+                Primary Contact
+              </h4>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormInput
+                  label="Contact Name"
+                  icon="person"
+                  value={formData.contactName}
+                  onChange={(e) => updateForm("contactName", e.target.value)}
+                  placeholder="Sarah Jenkins"
+                />
+                <FormInput
+                  label="Phone"
+                  icon="phone"
+                  value={formData.phone}
+                  onChange={(e) => updateForm("phone", e.target.value)}
+                  placeholder="+91 9876543210"
+                  type="tel"
+                />
               </div>
 
               <div className="mt-3">
-               <FormInput
-  label="Contact Email *"
-  icon="mail"
-  type="email"
-  value={formData.contactEmail}
-  onChange={(e) => updateForm("contactEmail", e.target.value)}
-  placeholder="billing@company.com"
-/>
+                <FormInput
+                  label="Contact Email *"
+                  icon="mail"
+                  type="email"
+                  value={formData.contactEmail}
+                  onChange={(e) =>
+                    updateForm("contactEmail", e.target.value)
+                  }
+                  placeholder="billing@company.com"
+                  required
+                />
               </div>
             </section>
 
-            <section className="pt-5 border-t border-slate-100">
-              <label className="block text-[11.5px] font-semibold text-slate-600 mb-2">Color Tag</label>
-              <div className="flex gap-2">
-                {colors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => updateForm("selectedColor", color)}
-                    className={`w-9 h-9 rounded-lg ${color} transition hover:scale-105 ${
-                      formData.selectedColor === color ? "ring-2 ring-offset-2 ring-slate-900 scale-110" : ""
-                    }`}
-                  />
-                ))}
+            <section
+              aria-labelledby="color-section"
+              className="border-t border-border-light pt-5"
+            >
+              <label className={labelClass}>Color Tag</label>
+              <div className="flex flex-wrap gap-2">
+                {COLORS.map((color) => {
+                  const selected = formData.selectedColor === color;
+
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Select ${color.replace("bg-", "")} color`}
+                      aria-pressed={selected}
+                      onClick={() => updateForm("selectedColor", color)}
+                      className={`
+                        h-9 w-9 rounded-lg
+                        transition-transform duration-fast hover:scale-105
+                        ${
+                          selected
+                            ? "scale-110 ring-2 ring-text ring-offset-2"
+                            : ""
+                        }
+                        ${color}
+                      `}
+                    />
+                  );
+                })}
               </div>
             </section>
-          </>)}
-        {step === 2 && ( 
-                    <div className="space-y-5">
-            <section>
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Billing Address</h4>
+          </div>
+        )}
+
+        {/* STEP 2 */}
+        {step === 2 && (
+          <div className="space-y-5">
+            <section aria-labelledby="billing-section">
+              <h4 id="billing-section" className={sectionTitleClass}>
+                Billing Address
+              </h4>
+
               <div className="space-y-3">
-                <div>
+                <FormInput
+                  label="Street Address"
+                  value={formData.billingAddress}
+                  onChange={(e) =>
+                    updateForm("billingAddress", e.target.value)
+                  }
+                  autoComplete="street-address"
+                />
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <FormInput
-  label="Street Address"
-  value={formData.billingAddress}
-  onChange={(e) => updateForm("billingAddress", e.target.value)}
-/>
+                    label="City"
+                    value={formData.city}
+                    onChange={(e) => updateForm("city", e.target.value)}
+                    autoComplete="address-level2"
+                  />
+                  <FormInput
+                    label="State / Region"
+                    value={formData.stateRegion}
+                    onChange={(e) =>
+                      updateForm("stateRegion", e.target.value)
+                    }
+                    autoComplete="address-level1"
+                  />
+                  <FormInput
+                    label="Postal Code"
+                    value={formData.postalCode}
+                    onChange={(e) =>
+                      updateForm("postalCode", e.target.value)
+                    }
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                  />
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                   <FormInput
-  label="City"
-  value={formData.city}
-  onChange={(e) => updateForm("city", e.target.value)}
-/>
-                  </div>
-                  <div>
-                    <FormInput
-  label="State / Region"
-  value={formData.stateRegion}
-  onChange={(e) => updateForm("stateRegion", e.target.value)}
-/>
-                  </div>
-                  <div>
-                    <FormInput
-  label="Postal Code"
-  value={formData.postalCode}
-  onChange={(e) => updateForm("postalCode", e.target.value)}
-/>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">Country</label>
-                    <select value={formData.country} onChange={(e) => updateForm("country", e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm">
-                      <option>United States</option>
-                      <option>India</option>
-                      <option>United Kingdom</option>
-                      <option>Canada</option>
+                    <label htmlFor="client-country" className={labelClass}>
+                      Country
+                    </label>
+                    <select
+                      id="client-country"
+                      value={formData.country}
+                      onChange={(e) => updateForm("country", e.target.value)}
+                      autoComplete="country-name"
+                      className={selectClassName}
+                    >
+                      {COUNTRIES.map((country) => (
+                        <option key={country} value={country}>
+                          {country}
+                        </option>
+                      ))}
                     </select>
                   </div>
-                  <div>
-                   <FormInput
-  label="Tax ID / VAT"
-  value={formData.taxId}
-  onChange={(e) => updateForm("taxId", e.target.value)}
-  placeholder="Optional"
-/>
-                  </div>
+
+                  <FormInput
+                    label="Tax ID / VAT"
+                    value={formData.taxId}
+                    onChange={(e) => updateForm("taxId", e.target.value)}
+                    placeholder="Optional"
+                  />
                 </div>
               </div>
             </section>
 
-            <section className="pt-5 border-t border-slate-100">
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Payment</h4>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">Currency</label>
-                  <select
-  value={formData.currency}
-  onChange={(e) => updateForm("currency", e.target.value)}
-  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm"
->
-                    <option>USD</option>
-                    <option>INR</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">Payment terms</label>
-                  <select
-  value={formData.paymentTerms}
-  onChange={(e) => updateForm("paymentTerms", e.target.value)}
-  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm"
->
-                    <option>Net 30</option>
-                    <option>Due on receipt</option>
-                  </select>
-                </div>
+            <section
+              aria-labelledby="payment-section"
+              className="border-t border-border-light pt-5"
+            >
+              <h4 id="payment-section" className={sectionTitleClass}>
+                Payment
+              </h4>
+
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <SelectField
+                  id="client-currency"
+                  label="Currency"
+                  value={formData.currency}
+                  options={CURRENCIES}
+                  onChange={(value) => updateForm("currency", value)}
+                />
+                <SelectField
+                  id="client-payment-terms"
+                  label="Payment terms"
+                  value={formData.paymentTerms}
+                  options={PAYMENT_TERMS}
+                  onChange={(value) => updateForm("paymentTerms", value)}
+                />
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-slate-600 mb-2">Preferred payment method</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.value}
-                      type="button"
-                      onClick={() => updateForm("paymentMethod", method.value)}
-                      className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all duration-200 ${
-                        formData.paymentMethod === method.value
-                          ? "border-teal-500 bg-teal-50 ring-2 ring-teal-100 scale-[1.02]"
-                          : "border-slate-200 bg-white hover:border-teal-300"
-                      }`}
-                    >
-                      <span className={`material-symbols-outlined mb-1 ${formData.paymentMethod === method.value ? "text-teal-600" : "text-slate-400"}`} style={{ fontSize: "18px" }}>
-                        {method.icon}
-                      </span>
-                      <span className={`text-[11.5px] font-bold ${formData.paymentMethod === method.value ? "text-teal-700" : "text-slate-700"}`}>
-                        {method.label}
-                      </span>
-                    </button>
-                  ))}
+                <label className={labelClass}>
+                  Preferred payment method
+                </label>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  {PAYMENT_METHODS.map((method) => {
+                    const selected =
+                      formData.paymentMethod === method.value;
+
+                    return (
+                      <button
+                        key={method.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          updateForm("paymentMethod", method.value)
+                        }
+                        className={`
+                          flex flex-col items-center rounded-lg border-2 p-3
+                          transition-all duration-fast
+                          ${
+                            selected
+                              ? "scale-[1.02] border-primary bg-primary-soft ring-2 ring-primary/15"
+                              : "border-border bg-surface hover:border-primary/40"
+                          }
+                        `}
+                      >
+                        <span
+                          className={`material-symbols-outlined mb-1 ${
+                            selected ? "text-primary" : "text-text-light"
+                          }`}
+                        >
+                          {method.icon}
+                        </span>
+                        <span
+                          className={`text-[11.5px] font-bold ${
+                            selected
+                              ? "text-primary-dark"
+                              : "text-text-secondary"
+                          }`}
+                        >
+                          {method.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </section>
-          </div> )}
-        {step === 3 && ( 
-         <section className="space-y-5">
-            <section>
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Automation</h4>
+          </div>
+        )}
+
+        {/* STEP 3 */}
+        {step === 3 && (
+          <section className="space-y-5">
+            <section aria-labelledby="automation-section">
+              <h4 id="automation-section" className={sectionTitleClass}>
+                Automation
+              </h4>
+
               <div className="space-y-3">
-                {automationItems.map((item) => (
-                  <div key={item.key} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg grid place-items-center bg-teal-100 text-teal-600">
-                        <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>{item.icon}</span>
-                      </div>
-                      <div>
-                        <div className="text-[13px] font-bold text-slate-900">{item.title}</div>
-                        <div className="text-[11.5px] text-slate-500 leading-tight">{item.description}</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => updateAutomation(item.key)}
-                      className={`w-11 h-6 rounded-full relative transition ${formData.automation[item.key] ? "bg-teal-600" : "bg-slate-300"}`}
+                {AUTOMATION_ITEMS.map((item) => {
+                  const enabled = Boolean(formData.automation?.[item.key]);
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="
+                        flex items-center justify-between gap-4
+                        rounded-lg border border-border-light
+                        bg-surface-secondary p-3
+                      "
                     >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${formData.automation[item.key] ? "right-0.5" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+                          <span className="material-symbols-outlined text-[18px]">
+                            {item.icon}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-bold text-text">
+                            {item.title}
+                          </div>
+                          <div className="leading-tight text-[11.5px] text-text-muted">
+                            {item.description}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={enabled}
+                        aria-label={`Toggle ${item.title}`}
+                        onClick={() => updateAutomation(item.key)}
+                        className={`
+                          relative h-6 w-11 shrink-0 rounded-full
+                          transition-colors duration-fast
+                          ${enabled ? "bg-primary" : "bg-border-dark"}
+                        `}
+                      >
+                        <span
+                          aria-hidden
+                          className={`
+                            absolute top-0.5 h-5 w-5 rounded-full
+                            bg-surface shadow-sm transition-all duration-fast
+                            ${enabled ? "right-0.5" : "left-0.5"}
+                          `}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
-            <section className="pt-5 border-t border-slate-100">
-              <h4 className="text-[11.5px] font-bold text-slate-600 uppercase tracking-widest mb-3">Tags &amp; Notes</h4>
+            <section
+              aria-labelledby="tags-notes-section"
+              className="border-t border-border-light pt-5"
+            >
+              <h4 id="tags-notes-section" className={sectionTitleClass}>
+                Tags & Notes
+              </h4>
+
               <div className="mb-4">
-                <label className="block text-[11.5px] font-semibold text-slate-600 mb-2">Tags</label>
+                <label className={labelClass}>Tags</label>
                 <div className="flex flex-wrap gap-2">
-                  {formData.selectedTags.map((tag) => (
-                    <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-700 rounded-full text-[11.5px] font-bold">
+                  {normalizeTags(formData.selectedTags).map((tag) => (
+                    <span
+                      key={tag}
+                      className="
+                        inline-flex items-center gap-1
+                        rounded-full bg-primary-soft
+                        px-2.5 py-1 text-[11.5px] font-bold text-primary-dark
+                      "
+                    >
                       {tag}
-                      <button onClick={() => removeTag(tag)} className="hover:text-teal-900">
-                        <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>close</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        aria-label={`Remove ${tag}`}
+                        className="
+                          rounded-full hover:text-primary
+                          focus:outline-none focus:ring-2 focus:ring-primary/25
+                        "
+                      >
+                        <span className="material-symbols-outlined text-[12px]">
+                          close
+                        </span>
                       </button>
                     </span>
                   ))}
 
-                  {availableTags
-                    .filter((tag) => !formData.selectedTags.includes(tag))
-                    .map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 border border-dashed border-slate-300 hover:border-teal-300 text-slate-500 hover:text-teal-600 rounded-full text-[11.5px] font-bold transition"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>add</span>
-                        {tag}
-                      </button>
-                    ))}
+                  {AVAILABLE_TAGS.filter(
+                    (tag) =>
+                      !normalizeTags(formData.selectedTags).includes(tag)
+                  ).map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className="
+                        inline-flex items-center gap-1
+                        rounded-full border border-dashed border-border
+                        px-2.5 py-1 text-[11.5px] font-bold text-text-muted
+                        transition-colors duration-fast
+                        hover:border-primary/40 hover:text-primary
+                      "
+                    >
+                      <span className="material-symbols-outlined text-[11px]">
+                        add
+                      </span>
+                      {tag}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">Internal notes</label>
+                <label htmlFor="client-notes" className={labelClass}>
+                  Internal notes
+                </label>
                 <textarea
-  rows={3}
-  value={formData.notes}
-  onChange={(e) => updateForm("notes", e.target.value)}
-  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/15 focus:border-teal-500 outline-none resize-none"
-/>
+                  id="client-notes"
+                  rows={4}
+                  maxLength={2000}
+                  value={formData.notes}
+                  onChange={(e) => updateForm("notes", e.target.value)}
+                  placeholder="Add internal notes about this client..."
+                  className="
+                    w-full resize-none rounded-lg
+                    border border-border px-3.5 py-2.5 text-sm
+                    bg-[var(--input-background)] text-text
+                    outline-none transition-colors duration-fast
+                    focus:border-primary focus:ring-2 focus:ring-primary/15
+                  "
+                />
+                <div className="mt-1 text-right text-[10px] text-text-light">
+                  {formData.notes.length}/2000
+                </div>
               </div>
             </section>
-          </section> )}
+          </section>
+        )}
       </div>
     </RightDrawer>
   );
-}
+};
+
+export default ClientFormDrawer;

@@ -1,12 +1,22 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import '@fontsource/inter'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
 
-import App from './App.jsx'        // Make sure extension is .jsx
+import "@fontsource/inter";
+import "./index.css";
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>                     
-    <App />
+import App from "./App";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Root element #root was not found.");
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>
-)
+);

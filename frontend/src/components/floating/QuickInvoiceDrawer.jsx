@@ -3,32 +3,37 @@ import { useNavigate } from "react-router-dom";
 
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
-
-import {
-  showSuccessToast,
-} from "../ui/CustomToast";
+import { showSuccessToast } from "../ui/CustomToast";
 import RightDrawer from "../layout/RightDrawer";
 import useCurrency from "../../hooks/useCurrency";
-export default function QuickInvoiceDrawer({
-  isOpen,
-  onClose,
-}) {
+
+const inputClassName = `
+  w-full px-3 py-2.5
+  border border-border rounded-lg text-sm
+  bg-[var(--input-background)] text-text
+  focus:outline-none
+  focus:ring-2 focus:ring-primary/20
+  focus:border-primary
+  transition-colors duration-fast
+`;
+
+export default function QuickInvoiceDrawer({ isOpen, onClose }) {
   const navigate = useNavigate();
- const { selectedCurrency } = useCurrency();
+  const { selectedCurrency } = useCurrency();
+
   const [form, setForm] = useState({
     client: "Apex Partners",
     amount: 2450,
     due: "Net 30",
-    description:
-      "Q4 Marketing Campaign — Strategy and execution",
+    description: "Q4 Marketing Campaign — Strategy and execution",
   });
 
-  const handleSaveDraft = () => {
-    showSuccessToast(
-      "Draft Saved",
-      "Invoice saved successfully"
-    );
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
+  const handleSaveDraft = () => {
+    showSuccessToast("Draft Saved", "Invoice saved successfully");
     onClose?.();
   };
 
@@ -50,39 +55,20 @@ export default function QuickInvoiceDrawer({
           >
             Open Full Composer →
           </Button>
-
-          <Button
-            onClick={handleSaveDraft}
-          >
-            Save Draft
-          </Button>
+          <Button onClick={handleSaveDraft}>Save Draft</Button>
         </div>
       }
     >
       <div className="space-y-5">
         {/* Client */}
         <div>
-          <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
+          <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
             Client
           </label>
-
           <select
             value={form.client}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                client: e.target.value,
-              })
-            }
-            className="
-              w-full px-3 py-2.5
-              border border-slate-200
-              rounded-lg text-sm
-              focus:ring-2
-              focus:ring-teal-500/20
-              focus:border-teal-500
-              outline-none
-            "
+            onChange={(e) => handleChange("client", e.target.value)}
+            className={inputClassName}
           >
             <option>Apex Partners</option>
             <option>Cloud Labs</option>
@@ -95,59 +81,30 @@ export default function QuickInvoiceDrawer({
         {/* Amount + Due */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
-  Amount ({selectedCurrency?.code || "INR"})
-</label>
-
+            <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
+              Amount ({selectedCurrency?.code || "INR"})
+            </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-    {selectedCurrency?.symbol || "₹"}
-  </span>
-
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-light">
+                {selectedCurrency?.symbol || "₹"}
+              </span>
               <input
                 type="number"
                 value={form.amount}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    amount: e.target.value,
-                  })
-                }
-                className="
-                  w-full pl-7 pr-3 py-2.5
-                  border border-slate-200
-                  rounded-lg text-sm
-                  focus:ring-2
-                  focus:ring-teal-500/20
-                  focus:border-teal-500
-                  outline-none
-                "
+                onChange={(e) => handleChange("amount", e.target.value)}
+                className={`${inputClassName} pl-7 pr-3`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
+            <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
               Due
             </label>
-
             <select
               value={form.due}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  due: e.target.value,
-                })
-              }
-              className="
-                w-full px-3 py-2.5
-                border border-slate-200
-                rounded-lg text-sm
-                focus:ring-2
-                focus:ring-teal-500/20
-                focus:border-teal-500
-                outline-none
-              "
+              onChange={(e) => handleChange("due", e.target.value)}
+              className={inputClassName}
             >
               <option>Net 15</option>
               <option>Net 30</option>
@@ -159,67 +116,35 @@ export default function QuickInvoiceDrawer({
 
         {/* Description */}
         <div>
-          <label className="block text-[11.5px] font-semibold text-slate-600 mb-1.5">
+          <label className="block text-[11.5px] font-semibold text-text-secondary mb-1.5">
             Description
           </label>
-
           <textarea
             rows={4}
             value={form.description}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                description: e.target.value,
-              })
-            }
+            onChange={(e) => handleChange("description", e.target.value)}
             placeholder="Brief description..."
-            className="
-              w-full px-3 py-2.5
-              border border-slate-200
-              rounded-lg text-sm
-              resize-none
-              focus:ring-2
-              focus:ring-teal-500/20
-              focus:border-teal-500
-              outline-none
-            "
+            className={`${inputClassName} resize-none`}
           />
         </div>
 
         {/* AI Suggestion */}
-        <div
-          className="
-            p-4
-            bg-teal-50
-            border border-teal-100
-            rounded-xl
-            flex gap-3
-          "
-        >
-          <span className="material-symbols-outlined text-teal-600 mt-0.5">
+        <div className="p-4 bg-primary-soft border border-primary/15 rounded-xl flex gap-3">
+          <span className="material-symbols-outlined text-primary mt-0.5 shrink-0">
             auto_awesome
           </span>
-
           <div>
-            <div className="text-[13px] font-semibold text-slate-900">
+            <div className="text-[13px] font-semibold text-text">
               AutoBillr Suggests
             </div>
-
-            <div className="text-[11.5px] text-slate-600 mt-1 leading-relaxed">
-              Auto-charge ACH on due date with
-              reminders at D-7, D and D+3.
+            <div className="text-[11.5px] text-text-secondary mt-1 leading-relaxed">
+              Auto-charge ACH on due date with reminders at D-7, D and D+3.
             </div>
-
             <div className="mt-3">
-              <Badge
-                label="100% Paid Within 4 Days"
-                variant="paid"
-              />
+              <Badge label="100% Paid Within 4 Days" variant="paid" />
             </div>
           </div>
         </div>
-
-    
       </div>
     </RightDrawer>
   );

@@ -1,12 +1,20 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+
 import { Toaster } from "react-hot-toast";
 
-// Layouts
 import MainLayout from "./components/layout/MainLayout";
+import ProtectedRoute from "./routes/ProtectedRoute";
 
-// Pages
+// Public pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+
+// Protected pages
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Projects from "./pages/projects/Projects";
 import Clients from "./pages/clients/Clients";
@@ -14,121 +22,145 @@ import Composer from "./pages/composer/Composer";
 import InvoicePreview from "./pages/composer/InvoicePreview";
 import Invoices from "./pages/invoices/Invoices";
 import RecurringBilling from "./pages/automation/RecurringBilling";
+import VerifyEmail from "./pages/VerifyEmail";
 
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem("autobiller-auth");
-  return isAuthenticated ? children : <Navigate to="/login" />;
-};
+function ProtectedLayout({ children }) {
+  return (
+    <ProtectedRoute>
+      <MainLayout>
+        {children}
+      </MainLayout>
+    </ProtectedRoute>
+  );
+}
 
 function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        {/* FIRST PAGE */}
-        <Route path="/" element={<Navigate to="/login" />} />
 
-        {/* PUBLIC ROUTES */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* ==================================================
+            PUBLIC
+        ================================================== */}
 
-        {/* PROTECTED ROUTES */}
+        <Route
+          path="/"
+          element={<Navigate to="/login" replace />}
+        />
+
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        <Route
+          path="/register"
+          element={<Register />}
+        />
+
+        {/* ==================================================
+            PROTECTED
+        ================================================== */}
+
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
-              <MainLayout>
-                <Dashboard />
-              </MainLayout>
-            </ProtectedRoute>
+            <ProtectedLayout>
+              <Dashboard />
+            </ProtectedLayout>
           }
         />
 
         <Route
           path="/projects"
           element={
+            <ProtectedLayout>
+              <Projects />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/clients"
+          element={
+            <ProtectedLayout>
+              <Clients />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/composer"
+          element={
+            <ProtectedLayout>
+              <Composer />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/composer/:id"
+          element={
+            <ProtectedLayout>
+              <Composer />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/invoice"
+          element={
+            <ProtectedLayout>
+              <Invoices />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/automation"
+          element={
+            <ProtectedLayout>
+              <RecurringBilling />
+            </ProtectedLayout>
+          }
+        />
+
+        <Route
+          path="/invoice-preview"
+          element={
             <ProtectedRoute>
-              <MainLayout>
-                <Projects />
-              </MainLayout>
+              <InvoicePreview />
             </ProtectedRoute>
           }
         />
- <Route
-  path="/clients"
-  element={
-    <ProtectedRoute>
-      <MainLayout>
-        <Clients />
-      </MainLayout>
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/composer"
-  element={
-    <ProtectedRoute>
-      <MainLayout>
-        <Composer />
-      </MainLayout>
-    </ProtectedRoute>
-  }
-/>
+
+        {/* ==================================================
+            FALLBACK
+        ================================================== */}
 
 <Route
-  path="/composer/:id"
-  element={
-    <ProtectedRoute>
-      <MainLayout>
-        <Composer />
-      </MainLayout>
-    </ProtectedRoute>
-  }
+  path="/verify-email"
+  element={<VerifyEmail />}
 />
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/login"
+              replace
+            />
+          }
+        />
 
-<Route
-  path="/invoice"
-  element={
-    <ProtectedRoute>
-      <MainLayout>
-        <Invoices />
-      </MainLayout>
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/automation"
-  element={
-    <ProtectedRoute>
-      <MainLayout>
-        <RecurringBilling />
-      </MainLayout>
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/invoice-preview"
-  element={
-    <ProtectedRoute>
-      <InvoicePreview />
-    </ProtectedRoute>
-  }
-/>
-        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
 
-  <Toaster
+      <Toaster
         position="bottom-center"
         toastOptions={{
-          style: {
-            background: "#f8faf9",
-            borderRadius: "12px",
-            border: "1px solid #e5e9e7",
-            padding: "14px 20px",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-          },
+          duration: 4000,
         }}
       />
-    </Router>
+    </BrowserRouter>
   );
 }
 
