@@ -1,0 +1,478 @@
+/* =========================================================
+   AUTOBILLR DESIGN SYSTEM
+   ---------------------------------------------------------
+   Change this file to control the entire application UI.
+========================================================= */
+
+:root {
+  /* =======================================================
+     BRAND
+  ======================================================= */
+
+  --color-primary: #3a8783;
+  --color-primary-hover: #0b817a;
+  --color-primary-dark: #08736d;
+  --color-primary-light: rgba(15, 157, 148, 0.12);
+  --color-primary-soft: #e8f7f5;
+
+  --color-secondary: #64748b;
+  --color-secondary-hover: #475569;
+
+
+  /* =======================================================
+     STATUS
+  ======================================================= */
+
+  --color-success: #10b981;
+  --color-success-hover: #059669;
+  --color-success-light: rgba(16, 185, 129, 0.12);
+  --color-success-soft: #ecfdf5;
+
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-light: rgba(245, 158, 11, 0.12);
+  --color-warning-soft: #fffbeb;
+
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-light: rgba(239, 68, 68, 0.12);
+  --color-danger-soft: #fef2f2;
+
+  --color-info: #6366f1;
+  --color-info-hover: #4f46e5;
+  --color-info-light: rgba(99, 102, 241, 0.12);
+  --color-info-soft: #eef2ff;
+
+
+  /* =======================================================
+     BACKGROUNDS
+  ======================================================= */
+
+  --color-background: #f8fafc;
+
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+
+
+  /* =======================================================
+     TEXT
+  ======================================================= */
+
+  --color-text: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-light: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+
+  /* =======================================================
+     BORDER
+  ======================================================= */
+
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+  --color-border-dark: #cbd5e1;
+  --color-border-focus: var(--color-primary);
+
+
+  /* =======================================================
+     INPUT
+  ======================================================= */
+
+  --input-background: #ffffff;
+  --input-background-disabled: #f8fafc;
+
+  --input-text: var(--color-text);
+  --input-placeholder: var(--color-text-light);
+
+  --input-border: var(--color-border);
+  --input-border-hover: var(--color-border-dark);
+  --input-border-focus: var(--color-primary);
+
+  --input-focus-ring: 0 0 0 3px rgba(15, 157, 148, 0.15);
+
+
+  /* =======================================================
+     TYPOGRAPHY
+  ======================================================= */
+
+  --font-family-base: "Inter", sans-serif;
+  --font-family-heading: "Inter", sans-serif;
+  --font-family-mono: "JetBrains Mono", monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+  --font-size-3xl: 40px;
+  --font-size-4xl: 48px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+
+  /* =======================================================
+     SPACING
+  ======================================================= */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+
+  /* =======================================================
+     RADIUS
+  ======================================================= */
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 28px;
+  --radius-full: 9999px;
+
+
+  /* =======================================================
+     SHADOW
+  ======================================================= */
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+
+  --shadow-sm:
+    0 1px 3px rgba(15, 23, 42, 0.06);
+
+  --shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.08);
+
+  --shadow-lg:
+    0 10px 25px rgba(15, 23, 42, 0.08);
+
+  --shadow-xl:
+    0 20px 40px rgba(15, 23, 42, 0.12);
+
+  --shadow-primary:
+    0 12px 30px rgba(15, 157, 148, 0.15);
+
+
+  /* =======================================================
+     LAYOUT
+  ======================================================= */
+
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1440px;
+
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 76px;
+
+  --header-height: 72px;
+
+
+  /* =======================================================
+     Z-INDEX
+  ======================================================= */
+
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-drawer: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+
+
+  /* =======================================================
+     TRANSITIONS
+  ======================================================= */
+
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+
+
+  /* =======================================================
+     BUTTON
+  ======================================================= */
+
+  --button-height-sm: 36px;
+  --button-height-md: 44px;
+  --button-height-lg: 48px;
+
+  --button-radius: var(--radius-lg);
+
+
+  /* =======================================================
+     CARD
+  ======================================================= */
+
+  --card-background: var(--color-surface);
+  --card-border: var(--color-border);
+  --card-radius: var(--radius-xl);
+  --card-shadow: var(--shadow-sm);
+
+
+  /* =======================================================
+     TABLE
+  ======================================================= */
+
+  --table-header-background: var(--color-surface-secondary);
+  --table-row-background: var(--color-surface);
+  --table-row-hover: var(--color-surface-hover);
+
+  --table-border: var(--color-border-light);
+
+  --table-header-text: var(--color-text-muted);
+  --table-body-text: var(--color-text-secondary);
+
+
+  /* =======================================================
+     FOCUS
+  ======================================================= */
+
+  --focus-ring:
+    0 0 0 3px rgba(15, 157, 148, 0.15);
+
+
+  /* =======================================================
+     SELECTION
+  ======================================================= */
+
+  --selection-background: var(--color-primary);
+  --selection-text: #ffffff;
+
+
+  /* =======================================================
+     SCROLLBAR
+  ======================================================= */
+
+  --scrollbar-width: 7px;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --scrollbar-track: transparent;
+}
+/* =========================================================
+   DATA TABLE
+========================================================= */
+
+.data-table {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.data-table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table table {
+  width: 100%;
+  min-width: 640px;
+}
+
+.data-table thead {
+  background: var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+  padding: 12px 24px;
+  text-align: left;
+
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.data-table tbody {
+  divide-color: var(--color-border-light);
+}
+
+.data-table tbody tr {
+  transition:
+    background var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.data-table td {
+  padding: 16px 24px;
+  vertical-align: middle;
+}
+
+.data-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  padding: 16px 24px;
+
+  background: var(--color-surface-muted);
+  border-top: 1px solid var(--color-border);
+}
+
+.data-table-page-button {
+  height: 36px;
+  min-width: 36px;
+
+  padding: 0 8px;
+
+  border: 0;
+  border-radius: var(--radius-lg);
+
+  background: transparent;
+  color: var(--color-text-secondary);
+
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+
+  cursor: pointer;
+
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.data-table-page-button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.data-table-page-button.active {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.data-table-page-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* =========================================================
+   MODAL
+========================================================= */
+
+.app-modal {
+  width: 100%;
+
+  background: var(--color-surface);
+
+  border-radius: var(--radius-3xl);
+
+  box-shadow: var(--shadow-xl);
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  max-height: calc(100vh - 2rem);
+}
+
+.app-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  padding: 20px 24px;
+
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.app-modal-title {
+  margin: 0;
+
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+
+  color: var(--color-text);
+}
+
+.app-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.app-modal-close {
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+  border-radius: var(--radius-lg);
+
+  background: transparent;
+
+  color: var(--color-text-muted);
+
+  cursor: pointer;
+
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.app-modal-close:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* =========================================================
+   FUTURE DARK MODE
+   ---------------------------------------------------------
+   Keep this ready. When dark mode is implemented, most of
+   the application can change by overriding variables here.
+========================================================= */
+
+/*
+[data-theme="dark"] {
+  --color-background: #0f172a;
+  --color-surface: #111827;
+  --color-surface-secondary: #1e293b;
+  --color-surface-hover: #334155;
+
+  --color-text: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-text-light: #64748b;
+
+  --color-border: #334155;
+  --color-border-light: #1e293b;
+  --color-border-dark: #475569;
+
+  --input-background: #111827;
+  --input-background-disabled: #1e293b;
+  --input-text: #f8fafc;
+}
+*/
