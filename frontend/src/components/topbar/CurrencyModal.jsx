@@ -66,7 +66,7 @@ export default function CurrencyModal({
   selectedCurrencyCode = "INR",
   onSelect,
   onClose,
-  rates = {},
+  rates = {}, 
   baseCurrencyCode = "INR",
   rateUpdatedText = "Rates updated 2 min ago",
   autoRefreshText = "Auto-refreshed daily",

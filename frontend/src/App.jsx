@@ -33,6 +33,9 @@ import SecuritySettings from "./pages/settings/SecuritySettings";
 import NotificationSettings from "./pages/settings/NotificationSettings";
 import AccountSettings from "./pages/settings/AccountSettings";
 import Help from "./pages/settings/Help";
+import TeamPermissions from "./pages/team/TeamPermissions";
+
+
 
 function ProtectedLayout({ children }) {
   return (
@@ -120,7 +123,10 @@ function App() {
             </ProtectedLayout>
           }
         />
-
+<Route
+  path="/team"
+  element={ <ProtectedLayout><TeamPermissions /></ProtectedLayout>}
+/>
         <Route
           path="/invoice-preview"
           element={
