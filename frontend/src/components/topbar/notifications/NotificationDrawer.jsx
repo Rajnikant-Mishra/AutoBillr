@@ -1,12 +1,12 @@
 // src/components/notifications/NotificationDrawer.jsx
 
 import { useMemo, useState } from "react";
-import RightDrawer from "../layout/RightDrawer";
-import NotificationTabs from "./NotificationTabs";
+import RightDrawer from "../../layout/RightDrawer.jsx";
+import NotificationTabs from "./NotificationTabs.jsx";
 import NotificationCard from "./NotificationCard";
-import NotificationEmpty from "./NotificationEmpty";
-import Button from "../ui/Button";
-import { useNotificationStore } from "../../store/notificationStore.js";
+import NotificationEmpty from "./NotificationEmpty.jsx";
+import Button from "../../ui/Button.jsx";
+import { useNotificationStore } from "../../../store/notificationStore.js";
 
 export default function NotificationDrawer({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState("all");

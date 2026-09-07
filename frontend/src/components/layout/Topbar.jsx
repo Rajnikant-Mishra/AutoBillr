@@ -1,572 +1,698 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+
 import AdminDrawer from "../topbar/AdminDrawer";
 import Breadcrumb from "../ui/Breadcrumb";
+import NotificationDrawer from "../topbar/notifications/NotificationDrawer";
+
 import { useCurrencyStore } from "../../store/currencyStore";
+
 import { showToast, showErrorToast } from "../../components/ui/CustomToast";
-import { getAuthToken, getCurrentUser } from "../../utils/auth";
-import NotificationDrawer from "../topbar/NotificationDrawer";
+
+import { getAuthToken } from "../../utils/auth";
+import CommandPalette from "../topbar/CommandPalette";
+import CurrencyModal from "../topbar/CurrencyModal";
+
+
+/* =========================================================
+   API CONFIG
+========================================================= */
+
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000/api/v1";
+
+const API_ORIGIN = API_URL.replace(
+  /\/api\/v1\/?$/,
+  ""
+);
+
+/* =========================================================
+   AVATAR URL HELPER
+========================================================= */
+
+const getAvatarUrl = (avatar) => {
+  if (!avatar || typeof avatar !== "string") {
+    return null;
+  }
+
+  const cleanAvatar = avatar.trim();
+
+  if (!cleanAvatar) {
+    return null;
+  }
+
+  // Already a complete URL
+  if (cleanAvatar.startsWith("http://") || cleanAvatar.startsWith("https://")) {
+    return cleanAvatar;
+  }
+
+  // Relative path from backend
+  return `${API_ORIGIN}${cleanAvatar.startsWith("/") ? "" : "/"}${cleanAvatar}`;
+};
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function Topbar() {
+  /* =======================================================
+     STATE
+  ======================================================= */
+
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+
   const [showAdminDrawer, setShowAdminDrawer] = useState(false);
+
   const [loading, setLoading] = useState(true);
-  const [isCommandVisible, setIsCommandVisible] = useState(false);
+
   const [showNotifications, setShowNotifications] = useState(false);
+
   const [user, setUser] = useState(null);
 
-  const currencyModalRef = useRef(null);
-  const commandModalRef = useRef(null);
+  const [notificationsCount, setNotificationsCount] = useState(0);
 
-  const {
-    currencies,
-    selectedCurrency,
-    setCurrencies,
-    setSelectedCurrency,
-    changeCurrency,
-  } = useCurrencyStore();
+  /* =======================================================
+     CURRENCY STORE
+  ======================================================= */
 
-  // Load real user data
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, [showAdminDrawer]); // refresh after closing drawer (in case profile was updated)
+  const { currencies, selectedCurrency, setCurrency, fetchCurrencies } =
+    useCurrencyStore();
 
-  // Fetch Currencies
-  useEffect(() => {
-    const fetchCurrencies = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/currencies`, {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
+  /* =======================================================
+     NORMALIZE SELECTED CURRENCY
+  ======================================================= */
 
-        if (!res.ok) throw new Error("Failed to fetch currencies");
+  const selectedCurrencyCode =
+    typeof selectedCurrency === "object" && selectedCurrency !== null
+      ? selectedCurrency.code
+      : selectedCurrency;
 
-        const data = await res.json();
-        setCurrencies(data.currencies || []);
+  /* =======================================================
+     CURRENT CURRENCY
+  ======================================================= */
 
-        const current =
-          data.currencies?.find((c) => c.code === data.selectedCurrency) ||
-          data.currencies?.find((c) => c.code === "USD");
+  const currentCurrency =
+    currencies?.find((currency) => currency?.code === selectedCurrencyCode) ||
+    (typeof selectedCurrency === "object" ? selectedCurrency : null);
 
-        if (current) {
-          setSelectedCurrency(current);
-        }
-      } catch (err) {
-        console.error("Currency fetch error:", err);
-      } finally {
+  /* =======================================================
+     FETCH USER FROM DATABASE
+  ======================================================= */
+
+  const fetchUser = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+
+      if (!token) {
+        setUser(null);
         setLoading(false);
+        return null;
       }
-    };
 
-    fetchCurrencies();
-  }, [setCurrencies, setSelectedCurrency]);
+      const response = await fetch(`${API_URL}/users/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
 
-  // Close modals on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        currencyModalRef.current &&
-        !currencyModalRef.current.contains(e.target)
-      ) {
-        setShowCurrencyModal(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to fetch user");
       }
-      if (
-        commandModalRef.current &&
-        !commandModalRef.current.contains(e.target)
-      ) {
-        setShowCommandPalette(false);
-      }
-    };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+      const databaseUser = data?.user || null;
+
+      console.log("=================================");
+
+      console.log("TOPBAR USER FROM DATABASE:", databaseUser);
+
+      console.log("AVATAR FROM DATABASE:", databaseUser?.avatar);
+
+      console.log("AVATAR FINAL URL:", getAvatarUrl(databaseUser?.avatar));
+
+      console.log("=================================");
+
+      setUser(databaseUser);
+
+      return databaseUser;
+    } catch (error) {
+      console.error("TOPBAR USER FETCH ERROR:", error);
+
+      setUser(null);
+
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Keyboard Shortcuts (⌘K / Ctrl+K and ESC)
+  /* =======================================================
+     LOAD USER ON TOPBAR MOUNT
+  ======================================================= */
+
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
+    fetchUser();
+  }, [fetchUser]);
+
+  /* =======================================================
+     LOAD USER WHEN ADMIN DRAWER OPENS
+  ======================================================= */
+
+  useEffect(() => {
+    if (showAdminDrawer) {
+      fetchUser();
+    }
+  }, [showAdminDrawer, fetchUser]);
+
+  /* =======================================================
+     LOAD CURRENCIES
+  ======================================================= */
+
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        await fetchCurrencies();
+      } catch (error) {
+        console.error("CURRENCY FETCH ERROR:", error);
+      }
+    };
+
+    loadCurrencies();
+  }, [fetchCurrencies]);
+
+  /* =======================================================
+     PROFILE UPDATED
+  ======================================================= */
+
+  const handleProfileUpdated = useCallback((updatedUser) => {
+    if (!updatedUser) {
+      return;
+    }
+
+    console.log("TOPBAR PROFILE UPDATED:", updatedUser);
+
+    setUser(updatedUser);
+  }, []);
+
+  /* =======================================================
+     DISPLAY NAME
+  ======================================================= */
+
+  const displayName =
+    `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User";
+
+  /* =======================================================
+     INITIALS
+  ======================================================= */
+
+  const initials =
+    `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() ||
+    "U";
+
+  /* =======================================================
+     AVATAR URL
+  ======================================================= */
+
+  const avatarUrl = getAvatarUrl(user?.avatar);
+
+  /* =======================================================
+     OPEN COMMAND PALETTE
+  ======================================================= */
+
+  const openCommandPalette = () => {
+    setShowCommandPalette(true);
+  };
+
+  /* =======================================================
+     KEYBOARD SHORTCUTS
+  ======================================================= */
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+
         setShowCommandPalette(true);
       }
-      if (e.key === "Escape") {
+
+      if (event.key === "Escape") {
         setShowCommandPalette(false);
         setShowCurrencyModal(false);
+        setShowNotifications(false);
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
-  const toggleCurrencyModal = useCallback(() => {
-    setShowCurrencyModal((prev) => !prev);
-  }, []);
+  /* =======================================================
+     CURRENCY CHANGE
+  ======================================================= */
 
-  const openCommandPalette = useCallback(() => {
-    setShowCommandPalette(true);
-  }, []);
-
-  const handleCurrencySelect = useCallback(
-    async (currency) => {
-      try {
-        if (selectedCurrency?.code === currency.code) {
-          setShowCurrencyModal(false);
-          return;
-        }
-
-        const previousCurrency = selectedCurrency;
-
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/currencies/select`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${getAuthToken()}`,
-            },
-            body: JSON.stringify({ currency: currency.code }),
-          }
-        );
-
-        if (!res.ok) throw new Error("Failed to update currency");
-
-        changeCurrency(currency);
-        setShowCurrencyModal(false);
-
-        showToast({
-          title: "Currency Changed",
-          message: `${previousCurrency?.name} (${previousCurrency?.code}) → ${currency.name} (${currency.code})`,
-          type: "success",
-        });
-      } catch (error) {
-        console.error(error);
-        showErrorToast("Unable to change currency.");
+  const handleCurrencyChange = async (currency) => {
+    try {
+      if (!currency?.code) {
+        return;
       }
-    },
-    [selectedCurrency, changeCurrency]
-  );
 
-  useEffect(() => {
-    if (showCommandPalette) {
-      const timer = setTimeout(() => setIsCommandVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setIsCommandVisible(false);
+      await setCurrency(currency.code);
+
+      setShowCurrencyModal(false);
+
+      showToast(`Currency changed to ${currency.code}`);
+    } catch (error) {
+      console.error("CURRENCY CHANGE ERROR:", error);
+
+      showErrorToast("Failed to change currency");
     }
-  }, [showCommandPalette]);
+  };
 
-  // Real user display values
-  const displayName = user
-    ? `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-      user.email?.split("@")[0] ||
-      "User"
-    : "User";
+  /* =======================================================
+     ADMIN DRAWER CLOSE
+  ======================================================= */
 
-  const displayRole = user?.role
-    ? user.role.replaceAll("_", " ")
-    : "Member";
+  const handleAdminDrawerClose = () => {
+    setShowAdminDrawer(false);
+  };
 
-  const initials = displayName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
+  /* =======================================================
+     NOTIFICATIONS CLOSE
+  ======================================================= */
 
-  if (loading && !currencies.length) {
-    return (
-      <header className="fixed top-0 right-0 w-full md:w-[calc(100%-16rem)] h-16 border-b border-border bg-surface/80 backdrop-blur-md z-30" />
-    );
-  }
+  const handleNotificationsClose = () => {
+    setShowNotifications(false);
+  };
+
+  /* =======================================================
+     AVATAR ERROR
+  ======================================================= */
+
+  const handleAvatarError = (event) => {
+    console.error("=================================");
+
+    console.error("TOPBAR AVATAR FAILED TO LOAD");
+
+    console.error("Avatar from DB:", user?.avatar);
+
+    console.error("Final avatar URL:", avatarUrl);
+
+    console.error("=================================");
+
+    event.currentTarget.style.display = "none";
+  };
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <>
-      <header className="fixed top-0 right-0 w-full md:w-[calc(100%-16rem)] h-16 border-b border-border bg-surface/80 backdrop-blur-md z-30 flex items-center justify-between px-6 md:px-8 shadow-sm">
-        {/* LEFT SIDE */}
+      {/* ===================================================
+          TOPBAR
+      =================================================== */}
+
+      <header
+        className="
+          fixed
+          top-0
+          right-0
+          w-full
+          md:w-[calc(100%-16rem)]
+          h-16
+          border-b
+          border-border
+          bg-surface/80
+          backdrop-blur-md
+          z-30
+          flex
+          items-center
+          justify-between
+          px-6
+          md:px-8
+          shadow-sm
+        "
+      >
+        {/* =================================================
+            LEFT
+        ================================================= */}
+
         <div className="flex items-center gap-5 flex-1 min-w-0">
-          <div className="hidden md:block">
-            <Breadcrumb />
-          </div>
-
-          {/* Search Bar */}
-          <div
-            onClick={openCommandPalette}
-            className="relative flex-1 max-w-md ml-0 md:ml-4 cursor-pointer"
-          >
-            <span
-              className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-light"
-              style={{ fontSize: "18px" }}
-            >
-              search
-            </span>
-
-            <input
-              readOnly
-              placeholder="Search invoices, clients, projects…"
-              className="
-                w-full pl-10 pr-12 py-2
-                bg-surface-secondary
-                border border-transparent
-                hover:border-border
-                rounded-lg text-sm
-                focus:bg-surface
-                focus:border-primary
-                focus:ring-2 focus:ring-primary/15
-                outline-none transition cursor-pointer
-              "
-            />
-
-            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-text-light px-1.5 py-0.5 rounded border border-border bg-surface hidden sm:block">
-              ⌘K
-            </kbd>
-          </div>
+          <Breadcrumb />
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* =================================================
+            RIGHT
+        ================================================= */}
+
         <div className="flex items-center gap-2 md:gap-4">
-          {/* Currency Selector */}
-          <div className="relative" ref={currencyModalRef}>
-            <button
-              onClick={toggleCurrencyModal}
+          {/* ===============================================
+              SEARCH - DESKTOP
+          =============================================== */}
+
+          <button
+            type="button"
+            onClick={openCommandPalette}
+            className="
+              hidden
+              md:flex
+              items-center
+              gap-2
+              px-3
+              py-2
+              rounded-lg
+              border
+              border-border
+              bg-background
+              text-text-muted
+              hover:text-text
+              hover:bg-surface-hover
+              transition
+            "
+            aria-label="Open command palette"
+          >
+            <span className="text-sm">Search</span>
+
+            <span
               className="
-                flex items-center gap-2 px-3 py-1.5
-                bg-surface border border-border
-                hover:bg-surface-hover
-                rounded-lg text-sm font-semibold
-                transition active:scale-95
+                text-xs
+                px-1.5
+                py-0.5
+                rounded
+                border
+                border-border
+                bg-surface
               "
-              aria-label="Select currency"
             >
-              <span>{selectedCurrency?.flag || "🇮🇳"}</span>
-              <span>{selectedCurrency?.code || "INR"}</span>
-              <span
-                className="material-symbols-outlined text-text-light hidden md:inline"
-                style={{ fontSize: "16px" }}
-              >
-                expand_more
-              </span>
-            </button>
-
-            {showCurrencyModal && (
-              <div className="modal-in absolute right-0 top-full mt-2 w-72 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                {/* Header */}
-                <div className="px-4 py-3 border-b border-border-light flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] font-bold text-text-muted uppercase tracking-widest">
-                      Currency
-                    </div>
-                    <div className="text-[11px] text-text-light mt-0.5">
-                      Rates updated 2 min ago
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-primary-dark bg-primary-soft px-2 py-1 rounded">
-                    LIVE
-                  </span>
-                </div>
-
-                {/* Currency List */}
-                <div className="max-h-80 overflow-auto py-1">
-                  {currencies.map((currency) => (
-                    <button
-                      key={currency.code}
-                      onClick={() => handleCurrencySelect(currency)}
-                      className={`
-                        w-full flex items-center gap-3 px-4 py-2.5
-                        hover:bg-surface-hover transition text-left
-                        ${
-                          selectedCurrency?.code === currency.code
-                            ? "bg-primary-soft"
-                            : ""
-                        }
-                      `}
-                    >
-                      <span className="text-xl leading-none">
-                        {currency.flag}
-                      </span>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-bold text-text flex items-center gap-2">
-                          {currency.code}
-                          <span className="text-text-light font-normal">
-                            {currency.symbol}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-text-muted">
-                          {currency.name}
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-[11px] tabular-nums font-mono text-text-muted">
-                          {currency.rate || "—"}
-                        </div>
-                        {selectedCurrency?.code === currency.code && (
-                          <span
-                            className="material-symbols-outlined text-primary ml-auto mt-0.5 block"
-                            style={{ fontSize: "14px" }}
-                          >
-                            check_circle
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Footer */}
-                <div className="px-4 py-2.5 bg-surface-secondary border-t border-border-light flex items-center gap-2 text-[10.5px] text-text-muted">
-                  <span
-                    className="material-symbols-outlined"
-                    style={{ fontSize: "12px" }}
-                  >
-                    info
-                  </span>
-                  Base: USD · Auto-refreshed daily
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Icon Buttons */}
-          <button
-            className="p-2 text-text-muted hover:text-primary hover:bg-surface-hover rounded-lg transition"
-            title="Refresh"
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: "20px" }}
-            >
-              refresh
+              Ctrl K
             </span>
           </button>
 
-          <button
-            className="relative p-2 text-text-muted hover:text-primary hover:bg-surface-hover rounded-lg transition"
-            title="Notifications"
-            onClick={() => setShowNotifications(true)}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: "20px" }}
-            >
-              notifications
-            </span>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-surface" />
-          </button>
+          {/* ===============================================
+              SEARCH - MOBILE
+          =============================================== */}
 
           <button
-            className="hidden md:inline-flex p-2 text-text-muted hover:text-primary hover:bg-surface-hover rounded-lg transition"
-            title="Help"
+            type="button"
+            onClick={openCommandPalette}
+            className="
+              md:hidden
+              w-9
+              h-9
+              rounded-lg
+              flex
+              items-center
+              justify-center
+              text-text-muted
+              hover:text-text
+              hover:bg-surface-hover
+              transition
+            "
+            aria-label="Search"
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: "20px" }}
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
-              help
-            </span>
+              <circle cx="11" cy="11" r="7" />
+
+              <path d="m20 20-3.5-3.5" />
+            </svg>
           </button>
 
-          <div className="h-8 w-px bg-border hidden md:block" />
+          {/* ===============================================
+              CURRENCY
+          =============================================== */}
 
-          {/* Profile – REAL USER DATA */}
-          <div
-            onClick={() => setShowAdminDrawer(true)}
-            className="flex items-center gap-2.5 cursor-pointer group p-1 hover:bg-surface-hover rounded-lg pr-3"
+          <button
+            type="button"
+            onClick={() => setShowCurrencyModal((prev) => !prev)}
+            className=" flex items-center gap-2 px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover rounded-lg text-sm font-semibold transition active:scale-95 "
+            aria-label="Select currency"
+            aria-expanded={showCurrencyModal}
           >
-            {user?.avatar ? (
-              <img
-                alt={displayName}
-                className="w-8 h-8 rounded-full object-cover border-2 border-surface shadow-sm"
-                src={user.avatar}
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-primary-soft text-primary-dark grid place-items-center text-[11px] font-bold border-2 border-surface shadow-sm">
-                {initials}
-              </div>
-            )}
-
-            <div className="hidden md:block leading-tight">
-              <div className="text-[13px] font-semibold text-text truncate max-w-[140px]">
-                {displayName}
-              </div>
-              <div className="text-[10.5px] text-text-muted truncate max-w-[140px]">
-                {displayRole}
-              </div>
-            </div>
-
+            {" "}
+            <span>{currentCurrency?.flag || "🇺🇸"}</span>{" "}
+            <span>{selectedCurrencyCode || "USD"}</span>{" "}
             <span
               className="material-symbols-outlined text-text-light hidden md:inline"
               style={{ fontSize: "16px" }}
             >
-              expand_more
-            </span>
-          </div>
+              {" "}
+              {showCurrencyModal ? "expand_less" : "expand_more"}{" "}
+            </span>{" "}
+          </button>
+
+          {/* ===============================================
+              NOTIFICATIONS
+          =============================================== */}
+
+          <button
+            type="button"
+            onClick={() => setShowNotifications(true)}
+            className="
+              relative
+              w-9
+              h-9
+              rounded-lg
+              flex
+              items-center
+              justify-center
+              text-text-muted
+              hover:text-text
+              hover:bg-surface-hover
+              transition
+            "
+            aria-label="Notifications"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+
+            {notificationsCount > 0 && (
+              <span
+                className="
+                  absolute
+                  top-1
+                  right-1
+                  min-w-4
+                  h-4
+                  px-1
+                  rounded-full
+                  bg-red-500
+                  text-white
+                  text-[10px]
+                  flex
+                  items-center
+                  justify-center
+                  font-semibold
+                "
+              >
+                {notificationsCount > 99 ? "99+" : notificationsCount}
+              </span>
+            )}
+          </button>
+
+          {/* ===============================================
+              DIVIDER
+          =============================================== */}
+
+          <div
+            className="
+              hidden
+              sm:block
+              w-px
+              h-8
+              bg-border
+              mx-1
+            "
+          />
+
+          {/* ===============================================
+              USER PROFILE
+          =============================================== */}
+
+          <button
+            type="button"
+            onClick={() => setShowAdminDrawer(true)}
+            className="
+              flex
+              items-center
+              gap-2
+              rounded-lg
+              px-1.5
+              py-1.5
+              hover:bg-surface-hover
+              transition
+              max-w-[220px]
+            "
+            aria-label="Open profile menu"
+          >
+            {/* ===========================================
+                AVATAR
+            =========================================== */}
+
+            {avatarUrl ? (
+              <img
+                key={avatarUrl}
+                src={avatarUrl}
+                alt={displayName}
+                className="
+                  w-8
+                  h-8
+                  rounded-full
+                  object-cover
+                  border-2
+                  border-surface
+                  shadow-sm
+                  flex-shrink-0
+                "
+                onError={handleAvatarError}
+              />
+            ) : (
+              <div
+                className="
+                  w-8
+                  h-8
+                  rounded-full
+                  flex
+                  items-center
+                  justify-center
+                  bg-primary
+                  text-white
+                  text-xs
+                  font-semibold
+                  border-2
+                  border-surface
+                  shadow-sm
+                  flex-shrink-0
+                "
+              >
+                {initials}
+              </div>
+            )}
+
+            {/* ===========================================
+                USER NAME
+            =========================================== */}
+
+            <div className="hidden lg:block text-left min-w-0">
+              <p
+                className="
+                  text-sm
+                  font-medium
+                  text-text
+                  truncate
+                  max-w-[140px]
+                "
+              >
+                {loading ? "Loading..." : displayName}
+              </p>
+
+              {user?.role && (
+                <p
+                  className="
+                    text-xs
+                    text-text-muted
+                    capitalize
+                  "
+                >
+                  {String(user.role).toLowerCase()}
+                </p>
+              )}
+            </div>
+
+            {/* ===========================================
+                CHEVRON
+            =========================================== */}
+
+            <svg
+              className="
+                hidden
+                lg:block
+                text-text-muted
+              "
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
         </div>
       </header>
 
-      {/* COMMAND PALETTE */}
-      {showCommandPalette && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[101] flex items-start justify-end pt-[12vh] pr-6 md:pr-8">
-          <div
-            ref={commandModalRef}
-            className="modal-in w-full max-w-xl bg-surface border border-border rounded-2xl shadow-xl overflow-hidden"
-          >
-            {/* Search Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-border-light">
-              <span
-                className="material-symbols-outlined text-text-light"
-                style={{ fontSize: "20px" }}
-              >
-                search
-              </span>
-              <input
-                autoFocus
-                placeholder="Search or jump to…"
-                className="flex-1 border-0 outline-none text-[15px] font-medium placeholder:text-text-light bg-transparent"
-              />
-              <kbd className="text-[10px] font-mono text-text-light px-1.5 py-0.5 rounded border border-border bg-surface-secondary">
-                ESC
-              </kbd>
-            </div>
-
-            {/* Content */}
-            <div className="max-h-[420px] overflow-auto p-2">
-              {/* Navigate */}
-              <div>
-                <div className="px-3 pt-3 pb-1 text-[10px] font-bold text-text-light uppercase tracking-wider">
-                  Navigate
-                </div>
-                {[
-                  { icon: "dashboard", label: "Dashboard" },
-                  { icon: "receipt_long", label: "Invoices" },
-                  { icon: "edit_note", label: "Invoice Composer" },
-                  { icon: "group", label: "Clients" },
-                  { icon: "assignment", label: "Projects & Milestones" },
-                  { icon: "bar_chart", label: "Analytics" },
-                  { icon: "auto_awesome", label: "Recurring Automation" },
-                  { icon: "settings", label: "Settings" },
-                  { icon: "admin_panel_settings", label: "Team & Permissions" },
-                  { icon: "share", label: "Client Portal" },
-                  { icon: "loyalty", label: "Pricing" },
-                ].map((item, i) => (
-                  <div
-                    key={i}
-                    className="group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-text-secondary hover:text-text hover:bg-primary-soft"
-                  >
-                    <span className="w-7 h-7 rounded-md grid place-items-center bg-surface-secondary text-text-muted group-hover:bg-surface group-hover:text-primary transition-colors">
-                      <span
-                        className="material-symbols-outlined"
-                        style={{ fontSize: "16px" }}
-                      >
-                        {item.icon}
-                      </span>
-                    </span>
-                    <span className="text-[13px] font-medium flex-1">
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Actions */}
-              <div>
-                <div className="px-3 pt-3 pb-1 text-[10px] font-bold text-text-light uppercase tracking-wider">
-                  Actions
-                </div>
-                {[
-                  { icon: "add", label: "Create new invoice", shortcut: "⇧ N" },
-                  { icon: "person_add", label: "Add a new client" },
-                  { icon: "add_business", label: "Add a new project" },
-                  { icon: "bolt", label: "Quick invoice (drawer)" },
-                  { icon: "filter_list", label: "Open filter panel" },
-                  { icon: "notifications", label: "Notifications" },
-                ].map((item, i) => (
-                  <div
-                    key={i}
-                    className="group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-text-secondary hover:text-text hover:bg-primary-soft"
-                  >
-                    <span className="w-7 h-7 rounded-md grid place-items-center bg-surface-secondary text-text-muted group-hover:bg-surface group-hover:text-primary transition-colors">
-                      <span
-                        className="material-symbols-outlined"
-                        style={{ fontSize: "16px" }}
-                      >
-                        {item.icon}
-                      </span>
-                    </span>
-                    <span className="text-[13px] font-medium flex-1">
-                      {item.label}
-                    </span>
-                    {item.shortcut && (
-                      <span className="text-[11px] text-text-light">
-                        {item.shortcut}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Recent */}
-              <div>
-                <div className="px-3 pt-3 pb-1 text-[10px] font-bold text-text-light uppercase tracking-wider">
-                  Recent
-                </div>
-                <div className="group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-text-secondary hover:text-text hover:bg-primary-soft">
-                  <span className="w-7 h-7 rounded-md grid place-items-center bg-surface-secondary text-text-muted group-hover:bg-surface group-hover:text-primary transition-colors">
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: "16px" }}
-                    >
-                      receipt_long
-                    </span>
-                  </span>
-                  <span className="text-[13px] font-medium flex-1">
-                    INV-8821 · Apex Partners
-                  </span>
-                </div>
-                <div className="group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-text-secondary hover:text-text hover:bg-primary-soft">
-                  <span className="w-7 h-7 rounded-md grid place-items-center bg-surface-secondary text-text-muted group-hover:bg-surface group-hover:text-primary transition-colors">
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: "16px" }}
-                    >
-                      assignment
-                    </span>
-                  </span>
-                  <span className="text-[13px] font-medium flex-1">
-                    Q4 Marketing Campaign · Acme
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-2.5 border-t border-border-light bg-surface-secondary flex gap-4 text-[10.5px] text-text-muted">
-              <span>
-                <kbd className="px-1.5 py-0.5 rounded border border-border bg-surface font-mono mr-1">
-                  ↑↓
-                </kbd>
-                Navigate
-              </span>
-              <span>
-                <kbd className="px-1.5 py-0.5 rounded border border-border bg-surface font-mono mr-1">
-                  ↵
-                </kbd>
-                Select
-              </span>
-              <span className="ml-auto">19 results</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ===================================================
+          ADMIN DRAWER
+      =================================================== */}
 
       <AdminDrawer
         isOpen={showAdminDrawer}
-        onClose={() => setShowAdminDrawer(false)}
+        onClose={handleAdminDrawerClose}
+        onProfileUpdated={handleProfileUpdated}
       />
+
+      {/* ===================================================
+          NOTIFICATION DRAWER
+      =================================================== */}
+
       <NotificationDrawer
         isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
+        onClose={handleNotificationsClose}
+      />
+
+      {/* ===================================================
+          CURRENCY MODAL
+      =================================================== */}
+
+      <CurrencyModal
+        isOpen={showCurrencyModal}
+        currencies={currencies}
+        selectedCurrencyCode={selectedCurrencyCode}
+        onSelect={handleCurrencyChange}
+        onClose={() => setShowCurrencyModal(false)}
+      />
+
+      {/* ===================================================
+          COMMAND PALETTE
+      =================================================== */}
+
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        onOpenProfile={() => {
+          setShowCommandPalette(false);
+          setShowAdminDrawer(true);
+        }}
+        onOpenCurrency={() => {
+          setShowCommandPalette(false);
+          setShowCurrencyModal(true);
+        }}
       />
     </>
   );

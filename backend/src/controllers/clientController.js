@@ -74,7 +74,36 @@ const getClientById = async (req, res) => {
 
 const createClient = async (req, res) => {
   try {
-    const companyId = req.user.companyId;
+    const companyId = req.user?.companyId;
+
+    // -----------------------------
+    // Validate authenticated company
+    // -----------------------------
+
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "No company associated with the authenticated user",
+      });
+    }
+
+    // -----------------------------
+    // Verify company exists
+    // -----------------------------
+
+    const company = await prisma.company.findUnique({
+      where: {
+        id: companyId,
+      },
+    });
+
+    if (!company) {
+      return res.status(400).json({
+        success: false,
+        message: "Company not found for the authenticated user",
+        companyId,
+      });
+    }
 
     const {
       name,
@@ -123,53 +152,43 @@ const createClient = async (req, res) => {
 
         name: name.trim(),
 
-        contactName:
-          contactName?.trim() || null,
+        contactName: contactName?.trim() || null,
 
-        email:
-          email?.trim().toLowerCase() || null,
+        email: email?.trim().toLowerCase() || null,
 
-        phone:
-          phone?.trim() || null,
+        phone: phone?.trim() || null,
 
-        website:
-          website?.trim() || null,
+        website: website?.trim() || null,
 
-        industry:
-          industry || null,
+        industry: industry || null,
 
-        tier:
-          tier || "Enterprise",
+        tier: tier || "Enterprise",
 
-        color:
-          color || "bg-teal-500",
+        color: color || "bg-teal-500",
 
         billingAddress: address?.street?.trim() || null,
-city: address?.city?.trim() || null,
-stateRegion: address?.state?.trim() || null,
-postalCode: address?.postalCode?.trim() || null,
-country: address?.country || null,
 
-        taxId:
-          taxId?.trim() || null,
+        city: address?.city?.trim() || null,
 
-        currency:
-          currency || "USD",
+        stateRegion: address?.state?.trim() || null,
 
-        paymentTerms:
-          paymentTerms || "Net 30",
+        postalCode: address?.postalCode?.trim() || null,
 
-        paymentMethod:
-          paymentMethod || "ACH",
+        country: address?.country || null,
 
-        notes:
-          notes?.trim() || null,
+        taxId: taxId?.trim() || null,
 
-        tags:
-          Array.isArray(tags) ? tags : [],
+        currency: currency || "USD",
 
-        automation:
-          automation || null,
+        paymentTerms: paymentTerms || "Net 30",
+
+        paymentMethod: paymentMethod || "ACH",
+
+        notes: notes?.trim() || null,
+
+        tags: Array.isArray(tags) ? tags : [],
+
+        automation: automation || null,
       },
     });
 

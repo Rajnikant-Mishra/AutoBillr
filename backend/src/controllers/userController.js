@@ -2,9 +2,59 @@ const prisma = require("../config/prisma");
 const path = require("path");
 const fs = require("fs");
 
+// =====================================================
+// GET PROFILE
+// =====================================================
+
+const getProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        avatar: true,
+        companyId: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.error("GET PROFILE ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch profile",
+    });
+  }
+};
+
+// =====================================================
+// UPDATE PROFILE
+// =====================================================
+
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.userId; // from authMiddleware
+    const userId = req.user.userId;
+
     const { firstName, lastName } = req.body;
 
     if (!firstName?.trim()) {
@@ -19,15 +69,25 @@ const updateProfile = async (req, res) => {
       lastName: lastName?.trim() || "",
     };
 
-    // If avatar was uploaded
+    // =================================================
+    // AVATAR UPLOAD
+    // =================================================
+
     if (req.file) {
-      // Save relative path or full URL depending on your setup
       data.avatar = `/uploads/avatars/${req.file.filename}`;
     }
 
+    // =================================================
+    // UPDATE DATABASE
+    // =================================================
+
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: {
+        id: userId,
+      },
+
       data,
+
       select: {
         id: true,
         firstName: true,
@@ -35,6 +95,7 @@ const updateProfile = async (req, res) => {
         email: true,
         role: true,
         avatar: true,
+        companyId: true,
       },
     });
 
@@ -45,6 +106,7 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("UPDATE PROFILE ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to update profile",
@@ -52,4 +114,11 @@ const updateProfile = async (req, res) => {
   }
 };
 
-module.exports = { updateProfile };
+// =====================================================
+// EXPORT
+// =====================================================
+
+module.exports = {
+  getProfile,
+  updateProfile,
+};

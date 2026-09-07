@@ -1,9 +1,9 @@
 // src/components/notifications/NotificationCard.jsx
 
-import Card from "../ui/Card";
-import Badge from "../ui/Badge";
-import { formatNotificationTime } from "../../utils/notificationUtils";
-import { showSuccessToast } from "../ui/CustomToast";
+import Card from "../../ui/Card";
+import Badge from "../../ui/Badge";
+import { formatNotificationTime } from "../../../utils/notificationUtils";
+import { showSuccessToast } from "../../ui/CustomToast";
 
 export default function NotificationCard({
   notification,

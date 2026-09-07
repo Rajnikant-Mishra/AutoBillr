@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const path = require("path");
+
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const clientRoutes = require("./src/routes/clientRoutes");
@@ -9,6 +10,8 @@ const projectRoutes = require("./src/routes/projectRoutes");
 const invoiceRoutes = require("./src/routes/invoiceRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
 const emailVerificationRoutes = require("./src/routes/emailVerificationRoutes");
+const currencyRoutes = require("./src/routes/currencyRoutes");
+
 const {
   initEmailVerificationSocket,
 } = require("./src/websocket/emailVerificationSocket");
@@ -32,23 +35,45 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =====================================================
+// STATIC UPLOADS
+// =====================================================
+
+// IMPORTANT:
+// Avatar files are stored in:
+// backend/uploads/avatars
+//
+// They will be accessible as:
+// http://localhost:5000/uploads/avatars/filename.jpg
+
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+// =====================================================
 // API ROUTES
 // =====================================================
 
 app.use("/api/v1/auth", authRoutes);
+
 app.use("/api/v1/users", userRoutes);
+
 app.use("/api/v1/clients", clientRoutes);
+
 app.use("/api/v1/projects", projectRoutes);
+
 app.use("/api/v1/invoices", invoiceRoutes);
+
 app.use("/api/v1/dashboard", dashboardRoutes);
 
 app.use(
   "/api/v1/email-verification",
   emailVerificationRoutes
 );
-
-
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(
+  "/api/v1/currencies",
+  currencyRoutes
+);
 // =====================================================
 // HEALTH CHECK
 // =====================================================
@@ -79,7 +104,7 @@ app.use((req, res) => {
 });
 
 // =====================================================
-// ERROR
+// ERROR HANDLER
 // =====================================================
 
 app.use((err, req, res, next) => {
@@ -95,7 +120,7 @@ app.use((err, req, res, next) => {
 // =====================================================
 // HTTP SERVER
 // =====================================================
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 const server = http.createServer(app);
 
 // =====================================================
