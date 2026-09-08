@@ -25,15 +25,19 @@ import RecurringBilling from "./pages/automation/RecurringBilling";
 import VerifyEmail from "./pages/VerifyEmail";
 import LandingPage from "./pages/landing/LandingPage";
 import PricingPage from "./pages/landing/PricingPage";
+import AdvancedAnalytics from "./pages/analytics/AdvancedAnalytics";
 
 // Settings pages
-import SettingsLayout from "./pages/settings/SettingsLayout";
-import ProfileSettings from "./pages/settings/ProfileSettings";
-import SecuritySettings from "./pages/settings/SecuritySettings";
-import NotificationSettings from "./pages/settings/NotificationSettings";
-import AccountSettings from "./pages/settings/AccountSettings";
-import Help from "./pages/settings/Help";
+
+import ProfileSettings from "./pages/adminSettings/ProfileSettings";
+import SecuritySettings from "./pages/adminSettings/SecuritySettings";
+import NotificationSettings from "./pages/adminSettings/NotificationSettings";
+import AccountSettings from "./pages/adminSettings/AccountSettings";
+import Help from "./pages/adminSettings/Help";
 import TeamPermissions from "./pages/team/TeamPermissions";
+import Settings from "./pages/setting/Settings";
+import SettingsLayout from "./pages/adminSettings/SettingsLayout";
+import ClientPortal from "./pages/clients/ClientPortal";
 
 
 
@@ -54,6 +58,14 @@ function App() {
         ================================================== */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route
+  path="/app/pricing"
+  element={
+    <ProtectedRoute>
+      <PricingPage variant="app" />
+    </ProtectedRoute>
+  }
+/>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
@@ -114,7 +126,30 @@ function App() {
             </ProtectedLayout>
           }
         />
-
+         <Route
+          path="/analytics"
+          element={
+            <ProtectedLayout>
+              <AdvancedAnalytics />
+            </ProtectedLayout>
+          }
+        />
+  <Route
+          path="/settings"
+          element={
+            <ProtectedLayout>
+              <Settings />
+            </ProtectedLayout>
+          }
+        ></Route>
+        <Route
+  path="/clientportal"
+  element={
+    <ProtectedRoute>
+      <ClientPortal />
+    </ProtectedRoute>
+  }
+/>
         <Route
           path="/automation"
           element={
@@ -140,13 +175,14 @@ function App() {
             SETTINGS (Protected)
         ================================================== */}
         <Route
-          path="/settings"
+          path="/adminsettings"
           element={
             <ProtectedLayout>
               <SettingsLayout />
             </ProtectedLayout>
           }
         >
+        
           <Route index element={<AccountSettings />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="security" element={<SecuritySettings />} />

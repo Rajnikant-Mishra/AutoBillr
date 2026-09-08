@@ -50,7 +50,7 @@ const MENU_ITEMS = [
   {
     icon: "person",
     title: "Personal Info",
-    path: "/settings/profile",
+    path: "/adminsettings/profile",
   },
   {
     icon: "domain",
@@ -61,17 +61,17 @@ const MENU_ITEMS = [
     icon: "shield",
     title: "Security & Sessions",
     meta: "2FA enabled",
-    path: "/settings/security",
+    path: "/adminsettings/security",
   },
   {
     icon: "notifications",
     title: "Notification Preferences",
-    path: "/settings/notifications",
+    path: "/adminsettings/notifications",
   },
   {
     icon: "settings",
     title: "Account Settings",
-    path: "/settings",
+    path: "/adminsettings",
   },
   {
     icon: "help",

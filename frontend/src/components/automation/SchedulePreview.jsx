@@ -9,33 +9,47 @@ export default function SchedulePreview({ previewData }) {
 
   const generateSchedules = () => {
     const schedules = [];
-    const currentDate = new Date();
+    // Start from a fixed “next” date so the preview looks like the design
+    const base = new Date();
+    // Snap to first of next quarter-ish for nicer demo dates
+    base.setDate(1);
+    if (base.getMonth() % 3 !== 0) {
+      base.setMonth(base.getMonth() + (3 - (base.getMonth() % 3)));
+    }
 
     for (let i = 0; i < 4; i++) {
-      const nextDate = new Date(currentDate);
+      const nextDate = new Date(base);
 
       switch (frequency) {
         case "Monthly":
-          nextDate.setMonth(currentDate.getMonth() + i);
+          nextDate.setMonth(base.getMonth() + i);
           break;
         case "Quarterly":
-          nextDate.setMonth(currentDate.getMonth() + i * 3);
+          nextDate.setMonth(base.getMonth() + i * 3);
           break;
         case "Annual":
-          nextDate.setFullYear(currentDate.getFullYear() + i);
+          nextDate.setFullYear(base.getFullYear() + i);
           break;
         default:
-          nextDate.setMonth(currentDate.getMonth() + i);
+          nextDate.setMonth(base.getMonth() + i);
       }
 
+      const quarterLabel =
+        frequency === "Quarterly"
+          ? `Q${Math.floor(nextDate.getMonth() / 3) + 1} ${nextDate.getFullYear()} Retainer`
+          : projectName || "Recurring Invoice";
+
       schedules.push({
-        date: nextDate.toLocaleDateString("en-IN", {
-          day: "2-digit",
+        date: nextDate.toLocaleDateString("en-US", {
           month: "short",
+          day: "2-digit",
           year: "numeric",
         }),
-        invoice: projectName || "Recurring Invoice",
-        amount: amount || 0,
+        invoice:
+          i === 0
+            ? `INV-${8829 + i}-RECUR`
+            : quarterLabel,
+        amount: amount || 12450,
         upcoming: i === 0,
       });
     }
@@ -111,9 +125,7 @@ export default function SchedulePreview({ previewData }) {
               Next Invoice Dates
             </h3>
             <p className="text-[11px] text-text-muted truncate">
-              {active
-                ? clientName || "—"
-                : "Activate automation to generate live schedule"}
+              {clientName || "Preview schedule"}
             </p>
           </div>
         </div>
@@ -124,41 +136,17 @@ export default function SchedulePreview({ previewData }) {
         />
       </div>
 
-      {/* Body */}
+      {/* Body — ALWAYS show the dummy / live invoice flow */}
       <div className="flex-1 p-6">
-        {!active ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="max-w-sm text-center border border-dashed border-border rounded-2xl p-8 bg-surface-secondary">
-              <div className="w-16 h-16 mx-auto rounded-full bg-primary-soft text-primary flex items-center justify-center mb-4">
-                <span className="material-symbols-outlined text-3xl">
-                  sync
-                </span>
-              </div>
+        <div className="relative">
+          <div className="absolute left-[35px] top-8 bottom-8 w-px bg-border-light" />
 
-              <h3 className="text-lg font-bold text-text mb-2">
-                No Recurring Billing Created
-              </h3>
-
-              <p className="text-sm text-text-muted">
-                Configure client, project, frequency and amount, then click{" "}
-                <strong className="text-text-secondary">
-                  Activate Automation Engine
-                </strong>
-                .
-              </p>
-            </div>
+          <div className="space-y-6">
+            {schedules.map((item, index) => (
+              <ScheduleItem key={`${item.date}-${index}`} {...item} />
+            ))}
           </div>
-        ) : (
-          <div className="relative">
-            <div className="absolute left-[35px] top-8 bottom-8 w-px bg-border-light" />
-
-            <div className="space-y-6">
-              {schedules.map((item, index) => (
-                <ScheduleItem key={`${item.date}-${index}`} {...item} />
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Footer */}
@@ -174,19 +162,14 @@ export default function SchedulePreview({ previewData }) {
 
         <button
           type="button"
-          disabled={!active}
           onClick={downloadSchedulePDF}
-          className={`
+          className="
             w-full py-2 text-xs font-bold rounded-lg
             flex items-center justify-center gap-1.5
             transition-colors duration-fast
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25
-            ${
-              active
-                ? "text-primary hover:bg-primary-soft"
-                : "text-text-light cursor-not-allowed"
-            }
-          `}
+            text-primary hover:bg-primary-soft
+          "
         >
           Download Schedule PDF
           <span className="material-symbols-outlined text-[14px]">

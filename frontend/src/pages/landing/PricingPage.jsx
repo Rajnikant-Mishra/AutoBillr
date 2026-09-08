@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+
 import LandingNavbar from "../../components/landing/LandingNavbar";
 import LandingFooter from "../../components/landing/LandingFooter";
-import "../../styles/theme.css";
-import "../../styles/landing.css";
 
+import "../../styles/theme.css";
+
+/* =========================================================
+   PRICING PLANS
+========================================================= */
 const plans = [
   {
     id: "starter",
@@ -13,7 +17,8 @@ const plans = [
     monthlyPrice: 49,
     annualPrice: 39,
     cta: "Start 14-day free trial",
-    ctaStyle: "bg-surface-container text-primary hover:bg-primary-fixed",
+    ctaClass:
+      "bg-surface-secondary text-primary border border-border hover:bg-primary-soft",
     featuresTitle: "Includes:",
     features: [
       "Up to 500 invoices/mo",
@@ -30,8 +35,8 @@ const plans = [
     monthlyPrice: 129,
     annualPrice: 103,
     cta: "Get Started with Pro",
-    ctaStyle:
-      "bg-primary text-on-primary hover:opacity-90 shadow-lg shadow-primary/20",
+    ctaClass:
+      "bg-primary text-text-inverse hover:bg-primary-hover shadow-primary",
     featuresTitle: "Everything in Starter, plus:",
     features: [
       { text: "Unlimited Invoices", highlight: true },
@@ -49,7 +54,7 @@ const plans = [
     monthlyPrice: null,
     annualPrice: null,
     cta: "Contact Sales",
-    ctaStyle: "bg-slate-900 text-white hover:opacity-90",
+    ctaClass: "bg-text text-text-inverse hover:bg-text-secondary",
     featuresTitle: "Everything in Pro, plus:",
     features: [
       "Unlimited seats",
@@ -62,6 +67,9 @@ const plans = [
   },
 ];
 
+/* =========================================================
+   FAQS
+========================================================= */
 const faqs = [
   {
     q: "Can I change my plan later?",
@@ -81,188 +89,254 @@ const faqs = [
   },
 ];
 
-export default function PricingPage() {
+/* =========================================================
+   PRICING PAGE
+   variant="landing" → navbar + footer (public)
+   variant="app"     → content only (from dashboard, no chrome)
+========================================================= */
+export default function PricingPage({ variant = "landing" }) {
+  const isLanding = variant === "landing";
   const [isAnnual, setIsAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState(0);
 
   return (
-    <div className="landing-page bg-surface font-body-md text-on-surface antialiased">
-      <LandingNavbar />
+    <div className="landing-page min-h-screen bg-background font-body-md text-text antialiased">
+      {isLanding && <LandingNavbar />}
 
-      <main className="pt-32 pb-24 px-6 md:px-8 max-w-7xl mx-auto">
-        {/* ========== HERO ========== */}
-        <section className="text-center mb-20">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 leading-tight tracking-tight">
-            Predictable Pricing for{" "}
-            <br className="hidden sm:block" />
-            <span className="text-primary">Modern Automation.</span>
-          </h1>
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Scale your billing infrastructure without the headache. Choose a
-            plan that grows with your transaction volume and team size.
-          </p>
-
-          {/* Toggle */}
-          <div className="flex items-center justify-center gap-4 mb-16">
-            <span
-              className={`text-sm font-medium ${
-                !isAnnual ? "text-slate-900" : "text-slate-500"
-              }`}
-            >
-              Monthly
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setIsAnnual((v) => !v)}
-              className="w-14 h-7 bg-primary rounded-full relative p-1 transition-colors"
-              aria-label="Toggle annual pricing"
-            >
-              <div
-                className={`w-5 h-5 bg-white rounded-full absolute top-1 shadow-sm transition-all duration-200 ${
-                  isAnnual ? "right-1" : "left-1"
-                }`}
-              />
-            </button>
-
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-sm font-semibold ${
-                  isAnnual ? "text-slate-900" : "text-slate-500"
-                }`}
-              >
-                Annual
+      <main
+        className={
+          isLanding
+            ? "pt-32 pb-24 px-6 md:px-8"
+            : "pt-10 pb-24 px-6 md:px-8"
+        }
+      >
+        <div className="max-w-7xl mx-auto">
+          {/* HERO */}
+          <section className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 rounded-full bg-primary-light border border-primary/20">
+              <span className="material-symbols-outlined text-primary text-base">
+                payments
               </span>
-              <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider">
-                SAVE 20%
+              <span className="text-xs font-semibold text-primary tracking-wide">
+                SIMPLE & TRANSPARENT PRICING
               </span>
             </div>
-          </div>
-        </section>
 
-        {/* ========== PRICING GRID ========== */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32 items-stretch">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative p-10 rounded-xl flex flex-col h-full border ${
-                plan.highlighted
-                  ? "bg-white border-2 border-primary shadow-[0px_20px_25px_-5px_rgba(15,23,42,0.1)] scale-105 z-10"
-                  : "bg-slate-50 border-slate-100 shadow-[0px_4px_6px_-1px_rgba(15,23,42,0.05)]"
-              }`}
-            >
-              {plan.highlighted && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest">
-                  Most Popular
-                </div>
-              )}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text mb-6 leading-tight tracking-tight">
+              Predictable Pricing for{" "}
+              <br className="hidden sm:block" />
+              <span className="text-primary">Modern Automation.</span>
+            </h1>
 
-              <div className="mb-8">
-                <h3 className="text-xl font-bold text-slate-900 mb-2">
-                  {plan.name}
-                </h3>
-                <p className="text-sm text-slate-500">{plan.description}</p>
-              </div>
-
-              <div className="mb-8">
-                {plan.monthlyPrice === null ? (
-                  <span className="text-5xl font-extrabold text-slate-900 tracking-tighter">
-                    Custom
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-5xl font-extrabold text-slate-900 tracking-tighter">
-                      ${isAnnual ? plan.annualPrice : plan.monthlyPrice}
-                    </span>
-                    <span className="text-slate-500 font-medium">/mo</span>
-                  </>
-                )}
-              </div>
-
-              <Link
-                to={plan.id === "enterprise" ? "/contact" : "/register"}
-                className={`w-full py-4 rounded-lg font-semibold text-sm text-center transition-all mb-10 block ${plan.ctaStyle}`}
-              >
-                {plan.cta}
-              </Link>
-
-              <div className="space-y-4 flex-grow">
-                <p className="text-sm font-bold text-slate-900">
-                  {plan.featuresTitle}
-                </p>
-                {plan.features.map((f, i) => {
-                  const text = typeof f === "string" ? f : f.text;
-                  const highlight = typeof f === "object" && f.highlight;
-                  return (
-                    <div key={i} className="flex items-start gap-3">
-                      <span
-                        className="material-symbols-outlined text-primary text-lg"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        check_circle
-                      </span>
-                      <span
-                        className={`text-sm ${
-                          highlight
-                            ? "text-primary font-medium"
-                            : "text-slate-500"
-                        }`}
-                      >
-                        {text}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </section>
-
-        {/* ========== FAQ ========== */}
-        <section className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-slate-500">
-              Everything you need to know about AutoBillr pricing and billing.
+            <p className="text-lg text-text-muted max-w-2xl mx-auto mb-10 leading-relaxed">
+              Scale your billing infrastructure without the headache. Choose a
+              plan that grows with your transaction volume and team size.
             </p>
-          </div>
 
-          <div className="space-y-4">
-            {faqs.map((faq, i) => {
-              const isOpen = openFaq === i;
-              return (
-                <div
-                  key={i}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-slate-100 cursor-pointer transition-all hover:shadow-md"
-                  onClick={() => setOpenFaq(isOpen ? null : i)}
+            {/* BILLING TOGGLE */}
+            <div className="flex items-center justify-center gap-4 mb-16">
+              <span
+                className={`text-sm font-medium transition-colors ${
+                  !isAnnual ? "text-text" : "text-text-muted"
+                }`}
+              >
+                Monthly
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setIsAnnual((v) => !v)}
+                className="w-14 h-7 bg-primary rounded-full relative p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                aria-label="Toggle annual pricing"
+                aria-pressed={isAnnual}
+              >
+                <span
+                  className={`block w-5 h-5 bg-surface rounded-full absolute top-1 shadow-sm transition-all duration-200 ${
+                    isAnnual ? "right-1" : "left-1"
+                  }`}
+                />
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-sm font-semibold transition-colors ${
+                    isAnnual ? "text-text" : "text-text-muted"
+                  }`}
                 >
-                  <div className="flex justify-between items-center gap-4">
-                    <h4 className="text-base font-semibold text-slate-900">
-                      {faq.q}
-                    </h4>
-                    <span
-                      className={`material-symbols-outlined text-slate-400 transition-colors ${
-                        isOpen ? "text-primary rotate-180" : ""
-                      }`}
-                    >
-                      expand_more
+                  Annual
+                </span>
+                <span className="bg-success-light text-success px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider">
+                  SAVE 20%
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* PRICING GRID */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32 items-stretch">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className={`
+                  relative p-8 md:p-10 rounded-xl flex flex-col h-full border transition-all duration-200
+                  ${
+                    plan.highlighted
+                      ? "bg-surface border-2 border-primary shadow-primary md:scale-105 z-10"
+                      : "bg-surface-secondary border-border shadow-sm hover:shadow-md"
+                  }
+                `}
+              >
+                {plan.highlighted && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center gap-1.5 bg-primary text-text-inverse px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest whitespace-nowrap shadow-md">
+                      <span className="material-symbols-outlined text-sm">
+                        star
+                      </span>
+                      Most Popular
                     </span>
                   </div>
-                  {isOpen && (
-                    <p className="mt-4 text-slate-500 leading-relaxed">
-                      {faq.a}
-                    </p>
+                )}
+
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-text mb-2">
+                    {plan.name}
+                  </h3>
+                  <p className="text-sm text-text-muted">{plan.description}</p>
+                </div>
+
+                <div className="mb-8 min-h-[60px] flex items-end">
+                  {plan.monthlyPrice === null ? (
+                    <span className="text-4xl md:text-5xl font-extrabold text-text tracking-tighter">
+                      Custom
+                    </span>
+                  ) : (
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl md:text-5xl font-extrabold text-text tracking-tighter">
+                        ${isAnnual ? plan.annualPrice : plan.monthlyPrice}
+                      </span>
+                      <span className="text-text-muted font-medium">/mo</span>
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </section>
+
+                <Link
+                  to={plan.id === "enterprise" ? "/contact" : "/register"}
+                  className={`
+                    w-full min-h-[48px] px-5 py-3 rounded-lg font-semibold text-sm
+                    text-center inline-flex items-center justify-center gap-2
+                    transition-all duration-200 mb-10
+                    ${plan.ctaClass}
+                  `}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {plan.id === "enterprise" ? "contact_page" : "rocket_launch"}
+                  </span>
+                  {plan.cta}
+                </Link>
+
+                <div className="space-y-4 flex-grow">
+                  <p className="text-sm font-bold text-text">
+                    {plan.featuresTitle}
+                  </p>
+                  {plan.features.map((feature, index) => {
+                    const text =
+                      typeof feature === "string" ? feature : feature.text;
+                    const highlight =
+                      typeof feature === "object" && feature.highlight;
+
+                    return (
+                      <div
+                        key={`${plan.id}-feature-${index}`}
+                        className="flex items-start gap-3"
+                      >
+                        <span
+                          className="material-symbols-outlined text-primary text-lg shrink-0"
+                          style={{ fontVariationSettings: "'FILL' 1" }}
+                        >
+                          check_circle
+                        </span>
+                        <span
+                          className={`text-sm leading-6 ${
+                            highlight
+                              ? "text-primary font-semibold"
+                              : "text-text-muted"
+                          }`}
+                        >
+                          {text}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          {/* FAQ */}
+          <section className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary-light text-primary mb-5">
+                <span className="material-symbols-outlined text-2xl">help</span>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-text mb-4">
+                Frequently Asked Questions
+              </h2>
+              <p className="text-text-muted">
+                Everything you need to know about AutoBillr pricing and billing.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {faqs.map((faq, index) => {
+                const isOpen = openFaq === index;
+                return (
+                  <div
+                    key={index}
+                    className={`
+                      bg-surface rounded-xl border cursor-pointer transition-all duration-200
+                      ${
+                        isOpen
+                          ? "border-primary shadow-sm"
+                          : "border-border hover:border-border-dark hover:shadow-sm"
+                      }
+                    `}
+                    onClick={() => setOpenFaq(isOpen ? null : index)}
+                  >
+                    <div className="flex justify-between items-center gap-4 p-6">
+                      <h4
+                        className={`text-base font-semibold transition-colors ${
+                          isOpen ? "text-primary" : "text-text"
+                        }`}
+                      >
+                        {faq.q}
+                      </h4>
+                      <span
+                        className={`
+                          material-symbols-outlined shrink-0 transition-all duration-200
+                          ${isOpen ? "text-primary rotate-180" : "text-text-light"}
+                        `}
+                      >
+                        expand_more
+                      </span>
+                    </div>
+                    {isOpen && (
+                      <div className="px-6 pb-6">
+                        <div className="pt-4 border-t border-border-light">
+                          <p className="text-sm text-text-muted leading-relaxed">
+                            {faq.a}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </main>
 
-      <LandingFooter />
+      {isLanding && <LandingFooter />}
     </div>
   );
 }

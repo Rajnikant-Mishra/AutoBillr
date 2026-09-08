@@ -35,8 +35,8 @@ const navigation = [
     items: [
       { to: "/settings", label: "Settings", icon: "settings" },
       { to: "/team", label: "Team & Permissions", icon: "admin_panel_settings" },
-      { to: "/client-portal", label: "Client Portal", icon: "share" },
-      { to: "/pricing", label: "Pricing", icon: "loyalty" },
+      { to: "/clientportal", label: "Client Portal", icon: "share" },
+      { to: "/app/pricing", label: "Pricing", icon: "loyalty" },
     ],
   },
 ];
