@@ -62,7 +62,7 @@ const createEmptyMilestone = () => ({
 });
 
 const getClientId = (client) =>
-  client?._id ?? client?.id ?? client?.clientId ?? null;
+   client?.id ?? client?.clientId ?? null;
 
 const getClientName = (client) =>
   client?.name ?? client?.clientName ?? "Unnamed Client";

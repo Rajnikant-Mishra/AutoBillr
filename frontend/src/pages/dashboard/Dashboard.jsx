@@ -5,7 +5,6 @@ import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import SectionHeader from "../../components/ui/SectionHeader";
-import Badge from "../../components/ui/Badge";
 import useCurrency from "../../hooks/useCurrency";
 import DataTable from "../../components/ui/DataTable";
 import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
@@ -22,7 +21,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -43,34 +42,73 @@ export default function Dashboard() {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 });
   const [rowSelection, setRowSelection] = useState({});
 
-  // ==================== STATS ====================
-  const stats = [
-    {
-      title: "TOTAL INVOICES",
-      value: dashboardData?.stats?.totalInvoices ?? 0,
-      change: `${dashboardData?.stats?.totalProjects ?? 0} Projects`,
-      icon: "description",
-      iconColor: "text-primary",
-      changeColor: "text-primary-dark",
-      type: "progress",
-    },
-    {
-      title: "MONTHLY REVENUE",
-      value: format(dashboardData?.stats?.monthlyRevenue ?? 0),
-      change: `Projection: ${format(dashboardData?.stats?.projectedRevenue ?? 0)}`,
-      icon: "payments",
-      iconColor: "text-info",
-      changeColor: "text-text-muted",
-    },
-    {
-      title: "OVERDUE",
-      value: format(dashboardData?.stats?.overdueAmount ?? 0),
-      change: `Action Required (${dashboardData?.stats?.overdueCount ?? 0})`,
-      icon: "warning",
-      iconColor: "text-danger",
-      changeColor: "text-danger",
-    },
-  ];
+  // ==================== FETCH ====================
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const token =
+        localStorage.getItem("autobiller-auth") ||
+        localStorage.getItem("token");
+
+      if (!API_BASE_URL) {
+        throw new Error("VITE_API_URL is not defined. Check your .env file");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/dashboard`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const text = await response.text();
+      let result = {};
+
+      try {
+        result = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          `Server returned empty or invalid JSON (status ${response.status})`
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message || `Dashboard request failed (${response.status})`
+        );
+      }
+
+      // Accept both { success: true, ... } and plain data shapes
+      const data = result?.success ? result : result?.data || result;
+
+      setDashboardData({
+        stats: data.stats || {},
+        revenueTrends: data.revenueTrends || [],
+        upcomingBilling: data.upcomingBilling || [],
+        recentInvoices: data.recentInvoices || [],
+      });
+    } catch (error) {
+      console.error("DASHBOARD ERROR:", error);
+      toast.error(error.message || "Failed to fetch dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // Refresh when a client is created/updated
+  useEffect(() => {
+    const handleClientUpdated = () => fetchDashboard();
+    window.addEventListener("client-updated", handleClientUpdated);
+    return () => window.removeEventListener("client-updated", handleClientUpdated);
+  }, [fetchDashboard]);
 
   // ==================== CLIENT DRAWER HANDLERS ====================
   const openCreateClient = () => {
@@ -94,153 +132,37 @@ export default function Dashboard() {
     setFormDrawerOpen(true);
   };
 
-  // ==================== DATA ====================
-  // ==================== DATA ====================
-const refetchDashboard = useCallback(async () => {
-  try {
-    const token = localStorage.getItem("autobiller-auth");
-
-    const response = await fetch(`${API_BASE_URL}/dashboard`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  // ==================== STATS ====================
+  const stats = useMemo(
+    () => [
+      {
+        title: "TOTAL INVOICES",
+        value: dashboardData?.stats?.totalInvoices ?? 0,
+        change: `${dashboardData?.stats?.totalProjects ?? 0} Projects`,
+        icon: "description",
+        iconColor: "text-primary",
+        changeColor: "text-primary-dark",
+        type: "progress",
       },
-    });
-
-    const text = await response.text();
-    let result = {};
-
-    try {
-      result = text ? JSON.parse(text) : {};
-    } catch {
-      throw new Error("Server returned an invalid / empty response");
-    }
-
-    if (!response.ok) {
-      throw new Error(result?.message || "Failed to refresh dashboard");
-    }
-
-    setDashboardData({
-      stats: result.stats || {},
-      revenueTrends: result.revenueTrends || [],
-      upcomingBilling: result.upcomingBilling || [],
-      recentInvoices: result.recentInvoices || [],
-    });
-  } catch (error) {
-    console.error("Failed to refetch dashboard:", error);
-  }
-}, []);
-
-useEffect(() => {
-  const fetchDashboard = async () => {
-    try {
-      setLoading(true);
-
-      const token = localStorage.getItem("autobiller-auth");
-
-      // Safety check
-      if (!API_BASE_URL) {
-        throw new Error("VITE_API_URL is not defined. Check your .env file");
-      }
-
-      const response = await fetch(`${API_BASE_URL}/dashboard`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      const text = await response.text();
-      console.log("DASHBOARD STATUS:", response.status);
-      console.log("DASHBOARD RAW:", text);
-
-      let result = {};
-      try {
-        result = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(
-          `Server returned empty or invalid JSON (status ${response.status})`
-        );
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          result?.message || `Dashboard request failed (${response.status})`
-        );
-      }
-
-      if (!result?.success) {
-        throw new Error(result?.message || "Dashboard request was unsuccessful");
-      }
-
-      setDashboardData({
-        stats: result.stats || {},
-        revenueTrends: result.revenueTrends || [],
-        upcomingBilling: result.upcomingBilling || [],
-        recentInvoices: result.recentInvoices || [],
-      });
-    } catch (error) {
-      console.error("DASHBOARD ERROR:", error);
-      toast.error(error.message || "Failed to fetch dashboard");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchDashboard();
-}, []);
-
-  useEffect(() => {
-    const handleClientUpdated = () => refetchDashboard();
-    window.addEventListener("client-updated", handleClientUpdated);
-    return () => window.removeEventListener("client-updated", handleClientUpdated);
-  }, [refetchDashboard]);
-
-  // useEffect(() => {
-  //   const fetchDashboard = async () => {
-  //     try {
-  //       setLoading(true);
-
-  //       const token = localStorage.getItem("autobiller-auth");
-
-  //       const response = await fetch(`${API_BASE_URL}/dashboard`, {
-  //         method: "GET",
-  //         headers: {
-  //           Accept: "application/json",
-  //           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  //         },
-  //       });
-
-  //       const result = await response.json();
-
-  //       if (!response.ok) {
-  //         throw new Error(
-  //           result?.message || `Dashboard request failed (${response.status})`
-  //         );
-  //       }
-
-  //       if (!result?.success) {
-  //         throw new Error(result?.message || "Dashboard request was unsuccessful");
-  //       }
-
-  //       setDashboardData({
-  //         stats: result.stats || {},
-  //         revenueTrends: result.revenueTrends || [],
-  //         upcomingBilling: result.upcomingBilling || [],
-  //         recentInvoices: result.recentInvoices || [],
-  //       });
-  //     } catch (error) {
-  //       console.error("DASHBOARD ERROR:", error);
-  //       toast.error(error.message || "Failed to fetch dashboard");
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   fetchDashboard();
-  // }, []);
+      {
+        title: "MONTHLY REVENUE",
+        value: format(dashboardData?.stats?.monthlyRevenue ?? 0),
+        change: `Projection: ${format(dashboardData?.stats?.projectedRevenue ?? 0)}`,
+        icon: "payments",
+        iconColor: "text-info",
+        changeColor: "text-text-muted",
+      },
+      {
+        title: "OVERDUE",
+        value: format(dashboardData?.stats?.overdueAmount ?? 0),
+        change: `Action Required (${dashboardData?.stats?.overdueCount ?? 0})`,
+        icon: "warning",
+        iconColor: "text-danger",
+        changeColor: "text-danger",
+      },
+    ],
+    [dashboardData, format]
+  );
 
   // ==================== TABLE COLUMNS ====================
   const invoiceColumns = useMemo(
@@ -579,45 +501,51 @@ useEffect(() => {
             </div>
 
             <div className="space-y-4">
-              {dashboardData?.upcomingBilling?.map((item) => {
-                const initials = item.clientName
-                  ?.split(" ")
-                  .map((word) => word[0])
-                  .join("")
-                  .substring(0, 2);
+              {dashboardData?.upcomingBilling?.length === 0 ? (
+                <p className="text-sm text-text-muted text-center py-4">
+                  No upcoming billing
+                </p>
+              ) : (
+                dashboardData?.upcomingBilling?.map((item) => {
+                  const initials = item.clientName
+                    ?.split(" ")
+                    .map((word) => word[0])
+                    .join("")
+                    .substring(0, 2);
 
-                return (
-                  <div key={item._id} className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold bg-primary-soft text-primary-dark">
-                      {initials}
-                    </div>
+                  return (
+                    <div key={item._id || item.id} className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold bg-primary-soft text-primary-dark">
+                        {initials}
+                      </div>
 
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-text">
-                        {item.clientName}
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-text">
+                          {item.clientName}
+                        </div>
+                        <div className="text-xs text-text-muted">
+                          {item.dueDate
+                            ? new Date(item.dueDate).toLocaleDateString()
+                            : "No Due Date"}
+                        </div>
                       </div>
-                      <div className="text-xs text-text-muted">
-                        {item.dueDate
-                          ? new Date(item.dueDate).toLocaleDateString()
-                          : "No Due Date"}
-                      </div>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-text">
-                        {format(item.amount)}
-                      </div>
-                      <div
-                        className={`text-[10px] font-bold ${
-                          item.auto ? "text-primary" : "text-text-muted"
-                        }`}
-                      >
-                        {item.auto ? "AUTO" : "MANUAL"}
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-text">
+                          {format(item.amount)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold ${
+                            item.auto ? "text-primary" : "text-text-muted"
+                          }`}
+                        >
+                          {item.auto ? "AUTO" : "MANUAL"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </Card>
         </div>
@@ -664,7 +592,7 @@ useEffect(() => {
         }}
         client={editingClient}
         onSuccess={() => {
-          refetchDashboard();
+          fetchDashboard();
           toast.success(
             editingClient
               ? "Client updated successfully"

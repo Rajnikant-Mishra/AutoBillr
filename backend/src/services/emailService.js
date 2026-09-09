@@ -1,402 +1,472 @@
-// // const { Resend } = require("resend");
-
-// // const resend = new Resend(
-// //   process.env.RESEND_API_KEY
-// // );
-
-// // // =====================================================
-// // // SEND VERIFICATION EMAIL
-// // // =====================================================
-
-// // const sendVerificationEmail = async ({
-// //   email,
-// //   firstName,
-// //   token,
-// // }) => {
-// //   if (!email) {
-// //     throw new Error(
-// //       "Recipient email is required"
-// //     );
-// //   }
-
-// //   if (!token) {
-// //     throw new Error(
-// //       "Verification token is required"
-// //     );
-// //   }
-
-// //   const frontendUrl =
-// //     process.env.FRONTEND_URL ||
-// //     "http://localhost:5173";
-
-// //   const verificationUrl =
-// //     `${frontendUrl}/verify-email?token=${encodeURIComponent(
-// //       token
-// //     )}`;
-
-// //   const fromEmail =
-// //     process.env.RESEND_FROM_EMAIL ||
-// //     "AutoBillr <onboarding@resend.dev>";
-
-// //   const name =
-// //     firstName?.trim() || "there";
-
-// //   console.log(
-// //     ">>> RESEND TO:",
-// //     email
-// //   );
-
-// //   console.log(
-// //     ">>> RESEND FROM:",
-// //     fromEmail
-// //   );
-
-// //   console.log(
-// //     ">>> VERIFICATION URL:",
-// //     verificationUrl
-// //   );
-
-// //   const { data, error } =
-// //     await resend.emails.send({
-// //       from: fromEmail,
-
-// //       to: [email],
-
-// //       subject:
-// //         "Verify your AutoBillr email address",
-
-// //       html: `
-// //         <!DOCTYPE html>
-
-// //         <html>
-
-// //         <head>
-// //           <meta charset="UTF-8">
-// //           <meta
-// //             name="viewport"
-// //             content="width=device-width, initial-scale=1.0"
-// //           >
-// //           <title>
-// //             Verify your AutoBillr email
-// //           </title>
-// //         </head>
-
-// //         <body
-// //           style="
-// //             margin:0;
-// //             padding:0;
-// //             background:#f5f7fb;
-// //             font-family:Arial,Helvetica,sans-serif;
-// //           "
-// //         >
-
-// //           <div
-// //             style="
-// //               max-width:600px;
-// //               margin:40px auto;
-// //               background:#ffffff;
-// //               border-radius:16px;
-// //               overflow:hidden;
-// //               border:1px solid #e5e7eb;
-// //             "
-// //           >
-
-// //             <!-- HEADER -->
-
-// //             <div
-// //               style="
-// //                 padding:28px 32px;
-// //                 background:#0f172a;
-// //                 color:#ffffff;
-// //               "
-// //             >
-
-// //               <h1
-// //                 style="
-// //                   margin:0;
-// //                   font-size:24px;
-// //                 "
-// //               >
-// //                 AutoBillr
-// //               </h1>
-
-// //             </div>
-
-// //             <!-- CONTENT -->
-
-// //             <div
-// //               style="
-// //                 padding:40px 32px;
-// //               "
-// //             >
-
-// //               <h2
-// //                 style="
-// //                   margin:0 0 16px;
-// //                   color:#111827;
-// //                   font-size:24px;
-// //                 "
-// //               >
-// //                 Verify your email
-// //               </h2>
-
-// //               <p
-// //                 style="
-// //                   color:#4b5563;
-// //                   font-size:15px;
-// //                   line-height:1.7;
-// //                 "
-// //               >
-// //                 Hi ${name},
-// //               </p>
-
-// //               <p
-// //                 style="
-// //                   color:#4b5563;
-// //                   font-size:15px;
-// //                   line-height:1.7;
-// //                 "
-// //               >
-// //                 Thanks for creating your
-// //                 AutoBillr account.
-// //                 Please verify your email address
-// //                 to continue your registration.
-// //               </p>
-
-// //               <!-- BUTTON -->
-
-// //               <div
-// //                 style="
-// //                   text-align:center;
-// //                   margin:32px 0;
-// //                 "
-// //               >
-
-// //                 <a
-// //                   href="${verificationUrl}"
-// //                   style="
-// //                     display:inline-block;
-// //                     padding:14px 24px;
-// //                     background:#0f9d94;
-// //                     color:#ffffff;
-// //                     text-decoration:none;
-// //                     border-radius:10px;
-// //                     font-weight:600;
-// //                     font-size:15px;
-// //                   "
-// //                 >
-// //                   Verify Email Address
-// //                 </a>
-
-// //               </div>
-
-// //               <p
-// //                 style="
-// //                   color:#6b7280;
-// //                   font-size:13px;
-// //                   line-height:1.6;
-// //                 "
-// //               >
-// //                 This verification link will expire
-// //                 in
-// //                 ${
-// //                   process.env
-// //                     .EMAIL_VERIFICATION_EXPIRES_MINUTES ||
-// //                   30
-// //                 }
-// //                 minutes.
-// //               </p>
-
-// //               <p
-// //                 style="
-// //                   color:#9ca3af;
-// //                   font-size:12px;
-// //                   line-height:1.6;
-// //                 "
-// //               >
-// //                 If you did not create an
-// //                 AutoBillr account, you can safely
-// //                 ignore this email.
-// //               </p>
-
-// //             </div>
-
-// //             <!-- FOOTER -->
-
-// //             <div
-// //               style="
-// //                 padding:20px 32px;
-// //                 border-top:1px solid #e5e7eb;
-// //                 background:#fafafa;
-// //               "
-// //             >
-
-// //               <p
-// //                 style="
-// //                   margin:0;
-// //                   color:#9ca3af;
-// //                   font-size:12px;
-// //                   text-align:center;
-// //                 "
-// //               >
-// //                 © ${new Date().getFullYear()}
-// //                 AutoBillr.
-// //                 All rights reserved.
-// //               </p>
-
-// //             </div>
-
-// //           </div>
-
-// //         </body>
-
-// //         </html>
-// //       `,
-// //     });
-
-// //   if (error) {
-// //     console.error(
-// //       ">>> RESEND ERROR:",
-// //       error
-// //     );
-
-// //     throw new Error(
-// //       error.message ||
-// //         "Failed to send email"
-// //     );
-// //   }
-
-// //   console.log(
-// //     ">>> RESEND EMAIL ID:",
-// //     data?.id
-// //   );
-
-// //   return data;
-// // };
-
-// // module.exports = {
-// //   sendVerificationEmail,
-// // };
-
-// const nodemailer = require("nodemailer");
-
-// const transporter = nodemailer.createTransport({
-//   service: "gmail",
-//   auth: {
-//     user: process.env.MAIL_USER,
-//     pass: process.env.MAIL_PASSWORD,
-//   },
-// });
-
-// const sendVerificationEmail = async ({ email, firstName, token }) => {
-//   if (!email) {
-//     throw new Error("Recipient email is required");
-//   }
-
-//   if (!token) {
-//     throw new Error("Verification token is required");
-//   }
-
-//   const frontendUrl =
-//     process.env.FRONTEND_URL || "http://localhost:5173";
-
-//   const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(
-//     token
-//   )}`;
-
-//   const name = firstName?.trim() || "there";
-
-//   console.log(">>> SENDING AUTHENTIC EMAIL TO:", email);
-//   console.log(">>> VERIFICATION URL:", verificationUrl);
-
-//   const mailOptions = {
-//     from: `"AutoBillr" <${process.env.MAIL_USER}>`,
-//     to: email,
-//     subject: "Verify your AutoBillr email address",
-//     html: `
-//       <!DOCTYPE html>
-//       <html>
-//       <head>
-//         <meta charset="UTF-8">
-//         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-//         <title>Verify your AutoBillr email</title>
-//       </head>
-//       <body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;">
-//         <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
-//           <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-//             <h1 style="margin:0;font-size:24px;">AutoBillr</h1>
-//           </div>
-//           <div style="padding:40px 32px;">
-//             <h2 style="margin:0 0 16px;color:#111827;font-size:24px;">Verify your email</h2>
-//             <p style="color:#4b5563;font-size:15px;line-height:1.7;">Hi ${name},</p>
-//             <p style="color:#4b5563;font-size:15px;line-height:1.7;">Thanks for creating your AutoBillr account. Please verify your email address to continue your registration.</p>
-//             <div style="text-align:center;margin:32px 0;">
-//               <a href="${verificationUrl}" style="display:inline-block;padding:14px 24px;background:#0f9d94;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Verify Email Address</a>
-//             </div>
-//             <p style="color:#6b7280;font-size:13px;line-height:1.6;">This link will expire in 30 minutes.</p>
-//           </div>
-//         </div>
-//       </body>
-//       </html>
-//     `,
-//   };
-
-//   const info = await transporter.sendMail(mailOptions);
-//   console.log(">>> EMAIL DELIVERED SUCCESSFULLY! MESSAGE ID:", info.messageId);
-//   return info;
-// };
-
-// module.exports = {
-//   sendVerificationEmail,
-// };
 
 const nodemailer = require("nodemailer");
 
+
+// ============================================================
+// SMTP TRANSPORTER
+// ============================================================
+
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  host: process.env.MAIL_HOST || "smtp.gmail.com",
+
+  port: Number(process.env.MAIL_PORT || 587),
+
+  // Gmail port 587 = STARTTLS
+  secure: false,
+
+  requireTLS: true,
+
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASSWORD,
   },
+
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 30000,
 });
 
-const sendVerificationEmail = async ({ email, firstName, token }) => {
-  if (!email || !token) {
-    throw new Error("Email and token are required");
+
+// ============================================================
+// CHECK SMTP CONNECTION
+// ============================================================
+
+transporter.verify((error) => {
+  console.log("====================================");
+
+  if (error) {
+    console.error("SMTP CONNECTION ERROR");
+    console.error(error);
+  } else {
+    console.log("SMTP SERVER READY");
   }
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
+  console.log("SMTP USER:", process.env.MAIL_USER);
+  console.log("SMTP HOST:", process.env.MAIL_HOST || "smtp.gmail.com");
+  console.log("SMTP PORT:", process.env.MAIL_PORT || 587);
+
+  console.log("====================================");
+});
+
+
+// ============================================================
+// SEND EMAIL VERIFICATION
+// ============================================================
+
+const sendVerificationEmail = async ({
+  email,
+  firstName,
+  token,
+}) => {
+  if (!email) {
+    throw new Error("Email is required");
+  }
+
+  if (!token) {
+    throw new Error("Verification token is required");
+  }
+
+  const frontendUrl =
+    process.env.FRONTEND_URL || "http://localhost:5173";
+
+  const verificationUrl =
+    `${frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
+
   const name = firstName?.trim() || "User";
 
   const mailOptions = {
     from: `"AutoBillr" <${process.env.MAIL_USER}>`,
     to: email,
+
     subject: "AutoBillr Email Verification",
-    text: `Hello ${name},\n\nPlease click the link below to verify your email:\n${verificationUrl}\n\nThis link is valid for 30 minutes.`,
+
+    text: `
+Hello ${name},
+
+Please click the link below to verify your email:
+
+${verificationUrl}
+
+This link is valid for 30 minutes.
+
+Thank you,
+AutoBillr
+`,
+
     html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; color: #1f2937;">
-        <h2>Verify your email address</h2>
-        <p>Hello ${name},</p>
-        <p>Click the link below to complete your registration on AutoBillr:</p>
-        <p style="margin: 25px 0;">
-          <a href="${verificationUrl}" style="background-color: #0f9d94; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-            Verify Email Address
-          </a>
-        </p>
-        <p style="font-size: 13px; color: #6b7280;">Direct link: <br/><a href="${verificationUrl}">${verificationUrl}</a></p>
-        <p style="font-size: 12px; color: #9ca3af;">This link will expire in 30 minutes.</p>
-      </div>
-    `,
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AutoBillr Email Verification</title>
+</head>
+
+<body style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px;">
+
+  <div style="
+    max-width:600px;
+    margin:auto;
+    background:#ffffff;
+    padding:30px;
+    border:1px solid #ddd;
+    border-radius:10px;
+  ">
+
+    <h2 style="color:#1230AE;">
+      Welcome to AutoBillr
+    </h2>
+
+    <p>Hello ${name},</p>
+
+    <p>
+      Please click the button below to verify your email address.
+    </p>
+
+    <p>
+      <a
+        href="${verificationUrl}"
+        style="
+          display:inline-block;
+          padding:12px 20px;
+          background:#1230AE;
+          color:#ffffff;
+          text-decoration:none;
+          border-radius:6px;
+        "
+      >
+        Verify Email
+      </a>
+    </p>
+
+    <p>
+      This link is valid for 30 minutes.
+    </p>
+
+    <p>
+      Thank you,<br>
+      <strong>AutoBillr</strong>
+    </p>
+
+  </div>
+
+</body>
+</html>
+`,
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  console.log(">>> EMAIL DELIVERED SUCCESSFULLY! ID:", info.messageId);
-  return info;
+  console.log("====================================");
+  console.log("SENDING VERIFICATION EMAIL");
+  console.log("FROM:", process.env.MAIL_USER);
+  console.log("TO:", email);
+  console.log("====================================");
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log("====================================");
+    console.log("VERIFICATION EMAIL SENT");
+    console.log("MESSAGE ID:", info.messageId);
+    console.log("ACCEPTED:", info.accepted);
+    console.log("REJECTED:", info.rejected);
+    console.log("RESPONSE:", info.response);
+    console.log("ENVELOPE:", info.envelope);
+    console.log("====================================");
+
+    return info;
+
+  } catch (error) {
+    console.error("VERIFICATION EMAIL ERROR:", error);
+    throw error;
+  }
 };
+
+
+// ============================================================
+// SEND INVOICE PDF TO CLIENT
+// ============================================================
+
+const sendInvoiceEmail = async ({
+  email,
+  clientName,
+  invoiceNumber,
+  total,
+  pdfBuffer,
+}) => {
+
+  console.log("====================================");
+  console.log("SEND INVOICE EMAIL");
+  console.log("====================================");
+
+  console.log("FROM:", process.env.MAIL_USER);
+  console.log("TO:", email);
+  console.log("CLIENT:", clientName);
+  console.log("INVOICE:", invoiceNumber);
+  console.log("PDF BUFFER:", !!pdfBuffer);
+  console.log("PDF IS BUFFER:", Buffer.isBuffer(pdfBuffer));
+  console.log("PDF SIZE:", pdfBuffer?.length);
+
+  console.log("====================================");
+
+
+  // ----------------------------------------------------------
+  // VALIDATION
+  // ----------------------------------------------------------
+
+  if (!email) {
+    throw new Error("Client email is missing");
+  }
+
+  if (!invoiceNumber) {
+    throw new Error("Invoice number is missing");
+  }
+
+  if (!pdfBuffer) {
+    throw new Error("Invoice PDF is missing");
+  }
+
+  if (!Buffer.isBuffer(pdfBuffer)) {
+    throw new Error("Invoice PDF is not a valid Buffer");
+  }
+
+  if (pdfBuffer.length === 0) {
+    throw new Error("Invoice PDF is empty");
+  }
+
+
+  // ----------------------------------------------------------
+  // CREATE MAIL
+  // ----------------------------------------------------------
+
+  const mailOptions = {
+
+    // Gmail authenticated account
+    from: `"AutoBillr" <${process.env.MAIL_USER}>`,
+
+    // Database client email
+    to: email,
+
+    // Explicit SMTP envelope
+    envelope: {
+      from: process.env.MAIL_USER,
+      to: [email],
+    },
+
+    subject: `Invoice ${invoiceNumber} from AutoBillr`,
+
+    // Important Gmail headers
+    headers: {
+      "X-AutoBillr-Mail": "Invoice",
+      "X-AutoBillr-Invoice": invoiceNumber,
+    },
+
+    text: `
+Hello ${clientName || "Customer"},
+
+Please find your invoice attached to this email.
+
+Invoice Number: ${invoiceNumber}
+Total Amount: ${total}
+
+The invoice PDF is attached.
+
+Thank you for using AutoBillr.
+
+Regards,
+AutoBillr
+`,
+
+    html: `
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>AutoBillr Invoice</title>
+</head>
+
+<body style="
+  margin:0;
+  padding:30px;
+  background:#f5f7fb;
+  font-family:Arial,sans-serif;
+">
+
+  <div style="
+    max-width:600px;
+    margin:auto;
+    background:#ffffff;
+    padding:30px;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+  ">
+
+    <h2 style="
+      color:#1230AE;
+      margin-bottom:20px;
+    ">
+      AutoBillr Invoice
+    </h2>
+
+    <p>
+      Hello ${clientName || "Customer"},
+    </p>
+
+    <p>
+      Please find your invoice attached to this email.
+    </p>
+
+    <div style="
+      background:#f5f5f5;
+      padding:15px;
+      border-radius:8px;
+      margin:20px 0;
+    ">
+
+      <p>
+        <strong>Invoice Number:</strong>
+        ${invoiceNumber}
+      </p>
+
+      <p>
+        <strong>Total Amount:</strong>
+        ${total}
+      </p>
+
+    </div>
+
+    <p>
+      The invoice PDF is attached to this email.
+    </p>
+
+    <p>
+      Thank you for using AutoBillr.
+    </p>
+
+    <p>
+      Regards,<br>
+      <strong>AutoBillr</strong>
+    </p>
+
+  </div>
+
+</body>
+</html>
+`,
+
+    // --------------------------------------------------------
+    // PDF ATTACHMENT
+    // --------------------------------------------------------
+
+    attachments: [
+      {
+        filename: `${invoiceNumber}.pdf`,
+
+        content: pdfBuffer,
+
+        contentType: "application/pdf",
+
+        // Explicitly tell Nodemailer this is a normal attachment
+        contentDisposition: "attachment",
+      },
+    ],
+  };
+
+
+  // ----------------------------------------------------------
+  // SEND
+  // ----------------------------------------------------------
+
+  console.log("====================================");
+  console.log(">>> SENDING INVOICE EMAIL...");
+  console.log("SMTP FROM:", process.env.MAIL_USER);
+  console.log("SMTP TO:", email);
+  console.log("SUBJECT:", mailOptions.subject);
+  console.log("PDF FILENAME:", `${invoiceNumber}.pdf`);
+  console.log("PDF SIZE:", pdfBuffer.length);
+  console.log("====================================");
+
+
+  try {
+
+    const info = await transporter.sendMail(mailOptions);
+
+
+    // --------------------------------------------------------
+    // RESULT
+    // --------------------------------------------------------
+
+    console.log("====================================");
+    console.log(">>> INVOICE EMAIL SMTP RESULT");
+    console.log("====================================");
+
+    console.log("MESSAGE ID:", info.messageId);
+
+    console.log("FROM:", process.env.MAIL_USER);
+
+    console.log("TO:", email);
+
+    console.log("ACCEPTED:", info.accepted);
+
+    console.log("REJECTED:", info.rejected);
+
+    console.log("RESPONSE:", info.response);
+
+    console.log("ENVELOPE:", info.envelope);
+
+    console.log(
+      "PDF ATTACHED:",
+      mailOptions.attachments.length > 0
+    );
+
+    console.log(
+      "PDF SIZE:",
+      pdfBuffer.length
+    );
+
+    console.log("====================================");
+
+
+    // --------------------------------------------------------
+    // SAFETY CHECK
+    // --------------------------------------------------------
+
+    if (
+      !info.accepted ||
+      !info.accepted.includes(email)
+    ) {
+      throw new Error(
+        `SMTP did not accept recipient: ${email}`
+      );
+    }
+
+
+    return info;
+
+  } catch (error) {
+
+    console.error("====================================");
+    console.error(">>> INVOICE EMAIL FAILED");
+    console.error("====================================");
+
+    console.error("ERROR MESSAGE:", error.message);
+    console.error("ERROR CODE:", error.code);
+    console.error("ERROR RESPONSE:", error.response);
+    console.error("ERROR RESPONSE CODE:", error.responseCode);
+    console.error("ERROR COMMAND:", error.command);
+
+    console.error("====================================");
+
+    throw error;
+  }
+};
+
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 module.exports = {
   sendVerificationEmail,
+  sendInvoiceEmail,
 };
+
