@@ -618,7 +618,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
               <div className="space-y-4">
                 <FormInput
-                  label="Company Name *"
+                  label="Company Name"
                   icon="business"
                   value={formData.companyName}
                   onChange={(e) => updateForm("companyName", e.target.value)}
@@ -715,7 +715,7 @@ const ClientFormDrawer = ({ isOpen, onClose, client = null }) => {
 
               <div className="mt-3">
                 <FormInput
-                  label="Contact Email *"
+                  label="Contact Email"
                   icon="mail"
                   type="email"
                   value={formData.contactEmail}

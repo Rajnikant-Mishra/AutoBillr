@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { showSuccessToast, showErrorToast } from "../components/ui/CustomToast";
 import Button from "../components/ui/Button";
 import FormInput from "../components/ui/FormInput";
-
+import { setAuthData } from "../utils/auth";
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -16,7 +16,7 @@ export default function Login() {
   const handleLogin = async (e) => {
   e.preventDefault();
 
-  if (!email || !password) {
+  if (!email.trim() || !password) {
     showErrorToast("Please enter email and password");
     return;
   }
@@ -24,66 +24,127 @@ export default function Login() {
   try {
     setLoading(true);
 
-    const response = await fetch("http://localhost:5000/api/v1/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: email.trim().toLowerCase(),
-        password,
-      }),
-    });
+    const response = await fetch(
+      "http://localhost:5000/api/v1/auth/login",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      }
+    );
 
+    // Read response ONLY ONCE
     const rawResponse = await response.text();
+
     console.log("LOGIN STATUS:", response.status);
     console.log("LOGIN RAW RESPONSE:", rawResponse);
 
-    let data = {};
+    // -----------------------------------------
+    // Parse JSON safely
+    // -----------------------------------------
+
+    if (!rawResponse.trim()) {
+      console.error("LOGIN EMPTY RESPONSE");
+
+      showErrorToast(
+        `Server returned an empty response (${response.status})`
+      );
+
+      return;
+    }
+
+    let data;
+
     try {
-      data = rawResponse ? JSON.parse(rawResponse) : {};
+      data = JSON.parse(rawResponse);
     } catch (parseError) {
       console.error("LOGIN JSON PARSE ERROR:", parseError);
+      console.error("RAW SERVER RESPONSE:", rawResponse);
+
+      showErrorToast("Server returned an invalid response");
+
+      return;
     }
 
-    // Error responses
+    // -----------------------------------------
+    // Backend returned an error
+    // -----------------------------------------
+
     if (!response.ok) {
-      showErrorToast(data.message || `Login failed (${response.status})`);
+      console.error("LOGIN FAILED:", data);
+
+      showErrorToast(
+        data?.message || `Login failed (${response.status})`
+      );
 
       if (response.status === 401 || response.status === 404) {
-        setTimeout(() => navigate("/register"), 800);
+        setTimeout(() => {
+          navigate("/register");
+        }, 800);
       }
+
       return;
     }
 
-    // No token returned
-    if (!data.token) {
-      showErrorToast(data.message || "Login succeeded but token was not returned");
+    // -----------------------------------------
+    // Login successful but no token
+    // -----------------------------------------
+
+    if (!data?.token) {
+      console.error("LOGIN TOKEN MISSING:", data);
+
+      showErrorToast(
+        data?.message ||
+          "Login succeeded but token was not returned"
+      );
+
       return;
     }
 
-    console.log("LOGIN RESPONSE:", data);
+    // -----------------------------------------
+    // Successful login
+    // -----------------------------------------
 
-    // Persist auth
-    localStorage.setItem("autobiller-auth", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
+   // -----------------------------------------
+// Successful login
+// -----------------------------------------
 
-    const userName =
-      `${data.user?.firstName || ""} ${data.user?.lastName || ""}`.trim() ||
-      data.user?.email?.split("@")[0] ||
-      "User";
+console.log("LOGIN RESPONSE:", data);
 
-    showSuccessToast("Signed in", userName);
+setAuthData({
+  token: data.token,
+  user: data.user,
+  company: data.company,
+  subscription: data.subscription,
+});
 
-    // Redirect
-    navigate("/dashboard", { replace: true });
+const userName =
+  `${data.user?.firstName || ""} ${
+    data.user?.lastName || ""
+  }`.trim() ||
+  data.user?.email?.split("@")[0] ||
+  "User";
+
+showSuccessToast("Welcome Back", userName);
+
+navigate("/dashboard", {
+  replace: true,
+});
   } catch (err) {
-    showErrorToast(err.message || "Server error");
+    console.error("LOGIN REQUEST ERROR:", err);
+
+    showErrorToast(
+      err?.message || "Unable to connect to the server"
+    );
   } finally {
     setLoading(false);
   }
 };
- 
   return ( 
     <div className="min-h-screen flex flex-col bg-[#f5faf8] font-[Inter]"> 
       <main className="flex flex-1 flex-col md:flex-row"> 

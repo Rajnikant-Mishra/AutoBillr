@@ -267,7 +267,6 @@ const getDashboard = async (req, res) => {
   try {
     return res.status(200).json({
       success: true,
-
       stats: {
         totalInvoices: 0,
         totalClients: 0,
@@ -277,16 +276,12 @@ const getDashboard = async (req, res) => {
         overdueAmount: 0,
         overdueCount: 0,
       },
-
       revenueTrends: [],
-
       upcomingBilling: [],
-
       recentInvoices: [],
     });
   } catch (error) {
     console.error("Dashboard error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch dashboard",

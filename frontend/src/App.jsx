@@ -23,13 +23,28 @@ import InvoicePreview from "./pages/composer/InvoicePreview";
 import Invoices from "./pages/invoices/Invoices";
 import RecurringBilling from "./pages/automation/RecurringBilling";
 import VerifyEmail from "./pages/VerifyEmail";
+import LandingPage from "./pages/landing/LandingPage";
+import PricingPage from "./pages/landing/PricingPage";
+import AdvancedAnalytics from "./pages/analytics/AdvancedAnalytics";
+
+// Settings pages
+
+import ProfileSettings from "./pages/adminSettings/ProfileSettings";
+import SecuritySettings from "./pages/adminSettings/SecuritySettings";
+import NotificationSettings from "./pages/adminSettings/NotificationSettings";
+import AccountSettings from "./pages/adminSettings/AccountSettings";
+import Help from "./pages/adminSettings/Help";
+import TeamPermissions from "./pages/team/TeamPermissions";
+import Settings from "./pages/setting/Settings";
+import SettingsLayout from "./pages/adminSettings/SettingsLayout";
+import ClientPortal from "./pages/clients/ClientPortal";
+
+
 
 function ProtectedLayout({ children }) {
   return (
     <ProtectedRoute>
-      <MainLayout>
-        {children}
-      </MainLayout>
+      <MainLayout>{children}</MainLayout>
     </ProtectedRoute>
   );
 }
@@ -38,30 +53,26 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* ==================================================
             PUBLIC
         ================================================== */}
-
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route
-          path="/"
-          element={<Navigate to="/login" replace />}
-        />
-
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+  path="/app/pricing"
+  element={
+    <ProtectedRoute>
+      <PricingPage variant="app" />
+    </ProtectedRoute>
+  }
+/>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* ==================================================
             PROTECTED
         ================================================== */}
-
         <Route
           path="/dashboard"
           element={
@@ -115,7 +126,30 @@ function App() {
             </ProtectedLayout>
           }
         />
-
+         <Route
+          path="/analytics"
+          element={
+            <ProtectedLayout>
+              <AdvancedAnalytics />
+            </ProtectedLayout>
+          }
+        />
+  <Route
+          path="/settings"
+          element={
+            <ProtectedLayout>
+              <Settings />
+            </ProtectedLayout>
+          }
+        ></Route>
+        <Route
+  path="/clientportal"
+  element={
+    <ProtectedRoute>
+      <ClientPortal />
+    </ProtectedRoute>
+  }
+/>
         <Route
           path="/automation"
           element={
@@ -124,7 +158,10 @@ function App() {
             </ProtectedLayout>
           }
         />
-
+<Route
+  path="/team"
+  element={ <ProtectedLayout><TeamPermissions /></ProtectedLayout>}
+/>
         <Route
           path="/invoice-preview"
           element={
@@ -135,23 +172,36 @@ function App() {
         />
 
         {/* ==================================================
-            FALLBACK
+            SETTINGS (Protected)
         ================================================== */}
-
-<Route
-  path="/verify-email"
-  element={<VerifyEmail />}
-/>
         <Route
-          path="*"
+          path="/adminsettings"
           element={
-            <Navigate
-              to="/login"
-              replace
-            />
+            <ProtectedLayout>
+              <SettingsLayout />
+            </ProtectedLayout>
+          }
+        >
+        
+          <Route index element={<AccountSettings />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecuritySettings />} />
+          <Route path="notifications" element={<NotificationSettings />} />
+        </Route>
+
+        <Route
+          path="/help"
+          element={
+            <ProtectedLayout>
+              <Help />
+            </ProtectedLayout>
           }
         />
 
+        {/* ==================================================
+            FALLBACK
+        ================================================== */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
       <Toaster

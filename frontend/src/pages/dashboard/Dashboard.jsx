@@ -95,29 +95,102 @@ export default function Dashboard() {
   };
 
   // ==================== DATA ====================
-  const refetchDashboard = useCallback(async () => {
+  // ==================== DATA ====================
+const refetchDashboard = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("autobiller-auth");
+
+    const response = await fetch(`${API_BASE_URL}/dashboard`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    const text = await response.text();
+    let result = {};
+
     try {
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Server returned an invalid / empty response");
+    }
+
+    if (!response.ok) {
+      throw new Error(result?.message || "Failed to refresh dashboard");
+    }
+
+    setDashboardData({
+      stats: result.stats || {},
+      revenueTrends: result.revenueTrends || [],
+      upcomingBilling: result.upcomingBilling || [],
+      recentInvoices: result.recentInvoices || [],
+    });
+  } catch (error) {
+    console.error("Failed to refetch dashboard:", error);
+  }
+}, []);
+
+useEffect(() => {
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+
       const token = localStorage.getItem("autobiller-auth");
+
+      // Safety check
+      if (!API_BASE_URL) {
+        throw new Error("VITE_API_URL is not defined. Check your .env file");
+      }
 
       const response = await fetch(`${API_BASE_URL}/dashboard`, {
         method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      console.log("DASHBOARD STATUS:", response.status);
+      console.log("DASHBOARD RAW:", text);
 
-      if (!response.ok) {
-        throw new Error(result?.message || "Failed to refresh dashboard");
+      let result = {};
+      try {
+        result = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          `Server returned empty or invalid JSON (status ${response.status})`
+        );
       }
 
-      setDashboardData(result);
+      if (!response.ok) {
+        throw new Error(
+          result?.message || `Dashboard request failed (${response.status})`
+        );
+      }
+
+      if (!result?.success) {
+        throw new Error(result?.message || "Dashboard request was unsuccessful");
+      }
+
+      setDashboardData({
+        stats: result.stats || {},
+        revenueTrends: result.revenueTrends || [],
+        upcomingBilling: result.upcomingBilling || [],
+        recentInvoices: result.recentInvoices || [],
+      });
     } catch (error) {
-      console.error("Failed to refetch dashboard:", error);
+      console.error("DASHBOARD ERROR:", error);
+      toast.error(error.message || "Failed to fetch dashboard");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
+
+  fetchDashboard();
+}, []);
 
   useEffect(() => {
     const handleClientUpdated = () => refetchDashboard();
@@ -125,49 +198,49 @@ export default function Dashboard() {
     return () => window.removeEventListener("client-updated", handleClientUpdated);
   }, [refetchDashboard]);
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setLoading(true);
+  // useEffect(() => {
+  //   const fetchDashboard = async () => {
+  //     try {
+  //       setLoading(true);
 
-        const token = localStorage.getItem("autobiller-auth");
+  //       const token = localStorage.getItem("autobiller-auth");
 
-        const response = await fetch(`${API_BASE_URL}/dashboard`, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
+  //       const response = await fetch(`${API_BASE_URL}/dashboard`, {
+  //         method: "GET",
+  //         headers: {
+  //           Accept: "application/json",
+  //           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  //         },
+  //       });
 
-        const result = await response.json();
+  //       const result = await response.json();
 
-        if (!response.ok) {
-          throw new Error(
-            result?.message || `Dashboard request failed (${response.status})`
-          );
-        }
+  //       if (!response.ok) {
+  //         throw new Error(
+  //           result?.message || `Dashboard request failed (${response.status})`
+  //         );
+  //       }
 
-        if (!result?.success) {
-          throw new Error(result?.message || "Dashboard request was unsuccessful");
-        }
+  //       if (!result?.success) {
+  //         throw new Error(result?.message || "Dashboard request was unsuccessful");
+  //       }
 
-        setDashboardData({
-          stats: result.stats || {},
-          revenueTrends: result.revenueTrends || [],
-          upcomingBilling: result.upcomingBilling || [],
-          recentInvoices: result.recentInvoices || [],
-        });
-      } catch (error) {
-        console.error("DASHBOARD ERROR:", error);
-        toast.error(error.message || "Failed to fetch dashboard");
-      } finally {
-        setLoading(false);
-      }
-    };
+  //       setDashboardData({
+  //         stats: result.stats || {},
+  //         revenueTrends: result.revenueTrends || [],
+  //         upcomingBilling: result.upcomingBilling || [],
+  //         recentInvoices: result.recentInvoices || [],
+  //       });
+  //     } catch (error) {
+  //       console.error("DASHBOARD ERROR:", error);
+  //       toast.error(error.message || "Failed to fetch dashboard");
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
 
-    fetchDashboard();
-  }, []);
+  //   fetchDashboard();
+  // }, []);
 
   // ==================== TABLE COLUMNS ====================
   const invoiceColumns = useMemo(
@@ -453,7 +526,7 @@ export default function Dashboard() {
               <span className="material-symbols-outlined text-[120px]">bolt</span>
             </div>
 
-            <h3 className="text-2xl font-bold">Quick Actions</h3>
+            <h3 className="text-2xl font-bold text-white">Quick Actions</h3>
             <p className="text-primary-soft text-sm mt-1 mb-6 opacity-90">
               Instantly manage your workflow.
             </p>

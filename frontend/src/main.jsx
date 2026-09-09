@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import "@fontsource/inter";
 import "./index.css";
-
+// import "../src/styles/landing.css";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 

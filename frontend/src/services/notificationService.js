@@ -24,3 +24,10 @@ export const markAllReadAPI = () =>
 
 export const clearNotificationsAPI = () =>
   axios.delete(`${API}/clear`, getConfig());
+
+export const deleteNotificationAPI = (id) =>
+  axios.delete(`${API}/${id}`, getConfig());
+
+export const toggleImportantAPI = (id) =>
+  axios.put(`${API}/${id}/important`, {}, getConfig());
+

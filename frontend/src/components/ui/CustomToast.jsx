@@ -84,13 +84,11 @@ export const showToast = ({
 
 export const showSuccessToast = (
   title = "Success",
-  name = ""
+  message = ""
 ) => {
   showToast({
     title,
-    message: name
-      ? `Welcome back, ${name}`
-      : "",
+    message,          // use whatever you pass as the second argument
     type: "success",
     duration: 4000,
   });

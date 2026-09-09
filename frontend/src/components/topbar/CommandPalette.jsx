@@ -1,27 +1,27 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function CommandPalette({
-  isOpen,
-  onClose,
-}) {
+export default function CommandPalette({ isOpen, onClose }) {
   const modalRef = useRef(null);
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
 
   const navigateItems = [
-    { icon: "dashboard", label: "Dashboard" },
-    { icon: "receipt_long", label: "Invoices" },
-    { icon: "edit_note", label: "Invoice Composer" },
-    { icon: "group", label: "Clients" },
-    { icon: "assignment", label: "Projects & Milestones" },
-    { icon: "bar_chart", label: "Analytics" },
-    { icon: "auto_awesome", label: "Recurring Automation" },
-    { icon: "settings", label: "Settings" },
+    { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
+    { icon: "receipt_long", label: "Invoices", path: "/invoice" },
+    { icon: "edit_note", label: "Invoice Composer", path: "/composer" },
+    { icon: "group", label: "Clients", path: "/clients" },
+    { icon: "assignment", label: "Projects & Milestones", path: "/projects" },
+    { icon: "bar_chart", label: "Analytics", path: "/analytics" },
+    { icon: "auto_awesome", label: "Recurring Automation", path: "/automation" },
+    { icon: "settings", label: "Settings", path: "/settings" },
     {
       icon: "admin_panel_settings",
       label: "Team & Permissions",
+      path: "/team",
     },
-    { icon: "share", label: "Client Portal" },
-    { icon: "loyalty", label: "Pricing" },
+    { icon: "share", label: "Client Portal", path: "/clientportal" },
+    { icon: "loyalty", label: "Pricing", path: "/app/pricing" },
   ];
 
   const actionItems = [
@@ -29,26 +29,32 @@ export default function CommandPalette({
       icon: "add",
       label: "Create new invoice",
       shortcut: "⇧ N",
+      path: "/invoice/new",
     },
     {
       icon: "person_add",
       label: "Add a new client",
+      path: "/clients", // or "/clients/new" if you have that route
     },
     {
       icon: "add_business",
       label: "Add a new project",
+      path: "/projects", // or "/projects/new"
     },
     {
       icon: "bolt",
       label: "Quick invoice (drawer)",
+      path: "/invoice/new",
     },
     {
       icon: "filter_list",
       label: "Open filter panel",
+      path: null, // no route – handle separately if needed
     },
     {
       icon: "notifications",
       label: "Notifications",
+      path: null, // no route – handle separately if needed
     },
   ];
 
@@ -56,12 +62,21 @@ export default function CommandPalette({
     {
       icon: "receipt_long",
       label: "INV-8821 · Apex Partners",
+      path: "/invoice", // update to specific invoice route if available
     },
     {
       icon: "assignment",
       label: "Q4 Marketing Campaign · Acme",
+      path: "/projects",
     },
   ];
+
+  const handleSelect = (path) => {
+    if (path) {
+      navigate(path);
+      onClose();
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -78,10 +93,7 @@ export default function CommandPalette({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleKeyDown
-      );
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
 
@@ -89,24 +101,15 @@ export default function CommandPalette({
     if (!isOpen) return;
 
     const handleClickOutside = (e) => {
-      if (
-        modalRef.current &&
-        !modalRef.current.contains(e.target)
-      ) {
+      if (modalRef.current && !modalRef.current.contains(e.target)) {
         onClose();
       }
     };
 
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen, onClose]);
 
@@ -115,27 +118,19 @@ export default function CommandPalette({
   }
 
   const filteredNavigate = navigateItems.filter((item) =>
-    item.label
-      .toLowerCase()
-      .includes(search.toLowerCase())
+    item.label.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredActions = actionItems.filter((item) =>
-    item.label
-      .toLowerCase()
-      .includes(search.toLowerCase())
+    item.label.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredRecent = recentItems.filter((item) =>
-    item.label
-      .toLowerCase()
-      .includes(search.toLowerCase())
+    item.label.toLowerCase().includes(search.toLowerCase())
   );
 
   const totalResults =
-    filteredNavigate.length +
-    filteredActions.length +
-    filteredRecent.length;
+    filteredNavigate.length + filteredActions.length + filteredRecent.length;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[101] flex items-start justify-end pt-[12vh] pr-6 md:pr-8">
@@ -207,6 +202,7 @@ export default function CommandPalette({
               {filteredNavigate.map((item) => (
                 <div
                   key={item.label}
+                  onClick={() => handleSelect(item.path)}
                   className="
                     group
                     flex
@@ -248,6 +244,7 @@ export default function CommandPalette({
               {filteredActions.map((item) => (
                 <div
                   key={item.label}
+                  onClick={() => handleSelect(item.path)}
                   className="
                     group
                     flex
@@ -295,6 +292,7 @@ export default function CommandPalette({
               {filteredRecent.map((item) => (
                 <div
                   key={item.label}
+                  onClick={() => handleSelect(item.path)}
                   className="
                     group
                     flex
@@ -349,9 +347,7 @@ export default function CommandPalette({
             Select
           </span>
 
-          <span className="ml-auto">
-            {totalResults} results
-          </span>
+          <span className="ml-auto">{totalResults} results</span>
         </div>
       </div>
     </div>

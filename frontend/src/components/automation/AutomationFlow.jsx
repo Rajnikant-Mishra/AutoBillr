@@ -47,8 +47,8 @@ export default function AutomationFlow() {
             icon="article"
             title="Action"
             description="Draft & Validate"
-            iconColor="text-info"
-            ringColor="ring-info-soft"
+            iconColor="text-primary"
+            ringColor="ring-primary-soft"
           />
 
           <FlowConnector />
@@ -63,11 +63,14 @@ export default function AutomationFlow() {
 
           <FlowConnector />
 
+          {/* Settlement — always primary green */}
           <FlowStep
             icon="task_alt"
             title="Settlement"
             description="Payment Collection"
             active
+            iconColor="text-primary"
+            ringColor="ring-primary-soft"
           />
         </div>
       </div>

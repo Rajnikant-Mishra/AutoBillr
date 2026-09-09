@@ -1,7 +1,13 @@
+
+
+
 const bcrypt = require("bcryptjs");
 const prisma = require("../../config/prisma");
 const generateToken = require("../utils/generateToken");
 
+// =====================================================
+// REGISTER
+// =====================================================
 
 
 const register = async (req, res) => {
@@ -18,15 +24,16 @@ const register = async (req, res) => {
       planId,
     } = req.body;
 
-    // =================================================
-    // NORMALIZE EMAIL
-    // =================================================
+    // =====================================================
+    // NORMALIZE INPUT
+    // =====================================================
 
     const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedPlanId = planId?.trim().toLowerCase();
 
-    // =================================================
+    // =====================================================
     // BASIC VALIDATION
-    // =================================================
+    // =====================================================
 
     if (!firstName?.trim()) {
       return res.status(400).json({
@@ -70,9 +77,9 @@ const register = async (req, res) => {
       });
     }
 
-    // =================================================
-    // ROLE MAPPING
-    // =================================================
+    // =====================================================
+    // ROLE
+    // =====================================================
 
     const roleMap = {
       Owner: "OWNER",
@@ -91,9 +98,42 @@ const register = async (req, res) => {
       });
     }
 
-    // =================================================
+    // =====================================================
+    // PLAN
+    // =====================================================
+
+    if (!normalizedPlanId) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscription plan is required",
+      });
+    }
+
+    /*
+     * Supported frontend plan IDs
+     */
+    const allowedPlans = {
+      starter: "Starter",
+      professional: "Professional",
+      enterprise: "Enterprise",
+    };
+
+    const planName = allowedPlans[normalizedPlanId];
+
+    if (!planName) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid subscription plan: ${planId}`,
+      });
+    }
+
+    console.log(">>> REGISTER PLAN ID:", planId);
+    console.log(">>> NORMALIZED PLAN ID:", normalizedPlanId);
+    console.log(">>> EXPECTED PLAN NAME:", planName);
+
+    // =====================================================
     // CHECK EXISTING USER
-    // =================================================
+    // =====================================================
 
     const existingUser = await prisma.user.findUnique({
       where: {
@@ -108,9 +148,9 @@ const register = async (req, res) => {
       });
     }
 
-    // =================================================
+    // =====================================================
     // CHECK EMAIL VERIFICATION
-    // =================================================
+    // =====================================================
 
     const verifiedEmailRecord =
       await prisma.emailVerification.findFirst({
@@ -131,40 +171,38 @@ const register = async (req, res) => {
       });
     }
 
-    // =================================================
-    // OPTIONAL VERIFIED AT CHECK
-    // =================================================
-
-    if (
-      verifiedEmailRecord.verifiedAt !== undefined &&
-      verifiedEmailRecord.verifiedAt !== null
-    ) {
-      // verifiedAt exists and is valid
-    }
-
-    // =================================================
+    // =====================================================
     // DATABASE TRANSACTION
-    // =================================================
+    // =====================================================
 
     const result = await prisma.$transaction(async (tx) => {
-      // ---------------------------------------------
+      // -------------------------------------------------
+      // FIND PLAN
+      // -------------------------------------------------
+
+      const plan = await tx.plan.findFirst({
+        where: {
+          name: planName,
+        },
+      });
+
+      console.log(">>> DATABASE PLAN:", plan);
+
+      if (!plan) {
+        throw new Error(
+          `Subscription plan "${planName}" does not exist in database`
+        );
+      }
+
+      // -------------------------------------------------
       // HASH PASSWORD
-      // ---------------------------------------------
+      // -------------------------------------------------
 
-     const passwordHash = await bcrypt.hash(password, 12);
+      const passwordHash = await bcrypt.hash(password, 12);
 
-const plan = await tx.plan.findUnique({
-  where: {
-    id: planId,
-  },
-});
-
-if (!plan) {
-  throw new Error("Invalid subscription plan");
-}
-      // ---------------------------------------------
+      // -------------------------------------------------
       // CREATE COMPANY
-      // ---------------------------------------------
+      // -------------------------------------------------
 
       const company = await tx.company.create({
         data: {
@@ -174,9 +212,9 @@ if (!plan) {
         },
       });
 
-      // ---------------------------------------------
+      // -------------------------------------------------
       // CREATE USER
-      // ---------------------------------------------
+      // -------------------------------------------------
 
       const user = await tx.user.create({
         data: {
@@ -188,22 +226,29 @@ if (!plan) {
           companyId: company.id,
         },
       });
-const subscription = await tx.subscription.create({
-    data: {
-      companyId: company.id,
-      planId: plan.id,
-      status: "TRIALING",
-      trialEndsAt: new Date(
-        Date.now() + 14 * 24 * 60 * 60 * 1000
-      ),
-    },
-    include: {
-      plan: true,
-    },
-  });
-      // ---------------------------------------------
-      // DELETE USED VERIFICATION
-      // ---------------------------------------------
+
+      // -------------------------------------------------
+      // CREATE SUBSCRIPTION
+      // -------------------------------------------------
+
+      const subscription =
+        await tx.subscription.create({
+          data: {
+            companyId: company.id,
+            planId: plan.id,
+            status: "TRIALING",
+            trialEndsAt: new Date(
+              Date.now() + 14 * 24 * 60 * 60 * 1000
+            ),
+          },
+          include: {
+            plan: true,
+          },
+        });
+
+      // -------------------------------------------------
+      // DELETE USED EMAIL VERIFICATION
+      // -------------------------------------------------
 
       await tx.emailVerification.delete({
         where: {
@@ -211,9 +256,9 @@ const subscription = await tx.subscription.create({
         },
       });
 
-      // ---------------------------------------------
+      // -------------------------------------------------
       // RETURN
-      // ---------------------------------------------
+      // -------------------------------------------------
 
       return {
         company,
@@ -222,9 +267,9 @@ const subscription = await tx.subscription.create({
       };
     });
 
-    // =================================================
-    // GENERATE TOKEN
-    // =================================================
+    // =====================================================
+    // GENERATE JWT
+    // =====================================================
 
     const token = generateToken({
       userId: result.user.id,
@@ -232,9 +277,9 @@ const subscription = await tx.subscription.create({
       role: result.user.role,
     });
 
-    // =================================================
-    // RESPONSE
-    // =================================================
+    // =====================================================
+    // SUCCESS RESPONSE
+    // =====================================================
 
     return res.status(201).json({
       success: true,
@@ -258,11 +303,11 @@ const subscription = await tx.subscription.create({
       },
 
       subscription: {
-  id: result.subscription.id,
-  status: result.subscription.status,
-  trialEndsAt: result.subscription.trialEndsAt,
-  plan: result.subscription.plan,
-},
+        id: result.subscription.id,
+        status: result.subscription.status,
+        trialEndsAt: result.subscription.trialEndsAt,
+        plan: result.subscription.plan,
+      },
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
@@ -275,12 +320,26 @@ const subscription = await tx.subscription.create({
       });
     }
 
+    // Subscription plan error
+    if (
+      error.message?.includes("Subscription plan")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    // Always return JSON
     return res.status(500).json({
       success: false,
-      message: "Registration failed. Please try again later.",
+      message:
+        error.message ||
+        "Registration failed. Please try again later.",
     });
   }
 };
+
 
 // =====================================================
 // LOGIN
@@ -293,12 +352,14 @@ const login = async (req, res) => {
       password,
     } = req.body;
 
-    const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedEmail =
+      email?.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required",
+        message:
+          "Email and password are required",
       });
     }
 
@@ -306,20 +367,22 @@ const login = async (req, res) => {
     // FIND USER
     // =================================================
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
+    const user =
+      await prisma.user.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
 
-      include: {
-        company: true,
-      },
-    });
+        include: {
+          company: true,
+        },
+      });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        message:
+          "Invalid email or password",
       });
     }
 
@@ -327,15 +390,17 @@ const login = async (req, res) => {
     // CHECK PASSWORD
     // =================================================
 
-    const passwordMatch = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
+    const passwordMatch =
+      await bcrypt.compare(
+        password,
+        user.passwordHash
+      );
 
     if (!passwordMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        message:
+          "Invalid email or password",
       });
     }
 
@@ -370,8 +435,10 @@ const login = async (req, res) => {
       company: {
         id: user.company.id,
         name: user.company.name,
-        companySize: user.company.companySize,
-        industry: user.company.industry,
+        companySize:
+          user.company.companySize,
+        industry:
+          user.company.industry,
       },
 
       subscription: null,
@@ -381,7 +448,8 @@ const login = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Login failed. Please try again later.",
+      message:
+        "Login failed. Please try again later.",
     });
   }
 };
