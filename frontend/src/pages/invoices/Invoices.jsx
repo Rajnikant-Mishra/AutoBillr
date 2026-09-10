@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import axios from "axios";
@@ -10,7 +10,6 @@ import Modal from "../../components/ui/Modal";
 import useCurrency from "../../hooks/useCurrency";
 import { useNotificationStore } from "../../store/notificationStore";
 import {
-  showSuccessToast,
   showErrorToast,
   showReminderToast,
 } from "../../components/ui/CustomToast";
@@ -34,10 +33,10 @@ const getDisplayStatus = (status) => {
 
 const getInvoiceAmount = (invoice) => {
   const raw =
-    invoice.total ??
-    invoice.totalAmount ??
-    invoice.grandTotal ??
-    invoice.amount ??
+    invoice?.total ??
+    invoice?.totalAmount ??
+    invoice?.grandTotal ??
+    invoice?.amount ??
     0;
   return typeof raw === "number"
     ? raw
@@ -46,7 +45,7 @@ const getInvoiceAmount = (invoice) => {
 
 const getClientName = (client) => {
   if (!client) return "Unknown Client";
-  if (typeof client === "string") return `Client ID: ${client.slice(-6)}`;
+  if (typeof client === "string") return client;
   return client.name || "Unknown Client";
 };
 
@@ -56,10 +55,48 @@ const getClientEmail = (client) => {
   return "No Email";
 };
 
-const getProjectTitle = (project) => {
-  if (!project) return "—";
-  if (typeof project === "string") return `Project ID: ${project.slice(-6)}`;
-  return project.title || "—";
+// Safe Project Resolver
+// const getProjectTitle = (invoice) => {
+//   if (!invoice) return "—";
+//   const project = invoice.project;
+//   if (project) {
+//     if (typeof project === "string") return project;
+//     if (typeof project === "object") {
+//       return project.title || project.name || project.projectName || "—";
+//     }
+//   }
+//   return invoice.projectName || invoice.projectTitle || "—";
+// };
+
+const getProjectTitle = (invoice) => {
+  if (!invoice) return "—";
+  if (invoice.project) {
+    if (typeof invoice.project === "string") return invoice.project;
+    return invoice.project.title || invoice.project.name || "—";
+  }
+  if (invoice.client?.projects && invoice.client.projects.length > 0) {
+    return invoice.client.projects[0].title || invoice.client.projects[0].name || "—";
+  }
+  return "—";
+};
+
+// Safe Date Formatter (Prevents "Invalid Date")
+const formatInvoiceDate = (invoice) => {
+  const rawDate =
+    invoice?.issueDate ||
+    invoice?.invoiceDate ||
+    invoice?.date ||
+    invoice?.createdAt;
+
+  if (!rawDate) return "—";
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return "—";
+
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 };
 
 // ==================== COMPONENT ====================
@@ -90,53 +127,20 @@ export default function Invoices() {
     pageSize: 10,
   });
 
-  // Counts
-  const counts = useMemo(() => {
-    const normalizedInvoices = invoices.map((inv) => ({
-      ...inv,
-      normStatus: normalizeStatus(inv.status),
-    }));
+  // Event handler resets pagination directly without effect
+  const handleFilterChange = (key) => {
+    setActiveFilter(key);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
 
-    return {
-      all: invoices.length,
-      paid: normalizedInvoices.filter((i) => i.normStatus === "paid").length,
-      pending: normalizedInvoices.filter((i) => i.normStatus === "pending").length,
-      overdue: normalizedInvoices.filter((i) => i.normStatus === "overdue").length,
-      scheduled: normalizedInvoices.filter((i) => i.normStatus === "scheduled").length,
-      draft: normalizedInvoices.filter((i) => i.normStatus === "draft").length,
-    };
-  }, [invoices]);
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
 
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
-
-  useEffect(() => {
-    const handleInvoiceCreated = (e) => {
-      fetchInvoices();
-
-      const invoice = e.detail?.invoice;
-      addNotification({
-        type: "invoice",
-        icon: "receipt_long",
-        iconColor: "text-primary",
-        bgColor: "bg-primary-soft",
-        title: `New Invoice Created #${invoice?.invoiceNumber || ""}`,
-        description: `${getClientName(invoice?.client)} • ${format(
-          getInvoiceAmount(invoice)
-        )}`,
-        borderColor: "border-l-primary",
-      });
-    };
-
-    window.addEventListener("invoice-created", handleInvoiceCreated);
-    return () => window.removeEventListener("invoice-created", handleInvoiceCreated);
-  }, [addNotification, format]);
-
-  const fetchInvoices = async () => {
+  // Re-fetch function for event callbacks
+  const fetchInvoices = useCallback(async () => {
     try {
-      setLoading(true);
-
       const token =
         localStorage.getItem("autobiller-auth") ||
         localStorage.getItem("token");
@@ -169,13 +173,11 @@ export default function Invoices() {
       setInvoices(list);
     } catch (error) {
       console.error("Failed to fetch invoices:", error);
-
       if (error.response?.status === 401) {
         showErrorToast("Session expired. Please login again.");
         navigate("/login");
         return;
       }
-
       showErrorToast(
         error.response?.data?.message || "Failed to load invoices"
       );
@@ -183,7 +185,111 @@ export default function Invoices() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  // Initial Load (No synchronous setState inside effect body)
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        const token =
+          localStorage.getItem("autobiller-auth") ||
+          localStorage.getItem("token");
+
+        if (!token) {
+          showErrorToast("Session expired. Please login again.");
+          navigate("/login");
+          return;
+        }
+
+        const base = (
+          import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+        ).replace(/\/$/, "");
+
+        const res = await axios.get(`${base}/invoices`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (isMounted) {
+          const list = Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res.data?.invoices)
+            ? res.data.invoices
+            : Array.isArray(res.data?.data)
+            ? res.data.data
+            : [];
+          setInvoices(list);
+        }
+      } catch (error) {
+        console.error("Failed to fetch invoices:", error);
+        if (isMounted) {
+          if (error.response?.status === 401) {
+            showErrorToast("Session expired. Please login again.");
+            navigate("/login");
+            return;
+          }
+          showErrorToast(
+            error.response?.data?.message || "Failed to load invoices"
+          );
+          setInvoices([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
+
+  // Event Listener for Invoice Creation
+  useEffect(() => {
+    const handleInvoiceCreated = (e) => {
+      fetchInvoices();
+
+      const invoice = e.detail?.invoice;
+      addNotification({
+        type: "invoice",
+        icon: "receipt_long",
+        iconColor: "text-primary",
+        bgColor: "bg-primary-soft",
+        title: `New Invoice Created #${invoice?.invoiceNumber || ""}`,
+        description: `${getClientName(invoice?.client)} • ${format(
+          getInvoiceAmount(invoice)
+        )}`,
+        borderColor: "border-l-primary",
+      });
+    };
+
+    window.addEventListener("invoice-created", handleInvoiceCreated);
+    return () => window.removeEventListener("invoice-created", handleInvoiceCreated);
+  }, [fetchInvoices, addNotification, format]);
+
+  // Counts
+  const counts = useMemo(() => {
+    const normalizedInvoices = invoices.map((inv) => ({
+      ...inv,
+      normStatus: normalizeStatus(inv.status),
+    }));
+
+    return {
+      all: invoices.length,
+      paid: normalizedInvoices.filter((i) => i.normStatus === "paid").length,
+      pending: normalizedInvoices.filter((i) => i.normStatus === "pending").length,
+      overdue: normalizedInvoices.filter((i) => i.normStatus === "overdue").length,
+      scheduled: normalizedInvoices.filter((i) => i.normStatus === "scheduled").length,
+      draft: normalizedInvoices.filter((i) => i.normStatus === "draft").length,
+    };
+  }, [invoices]);
 
   const filteredData = useMemo(() => {
     return invoices.filter((invoice) => {
@@ -195,29 +301,32 @@ export default function Invoices() {
       const searchTerm = search.toLowerCase();
       const matchesSearch =
         getClientName(invoice.client).toLowerCase().includes(searchTerm) ||
-        invoice.invoiceNumber?.toLowerCase().includes(searchTerm);
+        (invoice.invoiceNumber &&
+          invoice.invoiceNumber.toLowerCase().includes(searchTerm));
 
       const matchesStatus =
         invoiceFilters.status.length === 0 ||
         invoiceFilters.status.includes(normStatus);
 
-      let invoiceDate;
-      try {
-        invoiceDate = new Date(invoice.invoiceDate);
-      } catch {
-        invoiceDate = new Date();
-      }
+      const rawDate =
+        invoice.issueDate ||
+        invoice.invoiceDate ||
+        invoice.date ||
+        invoice.createdAt;
+      const invoiceDate = rawDate ? new Date(rawDate) : null;
+      const isValidDate = invoiceDate && !isNaN(invoiceDate.getTime());
 
       const matchesFromDate =
         !invoiceFilters.fromDate ||
-        invoiceDate >= new Date(invoiceFilters.fromDate);
+        (isValidDate && invoiceDate >= new Date(invoiceFilters.fromDate));
 
       const endDate = invoiceFilters.toDate
         ? new Date(invoiceFilters.toDate)
         : null;
       if (endDate) endDate.setHours(23, 59, 59, 999);
 
-      const matchesToDate = !endDate || invoiceDate <= endDate;
+      const matchesToDate =
+        !endDate || (isValidDate && invoiceDate <= endDate);
 
       const amount = Number(getInvoiceAmount(invoice));
 
@@ -259,10 +368,6 @@ export default function Invoices() {
     setIsModalOpen(true);
   };
 
-  useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [search, activeFilter, invoiceFilters]);
-
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedInvoice(null);
@@ -286,26 +391,6 @@ export default function Invoices() {
     },
     [addNotification]
   );
-
-  const updateInvoiceStatus = async (invoiceId, newStatus) => {
-    try {
-      // ... your API call to update status
-
-      addNotification({
-        type: "status",
-        icon: "task_alt",
-        iconColor: "text-success",
-        bgColor: "bg-success-soft",
-        title: "Invoice Status Updated",
-        description: `#${invoiceId} → ${newStatus.toUpperCase()}`,
-        borderColor: "border-l-success",
-      });
-
-      fetchInvoices();
-    } catch (error) {
-      showErrorToast("Failed to update status");
-    }
-  };
 
   const columns = useMemo(
     () => [
@@ -344,7 +429,7 @@ export default function Invoices() {
           const client = row.original.client;
           return (
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center font-semibold">
+              <div className="w-9 h-9 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center font-semibold text-xs">
                 {getClientName(client).slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -361,30 +446,23 @@ export default function Invoices() {
       },
 
       {
-        accessorKey: "project",
+        id: "project",
         header: "Project",
         cell: ({ row }) => (
           <span className="text-text-secondary">
-            {getProjectTitle(row.original.project)}
+            {getProjectTitle(row.original)}
           </span>
         ),
       },
 
       {
-        accessorKey: "invoiceDate",
+        id: "date",
         header: "Date",
-        cell: ({ row }) => {
-          const date = new Date(row.original.invoiceDate);
-          return (
-            <span className="text-text-secondary">
-              {date.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <span className="text-text-secondary">
+            {formatInvoiceDate(row.original)}
+          </span>
+        ),
       },
 
       {
@@ -448,7 +526,9 @@ export default function Invoices() {
           <div className="flex items-center gap-1">
             <button
               title="Edit"
-              onClick={() => navigate(`/composer/${row.original.id}`)}
+              onClick={() =>
+                navigate(`/composer/${row.original.id || row.original._id}`)
+              }
               className="p-2 rounded-lg text-text-light hover:bg-surface-hover hover:text-primary transition"
             >
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -521,6 +601,7 @@ export default function Invoices() {
       maxAmount: "",
       currency: "All",
     });
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   };
 
   return (
@@ -593,7 +674,7 @@ export default function Invoices() {
             ].map((filter) => (
               <button
                 key={filter.key}
-                onClick={() => setActiveFilter(filter.key)}
+                onClick={() => handleFilterChange(filter.key)}
                 className={`
                   px-3.5 py-1.5 rounded-md text-[12.5px] font-semibold transition
                   flex items-center gap-1.5
@@ -617,7 +698,7 @@ export default function Invoices() {
               icon="search"
               placeholder="Search invoices…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
             />
           </div>
         </div>
@@ -690,7 +771,10 @@ export default function Invoices() {
         onClose={() => setFilterDrawer(false)}
         filters={invoiceFilters}
         setFilters={setInvoiceFilters}
-        onApply={() => setFilterDrawer(false)}
+        onApply={() => {
+          setFilterDrawer(false);
+          setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+        }}
         onReset={handleReset}
       />
     </>

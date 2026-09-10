@@ -1,108 +1,166 @@
-// pages/Analytics.jsx
-
+import { useState, useEffect } from "react";
 import SectionHeader from "../../components/ui/SectionHeader";
 import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
-import Button from "../../components/ui/Button";
+import useCurrency from "../../hooks/useCurrency";
 
 export default function Analytics() {
+  const { formatCurrency, currencySymbol = "₹" } = useCurrency?.() || {};
+
+  const formatMoney = (amount) => {
+    const num = Number(amount) || 0;
+    return formatCurrency
+      ? formatCurrency(num)
+      : `${currencySymbol}${num.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+  };
+
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState({
+    stats: {
+      totalInvoiced: 0,
+      totalCollected: 0,
+      totalPending: 0,
+      totalOverdue: 0,
+      collectionRate: 0,
+      totalMRR: 0,
+      totalInvoicesCount: 0,
+      totalClientsCount: 0,
+    },
+    revenueByClient: [],
+    agingReport: {
+      current: 0,
+      thirtyToSixty: 0,
+      sixtyPlus: 0,
+    },
+  });
+
+  // Fetch real analytics data on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchAnalytics = async () => {
+      try {
+        const token = localStorage.getItem("token") || "";
+        const apiBase =
+          import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+
+        const res = await fetch(
+          `${apiBase.replace(/\/$/, "")}/analytics/overview`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        const data = await res.json();
+        if (isMounted && data.success) {
+          setAnalytics({
+            stats: data.stats || {},
+            revenueByClient: data.revenueByClient || [],
+            agingReport: data.agingReport || {
+              current: 0,
+              thirtyToSixty: 0,
+              sixtyPlus: 0,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load analytics:", err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchAnalytics();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const { stats, revenueByClient, agingReport } = analytics;
+
+  // Monthly trends dummy projection vs actual
   const months = [
-    { label: "Jan", projected: 60, actual: 55 },
-    { label: "Feb", projected: 70, actual: 75 },
-    { label: "Mar", projected: 80, actual: 82 },
-    { label: "Apr", projected: 65, actual: 62 },
-    { label: "May", projected: 90, actual: 94 },
-    { label: "Jun", projected: 85, actual: 80 },
-    { label: "Jul", projected: 78, actual: 84 },
-    { label: "Aug", projected: 92, actual: 96 },
+    { label: "Jan", projected: 50, actual: 40 },
+    { label: "Feb", projected: 65, actual: 60 },
+    { label: "Mar", projected: 75, actual: 70 },
+    { label: "Apr", projected: 60, actual: 55 },
+    { label: "May", projected: 85, actual: 90 },
+    { label: "Jun", projected: 80, actual: 78 },
+    { label: "Jul", projected: 70, actual: 82 },
+    { label: "Aug", projected: 90, actual: 95 },
   ];
 
-  const clientRevenue = [
-    { name: "Enterprise A", amount: "$240k", color: "var(--color-primary)" },
-    { name: "Global Tech", amount: "$185k", color: "var(--color-info)" },
-    { name: "Health Plus", amount: "$120k", color: "var(--color-warning)" },
-    { name: "Others", amount: "$112k", color: "var(--color-border-dark)" },
+  // Dynamic Palette for Client Breakdown
+  const colors = [
+    "var(--color-primary)",
+    "var(--color-info)",
+    "var(--color-warning)",
+    "var(--color-danger)",
+    "var(--color-border-dark)",
   ];
+
+  // Aging calculations
+  const totalAging =
+    (agingReport.current || 0) +
+    (agingReport.thirtyToSixty || 0) +
+    (agingReport.sixtyPlus || 0);
+
+  const getAgingPercent = (val) => {
+    if (!totalAging || totalAging === 0) return "0%";
+    const pct = Math.round(((Number(val) || 0) / totalAging) * 100);
+    return `${Math.max(5, pct)}%`;
+  };
 
   const aging = [
     {
-      label: "Overdue 30 Days",
-      amount: "$45,200",
-      width: "65%",
+      label: "Current (0-30 Days)",
+      amount: formatMoney(agingReport.current),
+      width: getAgingPercent(agingReport.current),
       bar: "var(--color-primary)",
     },
     {
-      label: "Overdue 60 Days",
-      amount: "$12,800",
-      width: "20%",
+      label: "Overdue 30-60 Days",
+      amount: formatMoney(agingReport.thirtyToSixty),
+      width: getAgingPercent(agingReport.thirtyToSixty),
       bar: "var(--color-warning)",
     },
     {
-      label: "Overdue 90+ Days",
-      amount: "$4,200",
-      width: "8%",
+      label: "Overdue 60+ Days",
+      amount: formatMoney(agingReport.sixtyPlus),
+      width: getAgingPercent(agingReport.sixtyPlus),
       bar: "var(--color-danger)",
     },
   ];
 
-  const topClients = [
-    {
-      initials: "NL",
-      name: "Nexus Labs",
-      bg: "var(--color-primary-soft)",
-      text: "var(--color-primary)",
-      invoiced: "$84,200",
-      paid: "$84,200",
-      status: "paid",
-    },
-    {
-      initials: "SV",
-      name: "Sky Vista Co.",
-      bg: "var(--color-info-soft)",
-      text: "var(--color-info)",
-      invoiced: "$62,150",
-      paid: "$58,000",
-      status: "pending",
-    },
-    {
-      initials: "FM",
-      name: "Flux Media",
-      bg: "var(--color-danger-soft)",
-      text: "var(--color-danger)",
-      invoiced: "$55,000",
-      paid: "$55,000",
-      status: "paid",
-    },
-    {
-      initials: "AR",
-      name: "Apex Robotics",
-      bg: "var(--color-warning-soft)",
-      text: "var(--color-warning)",
-      invoiced: "$42,100",
-      paid: "$42,100",
-      status: "paid",
-    },
-    {
-      initials: "UE",
-      name: "Urban Edge",
-      bg: "var(--color-primary-soft)",
-      text: "var(--color-primary)",
-      invoiced: "$38,500",
-      paid: "$28,500",
-      status: "pending",
-    },
-  ];
+  const getInitials = (name = "") =>
+    name
+      ? name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
+      : "CL";
 
   return (
-<main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
+    <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
       <div className="page-in">
         {/* ========== HEADER ========== */}
         <SectionHeader
           title="Advanced Analytics"
           description="Real-time billing performance and revenue forecasts."
           secondaryAction={{
-            label: "Last 90 Days",
+            label: "All Time",
             variant: "secondary",
             icon: "calendar_today",
             onClick: () => {},
@@ -115,61 +173,54 @@ export default function Analytics() {
           }}
         />
 
-        {/* Filters row (extra controls) */}
-        <div className="flex items-center gap-2 flex-wrap -mt-4 mb-8">
-          <div className="bg-surface px-3.5 py-2 rounded-lg border border-border flex items-center gap-2 text-sm">
-            <span
-              className="material-symbols-outlined text-text-light"
-              style={{ fontSize: 16 }}
-            >
-              filter_alt
-            </span>
-            <select className="border-0 bg-transparent font-semibold text-text focus:ring-0 outline-none cursor-pointer">
-              <option>All Clients</option>
-              <option>Enterprise</option>
-              <option>SME Segment</option>
-            </select>
-          </div>
-        </div>
-
         {/* ========== KPI CARDS ========== */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             title="Total Invoiced"
-            value="$1,284,500"
+            value={loading ? "..." : formatMoney(stats.totalInvoiced)}
             icon="payments"
             iconColor="text-primary"
-            badge="+12.4%"
+            badge={`${stats.totalInvoicesCount || 0} Invoices`}
             badgeColor="bg-primary-soft text-primary"
             variant="dashboard"
           />
 
           <StatCard
             title="Collection Rate"
-            value="94.8%"
+            value={loading ? "..." : `${stats.collectionRate || 0}%`}
             icon="analytics"
             iconColor="text-info"
-            badge="98.2%"
-            badgeColor="bg-primary-soft text-primary"
+            badge={stats.collectionRate > 80 ? "Healthy" : "Attention"}
+            badgeColor={
+              stats.collectionRate > 80
+                ? "bg-primary-soft text-primary"
+                : "bg-warning-soft text-warning"
+            }
             variant="dashboard"
           />
 
           <StatCard
-            title="Avg. Days to Pay"
-            value="18 days"
+            title="Pending Dues"
+            value={loading ? "..." : formatMoney(stats.totalPending)}
             icon="schedule"
             iconColor="text-warning"
-            change="+2 days"
-            changeColor="text-danger"
+            change={
+              stats.totalOverdue > 0
+                ? `${formatMoney(stats.totalOverdue)} Overdue`
+                : "No Overdues"
+            }
+            changeColor={
+              stats.totalOverdue > 0 ? "text-danger" : "text-primary"
+            }
             variant="dashboard"
           />
 
           <StatCard
-            title="Churn Rate"
-            value="2.1%"
-            icon="trending_down"
-            iconColor="text-danger"
-            badge="−0.4%"
+            title="Monthly Recurring (MRR)"
+            value={loading ? "..." : formatMoney(stats.totalMRR)}
+            icon="trending_up"
+            iconColor="text-primary"
+            badge={`${stats.totalClientsCount || 0} Clients`}
             badgeColor="bg-primary-soft text-primary"
             variant="dashboard"
           />
@@ -253,60 +304,52 @@ export default function Analytics() {
                   stroke="var(--color-primary)"
                   strokeWidth="18"
                   fill="none"
-                  strokeDasharray="195.28 464.96"
-                  strokeLinecap="round"
-                  transform="rotate(-90 90 90)"
-                />
-                <circle
-                  cx="90"
-                  cy="90"
-                  r="74"
-                  stroke="var(--color-info)"
-                  strokeWidth="18"
-                  fill="none"
-                  strokeDasharray="130.19 464.96"
-                  strokeDashoffset="-195.28"
-                  strokeLinecap="round"
-                  transform="rotate(-90 90 90)"
-                />
-                <circle
-                  cx="90"
-                  cy="90"
-                  r="74"
-                  stroke="var(--color-warning)"
-                  strokeWidth="18"
-                  fill="none"
-                  strokeDasharray="83.69 464.96"
-                  strokeDashoffset="-325.47"
+                  strokeDasharray="464.96"
+                  strokeDashoffset={
+                    stats.totalInvoiced > 0 ? "0" : "464.96"
+                  }
                   strokeLinecap="round"
                   transform="rotate(-90 90 90)"
                 />
               </svg>
               <div className="absolute text-center">
                 <div className="text-[11px] text-text-muted font-medium">
-                  Top 5
+                  {revenueByClient[0]?.name?.slice(0, 12) || "Top Share"}
                 </div>
                 <div className="text-2xl font-bold text-text tabular-nums">
-                  62%
+                  {revenueByClient[0]?.percentage || 100}%
                 </div>
               </div>
             </div>
 
             <div className="mt-7 space-y-2.5 text-sm">
-              {clientRevenue.map((c) => (
-                <div key={c.name} className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: c.color }}
-                    />
-                    <span className="text-text-muted">{c.name}</span>
-                  </div>
-                  <span className="font-bold text-text tabular-nums">
-                    {c.amount}
-                  </span>
+              {revenueByClient.length === 0 ? (
+                <div className="text-xs text-text-muted text-center py-2">
+                  No revenue data yet
                 </div>
-              ))}
+              ) : (
+                revenueByClient.map((c, idx) => (
+                  <div
+                    key={c.name}
+                    className="flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor: colors[idx % colors.length],
+                        }}
+                      />
+                      <span className="text-text-muted text-xs truncate max-w-[130px]">
+                        {c.name}
+                      </span>
+                    </div>
+                    <span className="font-bold text-text text-xs tabular-nums">
+                      {formatMoney(c.amount)} ({c.percentage}%)
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </div>
@@ -330,14 +373,18 @@ export default function Analytics() {
                 <div key={item.label}>
                   <div className="flex justify-between text-[11px] font-bold text-text-muted mb-1.5 uppercase tracking-wider">
                     <span>{item.label}</span>
-                    <span className="text-text tabular-nums">{item.amount}</span>
+                    <span className="text-text tabular-nums">
+                      {item.amount}
+                    </span>
                   </div>
                   <div
                     className="h-2 w-full rounded-full overflow-hidden"
-                    style={{ backgroundColor: "var(--color-surface-secondary)" }}
+                    style={{
+                      backgroundColor: "var(--color-surface-secondary)",
+                    }}
                   >
                     <div
-                      className="h-full rounded-full"
+                      className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: item.width,
                         backgroundColor: item.bar,
@@ -368,9 +415,11 @@ export default function Analytics() {
               </div>
               <p className="text-[11.5px] text-text-muted leading-relaxed">
                 <b className="text-text block mb-0.5">AI Suggestion</b>
-                Send follow-up reminders to 12 clients in the 30-day bracket.
-                Average response rate:{" "}
-                <b style={{ color: "var(--color-primary)" }}>68%</b>.
+                {stats.totalPending > 0
+                  ? `You have ${formatMoney(
+                      stats.totalPending
+                    )} awaiting collection. Set automatic reminders to improve cash flow.`
+                  : "All current invoices are cleared. Financial pipeline is healthy!"}
               </p>
             </div>
           </Card>
@@ -382,23 +431,22 @@ export default function Analytics() {
           >
             <div className="p-6 border-b border-border flex items-center justify-between">
               <h4 className="text-lg font-bold text-text">
-                Top Valuable Clients{" "}
+                Top Valuable Clients
                 <span className="text-text-light font-normal ml-2 text-sm">
-                  Q3 Performance
+                  Live Breakdown
                 </span>
               </h4>
-              <button
-                type="button"
-                className="text-primary font-semibold text-xs hover:underline"
-              >
-                View All →
-              </button>
+              <span className="text-text-light text-xs">
+                {revenueByClient.length} Active Accounts
+              </span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead
-                  style={{ backgroundColor: "var(--color-surface-secondary)" }}
+                  style={{
+                    backgroundColor: "var(--color-surface-secondary)",
+                  }}
                 >
                   <tr>
                     <th className="px-6 py-3 text-[10.5px] font-bold text-text-muted uppercase tracking-widest text-left">
@@ -408,51 +456,58 @@ export default function Analytics() {
                       Invoiced
                     </th>
                     <th className="px-6 py-3 text-[10.5px] font-bold text-text-muted uppercase tracking-widest text-right">
-                      Paid
+                      Share
                     </th>
-                    <th className="px-6 py-3 text-[10.5px] font-bold text-text-muted uppercase tracking-widest">
+                    <th className="px-6 py-3 text-[10.5px] font-bold text-text-muted uppercase tracking-widest text-center">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {topClients.map((client) => (
-                    <tr
-                      key={client.name}
-                      className="hover:bg-surface-hover transition"
-                    >
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-8 h-8 rounded grid place-items-center font-bold text-[10px]"
-                            style={{
-                              backgroundColor: client.bg,
-                              color: client.text,
-                            }}
-                          >
-                            {client.initials}
-                          </div>
-                          <span className="text-sm font-medium text-text">
-                            {client.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3.5 text-right text-sm font-medium text-text tabular-nums">
-                        {client.invoiced}
-                      </td>
-                      <td className="px-6 py-3.5 text-right text-sm font-medium text-text tabular-nums">
-                        {client.paid}
-                      </td>
-                      <td className="px-6 py-3.5">
-                        <Badge
-                          label={client.status}
-                          variant={
-                            client.status === "paid" ? "paid" : "pending"
-                          }
-                        />
+                  {revenueByClient.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-8 text-center text-xs text-text-muted"
+                      >
+                        No invoice records found in database.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    revenueByClient.map((client) => (
+                      <tr
+                        key={client.name}
+                        className="hover:bg-surface-hover transition"
+                      >
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-8 h-8 rounded grid place-items-center font-bold text-[10px] bg-primary-soft text-primary"
+                            >
+                              {getInitials(client.name)}
+                            </div>
+                            <span className="text-sm font-medium text-text">
+                              {client.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3.5 text-right text-sm font-medium text-text tabular-nums">
+                          {formatMoney(client.amount)}
+                        </td>
+                        <td className="px-6 py-3.5 text-right text-sm font-medium text-text tabular-nums">
+                          {client.percentage}%
+                        </td>
+                        <td className="px-6 py-3.5 text-center">
+                          <Badge
+                            label={stats.totalCollected > 0 ? "paid" : "pending"}
+                            variant={
+                              stats.totalCollected > 0 ? "paid" : "pending"
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
