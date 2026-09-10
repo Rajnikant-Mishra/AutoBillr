@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // const express = require("express");
 // const cors = require("cors");
 // const http = require("http");
@@ -143,10 +144,16 @@
 //   );
 // });
 
+=======
+>>>>>>> update
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const path = require("path");
+<<<<<<< HEAD
+=======
+
+>>>>>>> update
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const clientRoutes = require("./src/routes/clientRoutes");
@@ -154,10 +161,18 @@ const projectRoutes = require("./src/routes/projectRoutes");
 const invoiceRoutes = require("./src/routes/invoiceRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
 const emailVerificationRoutes = require("./src/routes/emailVerificationRoutes");
+<<<<<<< HEAD
 const {
   initEmailVerificationSocket,
 } = require("./src/websocket/emailVerificationSocket");
 const notificationRoutes = require("./src/routes/notificationRoutes");
+=======
+const currencyRoutes = require("./src/routes/currencyRoutes");
+
+const {
+  initEmailVerificationSocket,
+} = require("./src/websocket/emailVerificationSocket");
+>>>>>>> update
 
 const app = express();
 
@@ -178,10 +193,30 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =====================================================
+<<<<<<< HEAD
+=======
+// STATIC UPLOADS
+// =====================================================
+
+// IMPORTANT:
+// Avatar files are stored in:
+// backend/uploads/avatars
+//
+// They will be accessible as:
+// http://localhost:5000/uploads/avatars/filename.jpg
+
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+// =====================================================
+>>>>>>> update
 // API ROUTES
 // =====================================================
 
 app.use("/api/v1/auth", authRoutes);
+<<<<<<< HEAD
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/clients", clientRoutes);
 app.use("/api/v1/projects", projectRoutes);
@@ -200,14 +235,33 @@ app.get("/api/v1/currencies", (req, res) => {
   ];
   return res.status(200).json({ success: true, currencies, data: currencies });
 });
+=======
+
+app.use("/api/v1/users", userRoutes);
+
+app.use("/api/v1/clients", clientRoutes);
+
+app.use("/api/v1/projects", projectRoutes);
+
+app.use("/api/v1/invoices", invoiceRoutes);
+
+app.use("/api/v1/dashboard", dashboardRoutes);
+>>>>>>> update
 
 app.use(
   "/api/v1/email-verification",
   emailVerificationRoutes
 );
+<<<<<<< HEAD
 
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+=======
+app.use(
+  "/api/v1/currencies",
+  currencyRoutes
+);
+>>>>>>> update
 // =====================================================
 // HEALTH CHECK
 // =====================================================
@@ -238,7 +292,11 @@ app.use((req, res) => {
 });
 
 // =====================================================
+<<<<<<< HEAD
 // ERROR
+=======
+// ERROR HANDLER
+>>>>>>> update
 // =====================================================
 
 app.use((err, req, res, next) => {
@@ -254,7 +312,11 @@ app.use((err, req, res, next) => {
 // =====================================================
 // HTTP SERVER
 // =====================================================
+<<<<<<< HEAD
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+=======
+
+>>>>>>> update
 const server = http.createServer(app);
 
 // =====================================================

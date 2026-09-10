@@ -19,8 +19,11 @@ model Company {
   subscriptions Subscription[]
   users         User[]
   projects      Project[]
+<<<<<<< HEAD
   notifications Notification[]
 
+=======
+>>>>>>> update
 
   @@index([name])
 }
@@ -247,6 +250,7 @@ model EmailVerification {
   @@index([email])
 }
 
+<<<<<<< HEAD
 model Notification {
   id          String   @id @default(cuid())
   companyId   String
@@ -263,6 +267,8 @@ model Notification {
   @@index([companyId])
 }
 
+=======
+>>>>>>> update
 model Currency {
   code          String  @id
   name          String

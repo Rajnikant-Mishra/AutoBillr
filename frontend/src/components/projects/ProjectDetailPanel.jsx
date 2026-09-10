@@ -88,7 +88,7 @@ export default function ProjectDetailPanel({
 
             {milestones.map((milestone, index) => (
               <MilestoneTimeline
-                key={milestone.id || milestone._id || index}
+                key={milestone.id || index}
                 title={milestone.title || "Untitled Milestone"}
                 date={
                   milestone.dueDate
