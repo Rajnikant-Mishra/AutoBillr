@@ -1,3 +1,4 @@
+
 // import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 // import { useNavigate } from "react-router-dom";
 // import toast from "react-hot-toast";
@@ -153,7 +154,7 @@
 //     setFormDrawerOpen(true);
 //   };
 
-//   const openClientDetail = (clientTarget, rawClientName = "") => {
+//   const openClientDetail = useCallback((clientTarget, rawClientName = "") => {
 //     let clientPayload = {};
 
 //     if (clientTarget && typeof clientTarget === "object") {
@@ -176,7 +177,7 @@
 
 //     setSelectedClient(clientPayload);
 //     setClientDetailDrawer(true);
-//   };
+//   }, []);
 
 //   const closeClientDetail = () => {
 //     setClientDetailDrawer(false);
@@ -406,33 +407,39 @@
 //       {
 //         header: "STATUS",
 //         cell: ({ row }) => {
-//           const status = (row.original.status || "draft").toLowerCase();
+//           const rawStatus = row.original.status || "draft";
+//           const status = String(rawStatus).toLowerCase().trim();
 
 //           const config = {
 //             paid: {
+//               bg: "bg-success-soft",
+//               text: "text-success",
+//               dot: "bg-success",
+//             },
+//             active: {
 //               bg: "bg-primary-soft",
 //               text: "text-primary-dark",
 //               dot: "bg-primary",
+//             },
+//             pending: {
+//               bg: "bg-warning-soft",
+//               text: "text-warning",
+//               dot: "bg-warning",
 //             },
 //             overdue: {
 //               bg: "bg-danger-soft",
 //               text: "text-danger",
 //               dot: "bg-danger",
 //             },
-//             draft: {
-//               bg: "bg-surface-secondary",
-//               text: "text-text-muted",
-//               dot: "bg-text-light",
-//             },
 //             scheduled: {
 //               bg: "bg-info-soft",
 //               text: "text-info",
 //               dot: "bg-info",
 //             },
-//             pending: {
-//               bg: "bg-warning-soft",
-//               text: "text-warning",
-//               dot: "bg-warning",
+//             draft: {
+//               bg: "bg-surface-secondary",
+//               text: "text-text-muted",
+//               dot: "bg-text-light",
 //             },
 //           };
 
@@ -441,53 +448,24 @@
 //           return (
 //             <span
 //               className={`
-//                 inline-flex items-center gap-2
-//                 px-3 py-1 rounded-full
-//                 text-[11px] font-bold uppercase tracking-wide
+//                 inline-flex items-center gap-1.5
+//                 px-2.5 py-1 rounded-full
+//                 text-[11px] font-bold uppercase tracking-wider
 //                 ${style.bg} ${style.text}
 //               `}
 //             >
-//               <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+//               <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
 //               {status}
 //             </span>
 //           );
 //         },
 //       },
-//       // {
-//       //   id: "action",
-//       //   header: "ACTION",
-//       //   cell: ({ row }) => {
-//       //     const targetClient = row.original.client;
-//       //     const clientName =
-//       //       row.original.clientName ||
-//       //       row.original.client?.name ||
-//       //       (typeof targetClient === "string" ? targetClient : "");
-
-//       //     return (
-//       //       <button
-//       //         type="button"
-//       //         title="View Details"
-//       //         onClick={() => openClientDetail(targetClient, clientName)}
-//       //         className="
-//       //           w-8 h-8 rounded-lg
-//       //           flex items-center justify-center
-//       //           text-text-light
-//       //           hover:bg-surface-hover hover:text-primary
-//       //           transition
-//       //         "
-//       //       >
-//       //         <span className="material-symbols-outlined text-[18px]">
-//       //           visibility
-//       //         </span>
-//       //       </button>
-//       //     );
-//       //   },
-//       // },
 //       {
 //         id: "action",
 //         header: "ACTION",
 //         cell: ({ row }) => {
 //           const inv = row.original;
+//           const invoiceId = inv.id || inv._id;
 //           const targetClient = inv.client;
 //           const clientName =
 //             inv.clientName ||
@@ -496,12 +474,17 @@
 
 //           return (
 //             <div className="flex items-center gap-1">
+//               {/* Preview invoice button */}
 //               <button
 //                 type="button"
 //                 title="Preview Invoice"
 //                 onClick={(e) => {
 //                   e.stopPropagation();
-//                   navigate(`/composer?invoiceId=${inv.id || inv._id}`);
+//                   if (invoiceId) {
+//                     navigate(`/composer?invoiceId=${invoiceId}`);
+//                   } else {
+//                     toast.error("Invoice ID not found");
+//                   }
 //                 }}
 //                 className="
 //                   w-8 h-8 rounded-lg
@@ -516,6 +499,7 @@
 //                 </span>
 //               </button>
 
+//               {/* View client details button */}
 //               <button
 //                 type="button"
 //                 title="Client Details"
@@ -532,7 +516,7 @@
 //                 "
 //               >
 //                 <span className="material-symbols-outlined text-[18px]">
-//                   badge
+//                   person
 //                 </span>
 //               </button>
 //             </div>
@@ -540,7 +524,7 @@
 //         },
 //       },
 //     ],
-//     [format]
+//     [format, navigate, openClientDetail]
 //   );
 
 //   if (loading) {
@@ -1041,7 +1025,6 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState({
     stats: {},
     revenueTrends: [],
-    upcomingBilling: [],
     recentInvoices: [],
   });
   const [loading, setLoading] = useState(true);
@@ -1197,7 +1180,6 @@ export default function Dashboard() {
       setDashboardData({
         stats: result.stats || {},
         revenueTrends: result.revenueTrends || [],
-        upcomingBilling: result.upcomingBilling || [],
         recentInvoices: result.recentInvoices || [],
       });
     } catch (error) {
@@ -1241,7 +1223,6 @@ export default function Dashboard() {
           setDashboardData({
             stats: result.stats || {},
             revenueTrends: result.revenueTrends || [],
-            upcomingBilling: result.upcomingBilling || [],
             recentInvoices: result.recentInvoices || [],
           });
         }
@@ -1312,8 +1293,7 @@ export default function Dashboard() {
       }
     });
 
-    // Top 3 recent invoices limit
-    return list.slice(0, 3);
+    return list.slice(0, 5);
   }, [dashboardData.recentInvoices, searchQuery, sortBy]);
 
   // ==================== TABLE COLUMNS ====================
@@ -1453,7 +1433,6 @@ export default function Dashboard() {
 
           return (
             <div className="flex items-center gap-1">
-              {/* Preview invoice button */}
               <button
                 type="button"
                 title="Preview Invoice"
@@ -1478,7 +1457,6 @@ export default function Dashboard() {
                 </span>
               </button>
 
-              {/* View client details button */}
               <button
                 type="button"
                 title="Client Details"
@@ -1708,77 +1686,11 @@ export default function Dashboard() {
               </Button>
             </div>
           </Card>
-
-          {/* Upcoming Billing */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-text">Upcoming Billing</h3>
-              <button
-                type="button"
-                onClick={() => navigate("/invoices")}
-                className="text-primary text-xs font-bold hover:underline"
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {dashboardData?.upcomingBilling?.length === 0 ? (
-                <p className="text-xs text-text-muted text-center py-4">
-                  No upcoming billing
-                </p>
-              ) : (
-                dashboardData?.upcomingBilling?.map((item, idx) => {
-                  const clientName =
-                    item.clientName ||
-                    item.client?.name ||
-                    (typeof item.client === "string" ? item.client : null) ||
-                    "Client";
-                  const initials = getInitials(clientName);
-
-                  return (
-                    <div
-                      key={item.id || item._id || idx}
-                      className="flex items-center gap-4"
-                    >
-                      <div className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold bg-primary-soft text-primary-dark shrink-0">
-                        {initials}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-text truncate">
-                          {clientName}
-                        </div>
-                        <div className="text-xs text-text-muted">
-                          {item.dueDate
-                            ? new Date(item.dueDate).toLocaleDateString()
-                            : "No Due Date"}
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-text">
-                          {format(item.amount)}
-                        </div>
-                        <div
-                          className={`text-[10px] font-bold ${
-                            item.auto ? "text-primary" : "text-text-muted"
-                          }`}
-                        >
-                          {item.auto ? "AUTO" : "MANUAL"}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
         </div>
 
-        {/* RECENT INVOICES TABLE */}
+        {/* RECENT INVOICES TABLE (Fixed: overflow-hidden removed & min-height container added) */}
         <div className="col-span-12">
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="bg-surface border border-border rounded-2xl relative shadow-sm">
             <div className="h-[64px] px-6 flex items-center justify-between border-b border-border relative">
               <div className="flex items-center gap-2">
                 <h3 className="text-[18px] font-bold text-text tracking-tight">
@@ -1810,11 +1722,11 @@ export default function Dashboard() {
                   <span>Filter</span>
                 </button>
 
-                {/* Filter Modal / Popover */}
+                {/* Filter Modal / Popover (High z-index to float freely outside container) */}
                 {filterModalOpen && (
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 mt-2 w-72 bg-surface border border-border rounded-xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute right-0 top-full mt-2 w-72 bg-surface border border-border rounded-xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150"
                   >
                     <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
                       <span className="text-xs font-bold text-text uppercase tracking-wider">
@@ -1896,17 +1808,20 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <DataTable
-              data={filteredRecentInvoices}
-              columns={invoiceColumns}
-              loading={loading}
-              pagination={pagination}
-              setPagination={setPagination}
-              rowSelection={rowSelection}
-              setRowSelection={setRowSelection}
-              emptyMessage="No matching invoices found"
-              hidePagination
-            />
+            {/* Stable min-height prevents the container from shrinking and clipping the popover */}
+            <div className="min-h-[220px]">
+              <DataTable
+                data={filteredRecentInvoices}
+                columns={invoiceColumns}
+                loading={loading}
+                pagination={pagination}
+                setPagination={setPagination}
+                rowSelection={rowSelection}
+                setRowSelection={setRowSelection}
+                emptyMessage="No matching invoices found"
+                hidePagination
+              />
+            </div>
           </div>
         </div>
       </div>
