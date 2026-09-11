@@ -1,6 +1,4 @@
-
-
-// import { useEffect, useCallback, useMemo, useState } from "react";
+// import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 // import { useNavigate } from "react-router-dom";
 // import toast from "react-hot-toast";
 // import Button from "../../components/ui/Button";
@@ -22,12 +20,31 @@
 //   ResponsiveContainer,
 // } from "recharts";
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL;
+// const API_BASE_URL = (
+//   import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+// ).replace(/\/$/, "");
+
+// // Safe Token Helper
+// const getAuthToken = () => {
+//   const plainToken = localStorage.getItem("token");
+//   if (plainToken && plainToken.startsWith("ey")) return plainToken;
+
+//   const authStorage = localStorage.getItem("autobiller-auth");
+//   if (authStorage) {
+//     if (authStorage.startsWith("ey")) return authStorage;
+//     try {
+//       const parsed = JSON.parse(authStorage);
+//       const token = parsed?.state?.token || parsed?.token;
+//       if (token) return token;
+//     } catch {
+//       // ignore json parse error
+//     }
+//   }
+//   return plainToken || authStorage || "";
+// };
 
 // export default function Dashboard() {
 //   const navigate = useNavigate();
-
-//   // Global Currency Store integration
 //   const { formatAmount, selectedCurrency } = useCurrencyStore();
 
 //   const format = useCallback(
@@ -55,6 +72,47 @@
 //   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 });
 //   const [rowSelection, setRowSelection] = useState({});
 
+//   // Filter Popover State
+//   const [filterModalOpen, setFilterModalOpen] = useState(false);
+//   const [searchQuery, setSearchQuery] = useState("");
+//   const [sortBy, setSortBy] = useState("newest");
+//   const filterRef = useRef(null);
+
+//   // Close filter popover on Escape key or outside click
+//   useEffect(() => {
+//     const handleKeyDown = (e) => {
+//       if (e.key === "Escape" && filterModalOpen) {
+//         setFilterModalOpen(false);
+//       }
+//     };
+
+//     const handleClickOutside = (e) => {
+//       if (filterRef.current && !filterRef.current.contains(e.target)) {
+//         setFilterModalOpen(false);
+//       }
+//     };
+
+//     if (filterModalOpen) {
+//       window.addEventListener("keydown", handleKeyDown);
+//       document.addEventListener("mousedown", handleClickOutside);
+//     }
+
+//     return () => {
+//       window.removeEventListener("keydown", handleKeyDown);
+//       document.removeEventListener("mousedown", handleClickOutside);
+//     };
+//   }, [filterModalOpen]);
+
+//   // Robust initials generator
+//   const getInitials = (name = "") => {
+//     if (!name || typeof name !== "string") return "CL";
+//     const clean = name.trim().replace(/[^a-zA-Z0-9\s]/g, "");
+//     if (!clean) return "CL";
+//     const parts = clean.split(/\s+/).filter(Boolean);
+//     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+//     return (parts[0][0] + parts[1][0]).toUpperCase();
+//   };
+
 //   // ==================== STATS ====================
 //   const stats = useMemo(
 //     () => [
@@ -70,7 +128,9 @@
 //       {
 //         title: "MONTHLY REVENUE",
 //         value: format(dashboardData?.stats?.monthlyRevenue ?? 0),
-//         change: `Projection: ${format(dashboardData?.stats?.projectedRevenue ?? 0)}`,
+//         change: `Projection: ${format(
+//           dashboardData?.stats?.projectedRevenue ?? 0
+//         )}`,
 //         icon: "payments",
 //         iconColor: "text-info",
 //         changeColor: "text-text-muted",
@@ -93,8 +153,28 @@
 //     setFormDrawerOpen(true);
 //   };
 
-//   const openClientDetail = (client) => {
-//     setSelectedClient(client);
+//   const openClientDetail = (clientTarget, rawClientName = "") => {
+//     let clientPayload = {};
+
+//     if (clientTarget && typeof clientTarget === "object") {
+//       clientPayload = {
+//         ...clientTarget,
+//         name: clientTarget.name || rawClientName || "Client Details",
+//         email: clientTarget.email || "No Email Provided",
+//         company: clientTarget.company || clientTarget.companyName || "—",
+//         phone: clientTarget.phone || "—",
+//       };
+//     } else {
+//       clientPayload = {
+//         id: typeof clientTarget === "string" ? clientTarget : undefined,
+//         name: rawClientName || "Client Details",
+//         email: "No Email Provided",
+//         company: "—",
+//         phone: "—",
+//       };
+//     }
+
+//     setSelectedClient(clientPayload);
 //     setClientDetailDrawer(true);
 //   };
 
@@ -112,7 +192,7 @@
 //   // ==================== REFETCH DATA ====================
 //   const refetchDashboard = useCallback(async () => {
 //     try {
-//       const token = localStorage.getItem("autobiller-auth");
+//       const token = getAuthToken();
 
 //       const response = await fetch(`${API_BASE_URL}/dashboard`, {
 //         method: "GET",
@@ -124,7 +204,6 @@
 
 //       const text = await response.text();
 //       let result = {};
-
 //       try {
 //         result = text ? JSON.parse(text) : {};
 //       } catch {
@@ -148,14 +227,11 @@
 
 //   // ==================== INITIAL FETCH ====================
 //   useEffect(() => {
+//     let isMounted = true;
+
 //     const fetchDashboard = async () => {
 //       try {
-//         setLoading(true);
-//         const token = localStorage.getItem("autobiller-auth");
-
-//         if (!API_BASE_URL) {
-//           throw new Error("VITE_API_URL is not defined. Check your .env file");
-//         }
+//         const token = getAuthToken();
 
 //         const response = await fetch(`${API_BASE_URL}/dashboard`, {
 //           method: "GET",
@@ -170,39 +246,95 @@
 //         try {
 //           result = text ? JSON.parse(text) : {};
 //         } catch {
-//           throw new Error(`Server returned empty or invalid JSON (status ${response.status})`);
+//           throw new Error(
+//             `Server returned empty or invalid JSON (status ${response.status})`
+//           );
 //         }
 
 //         if (!response.ok) {
-//           throw new Error(result?.message || `Dashboard request failed (${response.status})`);
+//           throw new Error(
+//             result?.message || `Dashboard request failed (${response.status})`
+//           );
 //         }
 
-//         if (!result?.success) {
-//           throw new Error(result?.message || "Dashboard request was unsuccessful");
+//         if (isMounted) {
+//           setDashboardData({
+//             stats: result.stats || {},
+//             revenueTrends: result.revenueTrends || [],
+//             upcomingBilling: result.upcomingBilling || [],
+//             recentInvoices: result.recentInvoices || [],
+//           });
 //         }
-
-//         setDashboardData({
-//           stats: result.stats || {},
-//           revenueTrends: result.revenueTrends || [],
-//           upcomingBilling: result.upcomingBilling || [],
-//           recentInvoices: result.recentInvoices || [],
-//         });
 //       } catch (error) {
 //         console.error("DASHBOARD ERROR:", error);
-//         toast.error(error.message || "Failed to fetch dashboard");
+//         if (isMounted) {
+//           toast.error(error.message || "Failed to fetch dashboard");
+//         }
 //       } finally {
-//         setLoading(false);
+//         if (isMounted) {
+//           setLoading(false);
+//         }
 //       }
 //     };
 
 //     fetchDashboard();
+
+//     return () => {
+//       isMounted = false;
+//     };
 //   }, []);
 
 //   useEffect(() => {
 //     const handleClientUpdated = () => refetchDashboard();
 //     window.addEventListener("client-updated", handleClientUpdated);
-//     return () => window.removeEventListener("client-updated", handleClientUpdated);
+//     return () =>
+//       window.removeEventListener("client-updated", handleClientUpdated);
 //   }, [refetchDashboard]);
+
+//   // ==================== FILTER & SORT RECENT INVOICES ====================
+//   const filteredRecentInvoices = useMemo(() => {
+//     let list = [...(dashboardData?.recentInvoices || [])];
+
+//     if (searchQuery.trim()) {
+//       const q = searchQuery.toLowerCase().trim();
+//       list = list.filter((inv) => {
+//         const invNum = (inv.invoiceNumber || inv.number || "").toLowerCase();
+//         const client = (
+//           inv.clientName ||
+//           inv.client?.name ||
+//           (typeof inv.client === "string" ? inv.client : "") ||
+//           ""
+//         ).toLowerCase();
+//         return invNum.includes(q) || client.includes(q);
+//       });
+//     }
+
+//     list.sort((a, b) => {
+//       const dateA = new Date(
+//         a.date || a.invoiceDate || a.issueDate || a.createdAt || 0
+//       ).getTime();
+//       const dateB = new Date(
+//         b.date || b.invoiceDate || b.issueDate || b.createdAt || 0
+//       ).getTime();
+//       const amountA = Number(a.amount || a.total || 0);
+//       const amountB = Number(b.amount || b.total || 0);
+
+//       switch (sortBy) {
+//         case "oldest":
+//           return dateA - dateB;
+//         case "amount-high":
+//           return amountB - amountA;
+//         case "amount-low":
+//           return amountA - amountB;
+//         case "newest":
+//         default:
+//           return dateB - dateA;
+//       }
+//     });
+
+//     // Top 3 recent invoices limit
+//     return list.slice(0, 3);
+//   }, [dashboardData.recentInvoices, searchQuery, sortBy]);
 
 //   // ==================== TABLE COLUMNS ====================
 //   const invoiceColumns = useMemo(
@@ -212,7 +344,7 @@
 //         header: "INVOICE ID",
 //         cell: ({ row }) => (
 //           <span className="font-bold text-text">
-//             #{row.original.invoiceNumber}
+//             #{row.original.invoiceNumber || row.original.number || "—"}
 //           </span>
 //         ),
 //       },
@@ -222,50 +354,59 @@
 //           const clientName =
 //             row.original.clientName ||
 //             row.original.client?.name ||
-//             row.original.client ||
-//             "Unknown";
+//             (typeof row.original.client === "string" ? row.original.client : null) ||
+//             "Unknown Client";
 
-//           const initials = clientName
-//             .split(" ")
-//             .map((word) => word[0])
-//             .join("")
-//             .substring(0, 2)
-//             .toUpperCase();
+//           const initials = getInitials(clientName);
 
 //           return (
 //             <div className="flex items-center gap-3 sm:gap-4">
-//               <div className="w-8 h-8 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center text-[10px] font-bold">
+//               <div className="w-8 h-8 rounded-full bg-primary-soft text-primary-dark flex items-center justify-center text-[10px] font-bold shrink-0">
 //                 {initials}
 //               </div>
-//               <span className="font-medium text-text-secondary">{clientName}</span>
+//               <span className="font-medium text-text-secondary truncate">
+//                 {clientName}
+//               </span>
 //             </div>
 //           );
 //         },
 //       },
 //       {
 //         header: "DATE ISSUED",
-//         cell: ({ row }) => (
-//           <span className="text-text-muted">
-//             {new Date(
-//               row.original.date || row.original.invoiceDate || Date.now()
-//             ).toLocaleDateString("en-US", {
-//               month: "short",
-//               day: "2-digit",
-//               year: "numeric",
-//             })}
-//           </span>
-//         ),
+//         cell: ({ row }) => {
+//           const raw =
+//             row.original.date ||
+//             row.original.invoiceDate ||
+//             row.original.issueDate ||
+//             row.original.createdAt;
+//           const d = raw ? new Date(raw) : null;
+//           const isValid = d && !isNaN(d.getTime());
+
+//           return (
+//             <span className="text-text-muted">
+//               {isValid
+//                 ? d.toLocaleDateString("en-US", {
+//                     month: "short",
+//                     day: "2-digit",
+//                     year: "numeric",
+//                   })
+//                 : "—"}
+//             </span>
+//           );
+//         },
 //       },
 //       {
 //         header: "AMOUNT",
 //         cell: ({ row }) => (
-//           <span className="font-bold text-text">{format(row.original.amount)}</span>
+//           <span className="font-bold text-text">
+//             {format(row.original.amount || row.original.total || 0)}
+//           </span>
 //         ),
 //       },
 //       {
 //         header: "STATUS",
 //         cell: ({ row }) => {
-//           const status = row.original.status?.toLowerCase();
+//           const status = (row.original.status || "draft").toLowerCase();
 
 //           const config = {
 //             paid: {
@@ -312,30 +453,91 @@
 //           );
 //         },
 //       },
+//       // {
+//       //   id: "action",
+//       //   header: "ACTION",
+//       //   cell: ({ row }) => {
+//       //     const targetClient = row.original.client;
+//       //     const clientName =
+//       //       row.original.clientName ||
+//       //       row.original.client?.name ||
+//       //       (typeof targetClient === "string" ? targetClient : "");
+
+//       //     return (
+//       //       <button
+//       //         type="button"
+//       //         title="View Details"
+//       //         onClick={() => openClientDetail(targetClient, clientName)}
+//       //         className="
+//       //           w-8 h-8 rounded-lg
+//       //           flex items-center justify-center
+//       //           text-text-light
+//       //           hover:bg-surface-hover hover:text-primary
+//       //           transition
+//       //         "
+//       //       >
+//       //         <span className="material-symbols-outlined text-[18px]">
+//       //           visibility
+//       //         </span>
+//       //       </button>
+//       //     );
+//       //   },
+//       // },
 //       {
 //         id: "action",
 //         header: "ACTION",
-//         cell: ({ row }) => (
-//           <button
-//             type="button"
-//             onClick={() =>
-//               openClientDetail(
-//                 row.original.client || { name: row.original.clientName }
-//               )
-//             }
-//             className="
-//               w-8 h-8 rounded-lg
-//               flex items-center justify-center
-//               text-text-light
-//               hover:bg-surface-hover hover:text-primary
-//               transition
-//             "
-//           >
-//             <span className="material-symbols-outlined text-[18px]">
-//               visibility
-//             </span>
-//           </button>
-//         ),
+//         cell: ({ row }) => {
+//           const inv = row.original;
+//           const targetClient = inv.client;
+//           const clientName =
+//             inv.clientName ||
+//             inv.client?.name ||
+//             (typeof targetClient === "string" ? targetClient : "");
+
+//           return (
+//             <div className="flex items-center gap-1">
+//               <button
+//                 type="button"
+//                 title="Preview Invoice"
+//                 onClick={(e) => {
+//                   e.stopPropagation();
+//                   navigate(`/composer?invoiceId=${inv.id || inv._id}`);
+//                 }}
+//                 className="
+//                   w-8 h-8 rounded-lg
+//                   flex items-center justify-center
+//                   text-text-light
+//                   hover:bg-surface-hover hover:text-primary
+//                   transition
+//                 "
+//               >
+//                 <span className="material-symbols-outlined text-[18px]">
+//                   visibility
+//                 </span>
+//               </button>
+
+//               <button
+//                 type="button"
+//                 title="Client Details"
+//                 onClick={(e) => {
+//                   e.stopPropagation();
+//                   openClientDetail(targetClient, clientName);
+//                 }}
+//                 className="
+//                   w-8 h-8 rounded-lg
+//                   flex items-center justify-center
+//                   text-text-light
+//                   hover:bg-surface-hover hover:text-primary
+//                   transition
+//                 "
+//               >
+//                 <span className="material-symbols-outlined text-[18px]">
+//                   badge
+//                 </span>
+//               </button>
+//             </div>
+//           );
+//         },
 //       },
 //     ],
 //     [format]
@@ -419,14 +621,21 @@
 //               </div>
 //             </div>
 
-//             {/* Chart Container - min-w-0 aur minHeight recharts dimensions fix ke liye */}
 //             <div className="h-[280px] sm:h-[320px] lg:h-[380px] w-full min-w-0">
-//               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
+//               <ResponsiveContainer
+//                 width="100%"
+//                 height="100%"
+//                 minWidth={0}
+//                 minHeight={280}
+//               >
 //                 <BarChart
 //                   data={dashboardData?.revenueTrends || []}
 //                   margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
 //                 >
-//                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+//                   <CartesianGrid
+//                     strokeDasharray="3 3"
+//                     stroke="var(--color-border)"
+//                   />
 //                   <XAxis
 //                     dataKey="month"
 //                     tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
@@ -487,7 +696,9 @@
 //             "
 //           >
 //             <div className="absolute right-0 bottom-0 opacity-10 -mr-6 -mb-6">
-//               <span className="material-symbols-outlined text-[120px]">bolt</span>
+//               <span className="material-symbols-outlined text-[120px]">
+//                 bolt
+//               </span>
 //             </div>
 
 //             <h3 className="text-2xl font-bold text-white">Quick Actions</h3>
@@ -519,7 +730,7 @@
 //                 icon="receipt_long"
 //                 className="h-[88px] flex-col"
 //                 fullWidth
-//                 onClick={() => navigate("/invoices")}
+//                 onClick={() => navigate("/composer")}
 //               >
 //                 Batch Bill
 //               </Button>
@@ -539,7 +750,7 @@
 //           <Card className="p-6">
 //             <div className="flex items-center justify-between mb-5">
 //               <h3 className="font-bold text-text">Upcoming Billing</h3>
-//               <button 
+//               <button
 //                 type="button"
 //                 onClick={() => navigate("/invoices")}
 //                 className="text-primary text-xs font-bold hover:underline"
@@ -550,20 +761,24 @@
 
 //             <div className="space-y-4">
 //               {dashboardData?.upcomingBilling?.length === 0 ? (
-//                 <p className="text-xs text-text-muted text-center py-4">No upcoming billing</p>
+//                 <p className="text-xs text-text-muted text-center py-4">
+//                   No upcoming billing
+//                 </p>
 //               ) : (
 //                 dashboardData?.upcomingBilling?.map((item, idx) => {
-//                   const clientName = item.clientName || "Client";
-//                   const initials = clientName
-//                     .split(" ")
-//                     .map((word) => word[0])
-//                     .join("")
-//                     .substring(0, 2)
-//                     .toUpperCase();
+//                   const clientName =
+//                     item.clientName ||
+//                     item.client?.name ||
+//                     (typeof item.client === "string" ? item.client : null) ||
+//                     "Client";
+//                   const initials = getInitials(clientName);
 
 //                   return (
-//                     <div key={item.id || item._id || idx} className="flex items-center gap-4">
-//                       <div className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold bg-primary-soft text-primary-dark">
+//                     <div
+//                       key={item.id || item._id || idx}
+//                       className="flex items-center gap-4"
+//                     >
+//                       <div className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold bg-primary-soft text-primary-dark shrink-0">
 //                         {initials}
 //                       </div>
 
@@ -601,32 +816,132 @@
 //         {/* RECENT INVOICES TABLE */}
 //         <div className="col-span-12">
 //           <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-//             <div className="h-[64px] px-6 flex items-center justify-between border-b border-border">
-//               <h3 className="text-[18px] font-bold text-text tracking-tight">
-//                 Recent Invoices
-//               </h3>
+//             <div className="h-[64px] px-6 flex items-center justify-between border-b border-border relative">
+//               <div className="flex items-center gap-2">
+//                 <h3 className="text-[18px] font-bold text-text tracking-tight">
+//                   Recent Invoices
+//                 </h3>
+//                 <span className="text-xs text-text-muted font-normal">
+//                   (Showing latest {filteredRecentInvoices.length})
+//                 </span>
+//               </div>
 
-//               <div className="flex items-center gap-4">
-//                 <button 
+//               {/* Filter Button & Compact Popup Modal */}
+//               <div className="relative" ref={filterRef}>
+//                 <button
 //                   type="button"
-//                   onClick={() => navigate("/invoices")}
-//                   className="text-text-light hover:text-primary transition"
-//                   title="View All Invoices"
+//                   onClick={(e) => {
+//                     e.stopPropagation();
+//                     setFilterModalOpen((prev) => !prev);
+//                   }}
+//                   className={`p-2 rounded-lg border transition flex items-center gap-1.5 text-xs font-semibold ${
+//                     filterModalOpen
+//                       ? "bg-primary-soft text-primary border-primary/30"
+//                       : "bg-surface-secondary text-text-muted border-border hover:text-text hover:bg-surface-hover"
+//                   }`}
+//                   title="Filter & Sort"
 //                 >
-//                   <span className="material-symbols-outlined">filter_list</span>
+//                   <span className="material-symbols-outlined text-[18px]">
+//                     filter_list
+//                   </span>
+//                   <span>Filter</span>
 //                 </button>
+
+//                 {/* Filter Modal / Popover */}
+//                 {filterModalOpen && (
+//                   <div
+//                     onClick={(e) => e.stopPropagation()}
+//                     className="absolute right-0 mt-2 w-72 bg-surface border border-border rounded-xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150"
+//                   >
+//                     <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
+//                       <span className="text-xs font-bold text-text uppercase tracking-wider">
+//                         Filter & Sort
+//                       </span>
+//                       <button
+//                         type="button"
+//                         onClick={() => setFilterModalOpen(false)}
+//                         className="text-text-muted hover:text-text text-sm"
+//                       >
+//                         ✕
+//                       </button>
+//                     </div>
+
+//                     {/* Search Field */}
+//                     <div className="mb-3">
+//                       <label className="text-[11px] font-semibold text-text-muted mb-1 block">
+//                         Search
+//                       </label>
+//                       <div className="relative">
+//                         <input
+//                           type="text"
+//                           placeholder="ID or Client name..."
+//                           value={searchQuery}
+//                           onChange={(e) => setSearchQuery(e.target.value)}
+//                           className="w-full text-xs bg-surface-secondary border border-border rounded-lg px-2.5 py-1.5 text-text focus:outline-none focus:border-primary"
+//                         />
+//                         {searchQuery && (
+//                           <button
+//                             type="button"
+//                             onClick={() => setSearchQuery("")}
+//                             className="absolute right-2 top-1.5 text-xs text-text-muted hover:text-text"
+//                           >
+//                             ×
+//                           </button>
+//                         )}
+//                       </div>
+//                     </div>
+
+//                     {/* Sort Field */}
+//                     <div className="mb-4">
+//                       <label className="text-[11px] font-semibold text-text-muted mb-1 block">
+//                         Sort By
+//                       </label>
+//                       <select
+//                         value={sortBy}
+//                         onChange={(e) => setSortBy(e.target.value)}
+//                         className="w-full text-xs bg-surface-secondary border border-border rounded-lg px-2.5 py-1.5 text-text focus:outline-none focus:border-primary cursor-pointer font-medium"
+//                       >
+//                         <option value="newest">Date: Newest First</option>
+//                         <option value="oldest">Date: Oldest First</option>
+//                         <option value="amount-high">Amount: High to Low</option>
+//                         <option value="amount-low">Amount: Low to High</option>
+//                       </select>
+//                     </div>
+
+//                     {/* Modal Footer Actions */}
+//                     <div className="flex items-center justify-between pt-2 border-t border-border">
+//                       <button
+//                         type="button"
+//                         onClick={() => {
+//                           setSearchQuery("");
+//                           setSortBy("newest");
+//                         }}
+//                         className="text-[11px] text-text-muted hover:text-primary transition font-medium"
+//                       >
+//                         Reset All
+//                       </button>
+//                       <button
+//                         type="button"
+//                         onClick={() => setFilterModalOpen(false)}
+//                         className="px-3 py-1 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary-dark transition"
+//                       >
+//                         Apply
+//                       </button>
+//                     </div>
+//                   </div>
+//                 )}
 //               </div>
 //             </div>
 
 //             <DataTable
-//               data={dashboardData?.recentInvoices || []}
+//               data={filteredRecentInvoices}
 //               columns={invoiceColumns}
 //               loading={loading}
 //               pagination={pagination}
 //               setPagination={setPagination}
 //               rowSelection={rowSelection}
 //               setRowSelection={setRowSelection}
-//               emptyMessage="No invoices found"
+//               emptyMessage="No matching invoices found"
 //               hidePagination
 //             />
 //           </div>
@@ -818,7 +1133,7 @@ export default function Dashboard() {
     setFormDrawerOpen(true);
   };
 
-  const openClientDetail = (clientTarget, rawClientName = "") => {
+  const openClientDetail = useCallback((clientTarget, rawClientName = "") => {
     let clientPayload = {};
 
     if (clientTarget && typeof clientTarget === "object") {
@@ -841,7 +1156,7 @@ export default function Dashboard() {
 
     setSelectedClient(clientPayload);
     setClientDetailDrawer(true);
-  };
+  }, []);
 
   const closeClientDetail = () => {
     setClientDetailDrawer(false);
@@ -1071,33 +1386,39 @@ export default function Dashboard() {
       {
         header: "STATUS",
         cell: ({ row }) => {
-          const status = (row.original.status || "draft").toLowerCase();
+          const rawStatus = row.original.status || "draft";
+          const status = String(rawStatus).toLowerCase().trim();
 
           const config = {
             paid: {
+              bg: "bg-success-soft",
+              text: "text-success",
+              dot: "bg-success",
+            },
+            active: {
               bg: "bg-primary-soft",
               text: "text-primary-dark",
               dot: "bg-primary",
+            },
+            pending: {
+              bg: "bg-warning-soft",
+              text: "text-warning",
+              dot: "bg-warning",
             },
             overdue: {
               bg: "bg-danger-soft",
               text: "text-danger",
               dot: "bg-danger",
             },
-            draft: {
-              bg: "bg-surface-secondary",
-              text: "text-text-muted",
-              dot: "bg-text-light",
-            },
             scheduled: {
               bg: "bg-info-soft",
               text: "text-info",
               dot: "bg-info",
             },
-            pending: {
-              bg: "bg-warning-soft",
-              text: "text-warning",
-              dot: "bg-warning",
+            draft: {
+              bg: "bg-surface-secondary",
+              text: "text-text-muted",
+              dot: "bg-text-light",
             },
           };
 
@@ -1106,13 +1427,13 @@ export default function Dashboard() {
           return (
             <span
               className={`
-                inline-flex items-center gap-2
-                px-3 py-1 rounded-full
-                text-[11px] font-bold uppercase tracking-wide
+                inline-flex items-center gap-1.5
+                px-2.5 py-1 rounded-full
+                text-[11px] font-bold uppercase tracking-wider
                 ${style.bg} ${style.text}
               `}
             >
-              <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
               {status}
             </span>
           );
@@ -1122,34 +1443,67 @@ export default function Dashboard() {
         id: "action",
         header: "ACTION",
         cell: ({ row }) => {
-          const targetClient = row.original.client;
+          const inv = row.original;
+          const invoiceId = inv.id || inv._id;
+          const targetClient = inv.client;
           const clientName =
-            row.original.clientName ||
-            row.original.client?.name ||
+            inv.clientName ||
+            inv.client?.name ||
             (typeof targetClient === "string" ? targetClient : "");
 
           return (
-            <button
-              type="button"
-              title="View Details"
-              onClick={() => openClientDetail(targetClient, clientName)}
-              className="
-                w-8 h-8 rounded-lg
-                flex items-center justify-center
-                text-text-light
-                hover:bg-surface-hover hover:text-primary
-                transition
-              "
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                visibility
-              </span>
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Preview invoice button */}
+              <button
+                type="button"
+                title="Preview Invoice"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (invoiceId) {
+                    navigate(`/composer?invoiceId=${invoiceId}`);
+                  } else {
+                    toast.error("Invoice ID not found");
+                  }
+                }}
+                className="
+                  w-8 h-8 rounded-lg
+                  flex items-center justify-center
+                  text-text-light
+                  hover:bg-surface-hover hover:text-primary
+                  transition
+                "
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  visibility
+                </span>
+              </button>
+
+              {/* View client details button */}
+              <button
+                type="button"
+                title="Client Details"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openClientDetail(targetClient, clientName);
+                }}
+                className="
+                  w-8 h-8 rounded-lg
+                  flex items-center justify-center
+                  text-text-light
+                  hover:bg-surface-hover hover:text-primary
+                  transition
+                "
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  person
+                </span>
+              </button>
+            </div>
           );
         },
       },
     ],
-    [format]
+    [format, navigate, openClientDetail]
   );
 
   if (loading) {

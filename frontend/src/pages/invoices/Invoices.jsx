@@ -373,24 +373,86 @@ export default function Invoices() {
     setSelectedInvoice(null);
   };
 
-  const handleReminder = React.useCallback(
-    (invoice) => {
-      showReminderToast(getClientName(invoice.client));
+  // const handleReminder = React.useCallback(
+  //   (invoice) => {
+  //     showReminderToast(getClientName(invoice.client));
 
-      addNotification({
-        type: "reminder",
-        icon: "notifications_active",
-        iconColor: "text-warning",
-        bgColor: "bg-warning-soft",
-        title: "Payment Reminder Sent",
-        description: `Invoice #${invoice.invoiceNumber} to ${getClientName(
-          invoice.client
-        )}`,
-        borderColor: "border-l-warning",
-      });
+  //     addNotification({
+  //       type: "reminder",
+  //       icon: "notifications_active",
+  //       iconColor: "text-warning",
+  //       bgColor: "bg-warning-soft",
+  //       title: "Payment Reminder Sent",
+  //       description: `Invoice #${invoice.invoiceNumber} to ${getClientName(
+  //         invoice.client
+  //       )}`,
+  //       borderColor: "border-l-warning",
+  //     });
+  //   },
+  //   [addNotification]
+  // );
+  const handleReminder = React.useCallback(
+    async (invoice) => {
+      const invoiceId = invoice?.id || invoice?._id;
+      const clientName = getClientName(invoice?.client);
+
+      if (!invoiceId) {
+        showErrorToast("Invoice ID not found");
+        return;
+      }
+
+      try {
+        const plainToken = localStorage.getItem("token");
+        let token = plainToken && plainToken.startsWith("ey") ? plainToken : "";
+
+        if (!token) {
+          const authStorage = localStorage.getItem("autobiller-auth");
+          if (authStorage) {
+            try {
+              const parsed = JSON.parse(authStorage);
+              token = parsed?.state?.token || parsed?.token || authStorage;
+            } catch {
+              token = authStorage;
+            }
+          }
+        }
+
+        const base = (
+          import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+        ).replace(/\/$/, "");
+
+        await axios.post(
+          `${base}/invoices/${invoiceId}/remind`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+
+        showReminderToast(clientName);
+
+        addNotification({
+          type: "reminder",
+          icon: "notifications_active",
+          iconColor: "text-warning",
+          bgColor: "bg-warning-soft",
+          title: "Payment Reminder Sent",
+          description: `Invoice #${invoice.invoiceNumber} reminder sent to ${clientName}`,
+          borderColor: "border-l-warning",
+        });
+      } catch (error) {
+        console.error("Failed to send reminder email:", error);
+        showErrorToast(
+          error.response?.data?.message || "Failed to send reminder email"
+        );
+      }
     },
     [addNotification]
   );
+  
 
   const columns = useMemo(
     () => [

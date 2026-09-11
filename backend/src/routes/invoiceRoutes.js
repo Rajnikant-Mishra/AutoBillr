@@ -47,7 +47,11 @@ router.put(
   upload.single("pdf"),
   invoiceController.updateInvoice
 );
-
+router.post(
+  "/:id/remind",
+  authMiddleware,
+  invoiceController.sendReminder
+);
 router.delete(
   "/:id",
   authMiddleware,

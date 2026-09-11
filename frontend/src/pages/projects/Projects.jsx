@@ -442,16 +442,35 @@ export default function Projects() {
       }
     }
 
-    result.sort((a, b) => {
+    // result.sort((a, b) => {
+    //   switch (filters.sortBy) {
+    //     case "budgetHigh":
+    //       return Number(b?.budget || 0) - Number(a?.budget || 0);
+    //     case "budgetLow":
+    //       return Number(a?.budget || 0) - Number(b?.budget || 0);
+    //     case "progressHigh":
+    //       return Number(b?.progress || 0) - Number(a?.progress || 0);
+    //     case "progressLow":
+    //       return Number(a?.progress || 0) - Number(b?.progress || 0);
+    //     case "oldest":
+    //       return (
+    //         new Date(a?.createdAt || 0).getTime() -
+    //         new Date(b?.createdAt || 0).getTime()
+    //       );
+    //     case "newest":
+    //     default:
+    //       return (
+    //         new Date(b?.createdAt || 0).getTime() -
+    //         new Date(a?.createdAt || 0).getTime()
+    //       );
+    //   }
+    // });
+     result.sort((a, b) => {
       switch (filters.sortBy) {
         case "budgetHigh":
           return Number(b?.budget || 0) - Number(a?.budget || 0);
         case "budgetLow":
           return Number(a?.budget || 0) - Number(b?.budget || 0);
-        case "progressHigh":
-          return Number(b?.progress || 0) - Number(a?.progress || 0);
-        case "progressLow":
-          return Number(a?.progress || 0) - Number(b?.progress || 0);
         case "oldest":
           return (
             new Date(a?.createdAt || 0).getTime() -
@@ -465,7 +484,6 @@ export default function Projects() {
           );
       }
     });
-
     return result;
   }, [
     projects,

@@ -1,5 +1,5 @@
 const prisma = require("../../config/prisma");
-const { sendInvoiceEmail } = require("../services/emailService");
+const { sendInvoiceEmail, sendReminderEmail } = require("../services/emailService");
 
 // =====================================================
 // HELPER: PARSE INVOICE REQUEST BODY
@@ -487,10 +487,84 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
+
+
+const sendReminder = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    const { id } = req.params;
+
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID not found",
+      });
+    }
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Invoice ID is required",
+      });
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, companyId },
+      include: {
+        client: true,
+      },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
+
+    if (!invoice.client?.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Client does not have an email address in the database",
+      });
+    }
+
+    const formattedDate = invoice.dueDate
+      ? new Date(invoice.dueDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "Due upon receipt";
+
+    await sendReminderEmail({
+      email: invoice.client.email,
+      clientName: invoice.client.name,
+      invoiceNumber: invoice.invoiceNumber,
+      total: invoice.total,
+      dueDate: formattedDate,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Reminder email successfully sent to ${invoice.client.email}`,
+    });
+  } catch (error) {
+    console.error("SEND REMINDER ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send reminder email",
+    });
+  }
+};
+
+
+
 module.exports = {
   getInvoices,
   getInvoiceById,
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  sendReminder,
 };

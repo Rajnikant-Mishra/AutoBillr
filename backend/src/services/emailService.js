@@ -461,12 +461,96 @@ AutoBillr
 };
 
 
-// ============================================================
-// EXPORT
-// ============================================================
+
+const sendReminderEmail = async ({
+  email,
+  clientName,
+  invoiceNumber,
+  total,
+  dueDate,
+}) => {
+  if (!email) {
+    throw new Error("Client email is missing");
+  }
+
+  if (!invoiceNumber) {
+    throw new Error("Invoice number is missing");
+  }
+
+  const mailOptions = {
+    from: `"AutoBillr" <${process.env.MAIL_USER}>`,
+    to: email,
+    envelope: {
+      from: process.env.MAIL_USER,
+      to: [email],
+    },
+    subject: `Payment Reminder: Invoice ${invoiceNumber} - AutoBillr`,
+    headers: {
+      "X-AutoBillr-Mail": "Reminder",
+      "X-AutoBillr-Invoice": invoiceNumber,
+    },
+    text: `
+Hello ${clientName || "Customer"},
+
+This is a gentle reminder regarding your pending invoice:
+
+Invoice Number: ${invoiceNumber}
+Total Amount: ${total}
+Due Date: ${dueDate || "Due upon receipt"}
+
+Please arrange for the payment at your earliest convenience. If you have already made the payment, please disregard this notice.
+
+Thank you for your business.
+
+Regards,
+AutoBillr
+`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Payment Reminder</title>
+</head>
+<body style="margin:0;padding:30px;background:#f5f7fb;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:auto;background:#ffffff;padding:30px;border:1px solid #e5e7eb;border-radius:10px;">
+    <h2 style="color:#EAB308;margin-bottom:16px;">
+      Payment Reminder
+    </h2>
+    <p>Hello ${clientName || "Customer"},</p>
+    <p>This is a gentle reminder regarding your pending invoice with AutoBillr.</p>
+    
+    <div style="background:#fffbeb;padding:16px;border-left:4px solid #EAB308;border-radius:4px;margin:20px 0;">
+      <p style="margin:4px 0;"><strong>Invoice Number:</strong> ${invoiceNumber}</p>
+      <p style="margin:4px 0;"><strong>Total Amount:</strong> ${total}</p>
+      <p style="margin:4px 0;"><strong>Due Date:</strong> ${dueDate || "Due upon receipt"}</p>
+    </div>
+
+    <p>Please arrange for the payment at your earliest convenience.</p>
+    <p style="font-size:12px;color:#6b7280;">If you have already processed this payment, please disregard this email.</p>
+    
+    <p style="margin-top:24px;">Regards,<br><strong>AutoBillr Team</strong></p>
+  </div>
+</body>
+</html>
+`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(">>> REMINDER EMAIL SENT TO:", email, "MESSAGE ID:", info.messageId);
+    return info;
+  } catch (error) {
+    console.error(">>> REMINDER EMAIL ERROR:", error);
+    throw error;
+  }
+};
+
 
 module.exports = {
   sendVerificationEmail,
   sendInvoiceEmail,
+  sendReminderEmail,
 };
+
 
