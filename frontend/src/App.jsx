@@ -7,39 +7,50 @@ import {
 
 import { Toaster } from "react-hot-toast";
 
+// Layout / Auth
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
-// Public pages
+// ============================================================
+// PUBLIC PAGES
+// ============================================================
+
+import LandingPage from "./pages/landing/LandingPage";
+import PricingPage from "./pages/landing/PricingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
 
-// Protected pages
-import Dashboard from "./pages/Dashboard/Dashboard";
+// ============================================================
+// PROTECTED PAGES
+// ============================================================
+
+import Dashboard from "./pages/dashboard/Dashboard";
 import Projects from "./pages/projects/Projects";
 import Clients from "./pages/clients/Clients";
 import Composer from "./pages/composer/Composer";
 import InvoicePreview from "./pages/composer/InvoicePreview";
 import Invoices from "./pages/invoices/Invoices";
 import RecurringBilling from "./pages/automation/RecurringBilling";
-import VerifyEmail from "./pages/VerifyEmail";
-import LandingPage from "./pages/landing/LandingPage";
-import PricingPage from "./pages/landing/PricingPage";
 import AdvancedAnalytics from "./pages/analytics/AdvancedAnalytics";
+import TeamPermissions from "./pages/team/TeamPermissions";
+import ClientPortal from "./pages/clients/ClientPortal";
+import Settings from "./pages/setting/Settings";
+import Help from "./pages/adminSettings/Help";
 
-// Settings pages
+// ============================================================
+// SETTINGS
+// ============================================================
 
+import SettingsLayout from "./pages/adminSettings/SettingsLayout";
+import AccountSettings from "./pages/adminSettings/AccountSettings";
 import ProfileSettings from "./pages/adminSettings/ProfileSettings";
 import SecuritySettings from "./pages/adminSettings/SecuritySettings";
 import NotificationSettings from "./pages/adminSettings/NotificationSettings";
-import AccountSettings from "./pages/adminSettings/AccountSettings";
-import Help from "./pages/adminSettings/Help";
-import TeamPermissions from "./pages/team/TeamPermissions";
-import Settings from "./pages/setting/Settings";
-import SettingsLayout from "./pages/adminSettings/SettingsLayout";
-import ClientPortal from "./pages/clients/ClientPortal";
 
-
+// ============================================================
+// PROTECTED LAYOUT
+// ============================================================
 
 function ProtectedLayout({ children }) {
   return (
@@ -49,30 +60,54 @@ function ProtectedLayout({ children }) {
   );
 }
 
+// ============================================================
+// APP
+// ============================================================
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ==================================================
-            PUBLIC
-        ================================================== */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route
-  path="/app/pricing"
-  element={
-    <ProtectedRoute>
-      <PricingPage variant="app" />
-    </ProtectedRoute>
-  }
-/>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
 
-        {/* ==================================================
-            PROTECTED
-        ================================================== */}
+        {/* ======================================================
+            PUBLIC ROUTES
+        ====================================================== */}
+
+        {/* Landing */}
+        <Route
+          path="/"
+          element={<LandingPage />}
+        />
+
+        {/* Public Pricing */}
+        <Route
+          path="/pricing"
+          element={<PricingPage />}
+        />
+
+        {/* Login */}
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        {/* Register */}
+        <Route
+          path="/register"
+          element={<Register />}
+        />
+
+        {/* Email Verification */}
+        <Route
+          path="/verify-email"
+          element={<VerifyEmail />}
+        />
+
+        {/* ======================================================
+            PROTECTED ROUTES
+        ====================================================== */}
+
+        {/* Dashboard */}
         <Route
           path="/dashboard"
           element={
@@ -82,6 +117,7 @@ function App() {
           }
         />
 
+        {/* Projects */}
         <Route
           path="/projects"
           element={
@@ -91,6 +127,7 @@ function App() {
           }
         />
 
+        {/* Clients */}
         <Route
           path="/clients"
           element={
@@ -100,6 +137,7 @@ function App() {
           }
         />
 
+        {/* Invoice Composer - New */}
         <Route
           path="/composer"
           element={
@@ -109,6 +147,7 @@ function App() {
           }
         />
 
+        {/* Invoice Composer - Edit */}
         <Route
           path="/composer/:id"
           element={
@@ -118,50 +157,17 @@ function App() {
           }
         />
 
+        {/* Invoices */}
         <Route
-          path="/invoice"
+          path="/invoices"
           element={
             <ProtectedLayout>
               <Invoices />
             </ProtectedLayout>
           }
         />
-         <Route
-          path="/analytics"
-          element={
-            <ProtectedLayout>
-              <AdvancedAnalytics />
-            </ProtectedLayout>
-          }
-        />
-  <Route
-          path="/settings"
-          element={
-            <ProtectedLayout>
-              <Settings />
-            </ProtectedLayout>
-          }
-        ></Route>
-        <Route
-  path="/clientportal"
-  element={
-    <ProtectedRoute>
-      <ClientPortal />
-    </ProtectedRoute>
-  }
-/>
-        <Route
-          path="/automation"
-          element={
-            <ProtectedLayout>
-              <RecurringBilling />
-            </ProtectedLayout>
-          }
-        />
-<Route
-  path="/team"
-  element={ <ProtectedLayout><TeamPermissions /></ProtectedLayout>}
-/>
+
+        {/* Invoice Preview */}
         <Route
           path="/invoice-preview"
           element={
@@ -171,24 +177,47 @@ function App() {
           }
         />
 
-        {/* ==================================================
-            SETTINGS (Protected)
-        ================================================== */}
+        {/* Analytics */}
         <Route
-          path="/adminsettings"
+          path="/analytics"
           element={
             <ProtectedLayout>
-              <SettingsLayout />
+              <AdvancedAnalytics />
             </ProtectedLayout>
           }
-        >
-        
-          <Route index element={<AccountSettings />} />
-          <Route path="profile" element={<ProfileSettings />} />
-          <Route path="security" element={<SecuritySettings />} />
-          <Route path="notifications" element={<NotificationSettings />} />
-        </Route>
+        />
 
+        {/* Recurring Billing */}
+        <Route
+          path="/automation"
+          element={
+            <ProtectedLayout>
+              <RecurringBilling />
+            </ProtectedLayout>
+          }
+        />
+
+        {/* Team & Permissions */}
+        <Route
+          path="/team"
+          element={
+            <ProtectedLayout>
+              <TeamPermissions />
+            </ProtectedLayout>
+          }
+        />
+
+        {/* Settings */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedLayout>
+              <Settings />
+            </ProtectedLayout>
+          }
+        />
+
+        {/* Help */}
         <Route
           path="/help"
           element={
@@ -198,11 +227,81 @@ function App() {
           }
         />
 
-        {/* ==================================================
+        {/* Client Portal */}
+        <Route
+          path="/clientportal"
+          element={
+            <ProtectedRoute>
+              <ClientPortal />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ======================================================
+            PROTECTED PRICING
+        ====================================================== */}
+
+        <Route
+          path="/app/pricing"
+          element={
+            <ProtectedRoute>
+              <PricingPage variant="app" />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ======================================================
+            ADMIN SETTINGS
+        ====================================================== */}
+
+        <Route
+          path="/adminsettings"
+          element={
+            <ProtectedLayout>
+              <SettingsLayout />
+            </ProtectedLayout>
+          }
+        >
+          {/* /adminsettings */}
+          <Route
+            index
+            element={<AccountSettings />}
+          />
+
+          {/* /adminsettings/profile */}
+          <Route
+            path="profile"
+            element={<ProfileSettings />}
+          />
+
+          {/* /adminsettings/security */}
+          <Route
+            path="security"
+            element={<SecuritySettings />}
+          />
+
+          {/* /adminsettings/notifications */}
+          <Route
+            path="notifications"
+            element={<NotificationSettings />}
+          />
+        </Route>
+
+        {/* ======================================================
             FALLBACK
-        ================================================== */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        ====================================================== */}
+
+        {/* Any unknown URL goes to login */}
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
+
       </Routes>
+
+      {/* ========================================================
+          TOASTER
+      ======================================================== */}
 
       <Toaster
         position="bottom-center"

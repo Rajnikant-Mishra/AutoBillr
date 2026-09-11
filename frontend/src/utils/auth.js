@@ -1,45 +1,16 @@
-const AUTH_KEY = "token";
+// src/utils/auth.js
+
+const AUTH_KEY = "autobiller-auth";
 const USER_KEY = "user";
 const COMPANY_KEY = "company";
 const SUBSCRIPTION_KEY = "subscription";
 
-// ============================================================
-// TOKEN HELPERS
-// ============================================================
+/* =========================
+   TOKEN
+========================= */
 
 export const getAuthToken = () => {
-  const plainToken = localStorage.getItem(AUTH_KEY);
-  if (
-    plainToken &&
-    plainToken !== "null" &&
-    plainToken !== "undefined" &&
-    plainToken.trim() !== "" &&
-    plainToken.startsWith("ey")
-  ) {
-    return plainToken;
-  }
-
-  const authStorage = localStorage.getItem("autobiller-auth");
-  if (authStorage) {
-    if (authStorage.startsWith("ey")) return authStorage;
-    try {
-      const parsed = JSON.parse(authStorage);
-      const token = parsed?.state?.token || parsed?.token;
-      if (
-        token &&
-        typeof token === "string" &&
-        token !== "null" &&
-        token !== "undefined" &&
-        token.trim() !== ""
-      ) {
-        return token;
-      }
-    } catch {
-      // ignore json error
-    }
-  }
-
-  return plainToken || null;
+  return localStorage.getItem(AUTH_KEY);
 };
 
 export const setAuthToken = (token) => {
@@ -48,13 +19,9 @@ export const setAuthToken = (token) => {
   }
 };
 
-export const removeAuthToken = () => {
-  localStorage.removeItem(AUTH_KEY);
-};
-
-// ============================================================
-// USER HELPERS
-// ============================================================
+/* =========================
+   USER
+========================= */
 
 export const getCurrentUser = () => {
   try {
@@ -71,13 +38,9 @@ export const setCurrentUser = (user) => {
   }
 };
 
-export const removeCurrentUser = () => {
-  localStorage.removeItem(USER_KEY);
-};
-
-// ============================================================
-// COMPANY & SUBSCRIPTION HELPERS
-// ============================================================
+/* =========================
+   COMPANY
+========================= */
 
 export const getCompany = () => {
   try {
@@ -94,6 +57,10 @@ export const setCompany = (company) => {
   }
 };
 
+/* =========================
+   SUBSCRIPTION
+========================= */
+
 export const getSubscription = () => {
   try {
     const sub = localStorage.getItem(SUBSCRIPTION_KEY);
@@ -105,45 +72,58 @@ export const getSubscription = () => {
 
 export const setSubscription = (subscription) => {
   if (subscription) {
-    localStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+    localStorage.setItem(
+      SUBSCRIPTION_KEY,
+      JSON.stringify(subscription)
+    );
   }
 };
 
-// ============================================================
-// BATCH AUTH DATA (REQUIRED BY LOGIN.JSX)
-// ============================================================
+/* =========================
+   AUTH
+========================= */
 
-export const setAuthData = (data = {}) => {
-  if (!data) return;
-  const { token, user, company, subscription } = data;
+export const isAuthenticated = () => {
+  return !!getAuthToken();
+};
+
+/* =========================
+   SAVE AUTH DATA
+========================= */
+
+export const setAuthData = ({
+  token,
+  user,
+  company,
+  subscription,
+}) => {
   if (token) setAuthToken(token);
   if (user) setCurrentUser(user);
   if (company) setCompany(company);
   if (subscription) setSubscription(subscription);
 };
 
-export const getAuthData = () => {
-  return {
-    token: getAuthToken(),
-    user: getCurrentUser(),
-    company: getCompany(),
-    subscription: getSubscription(),
-  };
-};
-
-// ============================================================
-// AUTH STATUS & LOGOUT CLEANUP
-// ============================================================
-
-export const isAuthenticated = () => {
-  return Boolean(getAuthToken());
-};
+/* =========================
+   LOGOUT
+========================= */
 
 export const clearAuth = () => {
+  // Main auth data
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(COMPANY_KEY);
   localStorage.removeItem(SUBSCRIPTION_KEY);
-  localStorage.removeItem("autobiller-auth");
-  sessionStorage.clear();
+
+  // Remove old/legacy token if it exists
+  localStorage.removeItem("token");
+
+  // Registration temporary data
+  sessionStorage.removeItem("autobillr-registration-draft");
+  sessionStorage.removeItem("autobillr-registration-email");
+  sessionStorage.removeItem("autobillr-registration-verified");
+
+  // Optional: clear old localStorage registration data too
+  localStorage.removeItem("autobillr-registration-draft");
+  localStorage.removeItem("autobillr-registration-email");
+  localStorage.removeItem("autobillr-registration-verified");
 };
