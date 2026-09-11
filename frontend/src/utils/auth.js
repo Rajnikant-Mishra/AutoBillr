@@ -72,38 +72,86 @@ export const getSubscription = () => {
 
 export const setSubscription = (subscription) => {
   if (subscription) {
+<<<<<<< HEAD
     localStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+=======
+    localStorage.setItem(
+      SUBSCRIPTION_KEY,
+      JSON.stringify(subscription)
+    );
+>>>>>>> origin/main
   }
 };
 
 /* =========================
+<<<<<<< HEAD
    HELPERS
+=======
+   AUTH
+>>>>>>> origin/main
 ========================= */
 
 export const isAuthenticated = () => {
   return !!getAuthToken();
 };
 
+<<<<<<< HEAD
 /**
  * Save everything after successful login / register
  */
 export const setAuthData = ({ token, user, company, subscription }) => {
+=======
+/* =========================
+   SAVE AUTH DATA
+========================= */
+
+export const setAuthData = ({
+  token,
+  user,
+  company,
+  subscription,
+}) => {
+>>>>>>> origin/main
   if (token) setAuthToken(token);
   if (user) setCurrentUser(user);
   if (company) setCompany(company);
   if (subscription) setSubscription(subscription);
 };
 
+<<<<<<< HEAD
 /**
  * Production logout – clears everything
  */
 export const clearAuth = () => {
+=======
+/* =========================
+   LOGOUT
+========================= */
+
+export const clearAuth = () => {
+  // Main auth data
+>>>>>>> origin/main
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(COMPANY_KEY);
   localStorage.removeItem(SUBSCRIPTION_KEY);
 
+<<<<<<< HEAD
   // Optional: clear any temporary registration data
   sessionStorage.removeItem("autobillr-registration-draft");
   sessionStorage.removeItem("autobillr-registration-email");
+=======
+  // Remove old/legacy token if it exists
+  localStorage.removeItem("token");
+
+  // Registration temporary data
+  sessionStorage.removeItem("autobillr-registration-draft");
+  sessionStorage.removeItem("autobillr-registration-email");
+  sessionStorage.removeItem("autobillr-registration-verified");
+
+  // Optional: clear old localStorage registration data too
+  localStorage.removeItem("autobillr-registration-draft");
+  localStorage.removeItem("autobillr-registration-email");
+  localStorage.removeItem("autobillr-registration-verified");
+>>>>>>> origin/main
 };
