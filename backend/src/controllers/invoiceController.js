@@ -19,9 +19,7 @@ const parseInvoiceBody = (req) => {
   return body;
 };
 
-// =====================================================
-// HELPER: CHECK EMAIL FLAG
-// =====================================================
+
 
 const shouldEmailClient = (value) => {
   return (
@@ -32,9 +30,9 @@ const shouldEmailClient = (value) => {
   );
 };
 
-// =====================================================
-// GET ALL INVOICES
-// =====================================================
+// =======================================
+// GET ALL INVOICEs
+// ===========================================
 
 const getInvoices = async (req, res) => {
   try {
