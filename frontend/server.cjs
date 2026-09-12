@@ -22,7 +22,7 @@ const mimeTypes = {
   ".webp": "image/webp",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
+  ".ttf": "font/ttf"
 };
 
 const server = http.createServer((req, res) => {
@@ -34,14 +34,12 @@ const server = http.createServer((req, res) => {
 
   let filePath = path.join(distPath, requestPath);
 
-  // Prevent path traversal
   if (!filePath.startsWith(distPath)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
-  // SPA fallback: React Router routes should load index.html
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     filePath = path.join(distPath, "index.html");
   }
@@ -59,10 +57,9 @@ const server = http.createServer((req, res) => {
 
     res.writeHead(200, {
       "Content-Type": contentType,
-      "Cache-Control":
-        filePath.endsWith("index.html")
-          ? "no-cache"
-          : "public, max-age=31536000, immutable",
+      "Cache-Control": filePath.endsWith("index.html")
+        ? "no-cache"
+        : "public, max-age=31536000, immutable"
     });
 
     res.end(data);
