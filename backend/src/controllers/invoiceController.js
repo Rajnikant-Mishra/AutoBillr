@@ -4,7 +4,6 @@ const { sendInvoiceEmail, sendReminderEmail } = require("../services/emailServic
 // =====================================================
 // HELPER: PARSE INVOICE REQUEST BODY
 // =====================================================
-
 const parseInvoiceBody = (req) => {
   let body = req.body || {};
 
@@ -22,7 +21,6 @@ const parseInvoiceBody = (req) => {
 // =====================================================
 // HELPER: CHECK EMAIL FLAG
 // =====================================================
-
 const shouldEmailClient = (value) => {
   return (
     value === true ||
@@ -35,7 +33,6 @@ const shouldEmailClient = (value) => {
 // =====================================================
 // GET ALL INVOICES
 // =====================================================
-
 const getInvoices = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -48,16 +45,13 @@ const getInvoices = async (req, res) => {
     }
 
     const invoices = await prisma.invoice.findMany({
-      where: {
-        companyId,
-      },
+      where: { companyId },
       include: {
         client: {
           select: {
             id: true,
             name: true,
             email: true,
-            // Client ke linked projects fetch kiye
             projects: {
               select: {
                 id: true,
@@ -68,9 +62,7 @@ const getInvoices = async (req, res) => {
         },
         items: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     return res.status(200).json({
@@ -79,7 +71,6 @@ const getInvoices = async (req, res) => {
     });
   } catch (error) {
     console.error("GET INVOICES ERROR:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch invoices",
@@ -90,7 +81,6 @@ const getInvoices = async (req, res) => {
 // =====================================================
 // GET INVOICE BY ID
 // =====================================================
-
 const getInvoiceById = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -111,15 +101,10 @@ const getInvoiceById = async (req, res) => {
     }
 
     const invoice = await prisma.invoice.findFirst({
-      where: {
-        id,
-        companyId,
-      },
+      where: { id, companyId },
       include: {
         client: {
-          include: {
-            projects: true,
-          },
+          include: { projects: true },
         },
         items: true,
       },
@@ -138,7 +123,6 @@ const getInvoiceById = async (req, res) => {
     });
   } catch (error) {
     console.error("GET INVOICE ERROR:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch invoice",
@@ -149,7 +133,6 @@ const getInvoiceById = async (req, res) => {
 // =====================================================
 // CREATE INVOICE
 // =====================================================
-
 const createInvoice = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -186,10 +169,7 @@ const createInvoice = async (req, res) => {
     }
 
     const existingClient = await prisma.client.findFirst({
-      where: {
-        id: client,
-        companyId,
-      },
+      where: { id: client, companyId },
       select: {
         id: true,
         name: true,
@@ -256,7 +236,6 @@ const createInvoice = async (req, res) => {
       },
     });
 
-    // Email Dispatch Logic
     let emailSent = false;
     let emailError = null;
 
@@ -303,7 +282,6 @@ const createInvoice = async (req, res) => {
 // =====================================================
 // UPDATE INVOICE
 // =====================================================
-
 const updateInvoice = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -441,7 +419,6 @@ const updateInvoice = async (req, res) => {
 // =====================================================
 // DELETE INVOICE
 // =====================================================
-
 const deleteInvoice = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -487,8 +464,9 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
-
-
+// =====================================================
+// SEND REMINDER
+// =====================================================
 const sendReminder = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
@@ -510,9 +488,7 @@ const sendReminder = async (req, res) => {
 
     const invoice = await prisma.invoice.findFirst({
       where: { id, companyId },
-      include: {
-        client: true,
-      },
+      include: { client: true },
     });
 
     if (!invoice) {
@@ -558,8 +534,90 @@ const sendReminder = async (req, res) => {
   }
 };
 
+// =====================================================
+// SEND INVOICE (NEW - THIS WAS MISSING)
+// =====================================================
+const sendInvoice = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    const { id } = req.params;
 
+    if (!companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID not found",
+      });
+    }
 
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Invoice ID is required",
+      });
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, companyId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        items: true,
+      },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
+
+    if (!invoice.client?.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Client does not have an email address",
+      });
+    }
+
+    const pdfBuffer = req.file?.buffer || null;
+
+    try {
+      await sendInvoiceEmail({
+        email: invoice.client.email,
+        clientName: invoice.client.name,
+        invoiceNumber: invoice.invoiceNumber,
+        total: invoice.total,
+        pdfBuffer,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Invoice successfully sent to ${invoice.client.email}`,
+      });
+    } catch (emailErr) {
+      console.error("SEND INVOICE EMAIL ERROR:", emailErr);
+      return res.status(500).json({
+        success: false,
+        message: emailErr.message || "Failed to send invoice email",
+      });
+    }
+  } catch (error) {
+    console.error("SEND INVOICE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send invoice",
+    });
+  }
+};
+
+// =====================================================
+// EXPORTS
+// =====================================================
 module.exports = {
   getInvoices,
   getInvoiceById,
@@ -567,4 +625,5 @@ module.exports = {
   updateInvoice,
   deleteInvoice,
   sendReminder,
+  sendInvoice, // ← IMPORTANT
 };

@@ -1665,7 +1665,7 @@ export default function Composer() {
             "border-l-primary",
         });
 
-        navigate("/invoice");
+        navigate("/invoices");
       } catch (error) {
         console.error(
           "SAVE INVOICE ERROR:",
@@ -1731,7 +1731,7 @@ export default function Composer() {
             label: "Back to Invoices",
             icon: "arrow_back",
             onClick: () =>
-              navigate("/invoice"),
+              navigate("/invoices"),
           }}
 
           primaryAction={{

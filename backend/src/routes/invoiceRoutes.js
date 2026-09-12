@@ -12,50 +12,29 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "application/pdf") {
-      return cb(
-        new Error("Only PDF files are allowed")
-      );
+    if (file && file.mimetype !== "application/pdf") {
+      return cb(new Error("Only PDF files are allowed"));
     }
-
     cb(null, true);
   },
 });
 
-router.get(
-  "/",
-  authMiddleware,
-  invoiceController.getInvoices
-);
+// ==================== ROUTES ====================
 
-router.post(
-  "/",
-  authMiddleware,
-  upload.single("pdf"),
-  invoiceController.createInvoice
-);
+router.get("/", authMiddleware, invoiceController.getInvoices);
 
-router.get(
-  "/:id",
-  authMiddleware,
-  invoiceController.getInvoiceById
-);
+router.post("/", authMiddleware, upload.single("pdf"), invoiceController.createInvoice);
 
-router.put(
-  "/:id",
-  authMiddleware,
-  upload.single("pdf"),
-  invoiceController.updateInvoice
-);
-router.post(
-  "/:id/remind",
-  authMiddleware,
-  invoiceController.sendReminder
-);
-router.delete(
-  "/:id",
-  authMiddleware,
-  invoiceController.deleteInvoice
-);
+router.get("/:id", authMiddleware, invoiceController.getInvoiceById);
+
+router.put("/:id", authMiddleware, upload.single("pdf"), invoiceController.updateInvoice);
+
+// Reminder
+router.post("/:id/remind", authMiddleware, invoiceController.sendReminder);
+
+// ===== THIS IS THE IMPORTANT ONE =====
+router.post("/:id/send", authMiddleware, upload.single("pdf"), invoiceController.sendInvoice);
+
+router.delete("/:id", authMiddleware, invoiceController.deleteInvoice);
 
 module.exports = router;
