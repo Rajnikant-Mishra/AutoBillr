@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import toast from "react-hot-toast";
 import ApiWebhooksSection from "../../components/setting/ApiWebhooksSection";
 import DataExportSection from "../../components/setting/DataExportSection";
 import NotificationsSection from "../../components/setting/NotificationsSection";
@@ -9,6 +10,7 @@ import SettingsNav from "../../components/setting/SettingsNav";
 import BusinessInfoSection from "../../components/setting/BusinessInfoSection";
 import BrandingSection from "../../components/setting/BrandingSection";
 import TaxInvoicingSection from "../../components/setting/TaxInvoicingSection";
+import { getCompany, getCurrentUser, setCompany } from "../../utils/auth";
 
 const NOTIFICATION_ROWS = [
   { id: "paid", email: true, push: true, slack: true },
@@ -20,6 +22,67 @@ const NOTIFICATION_ROWS = [
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business");
+
+  // Dynamic fetcher: Registered / Saved Business Data
+  const getInitialBusinessData = () => {
+    try {
+      const savedBiz = localStorage.getItem("autobillr-business");
+      if (savedBiz) return JSON.parse(savedBiz);
+    } catch {
+      // fallback to auth data
+    }
+
+    let regCompany = {};
+    let regUser = {};
+
+    try {
+      regCompany = getCompany() || {};
+      regUser = getCurrentUser() || {};
+    } catch {
+      // ignore
+    }
+
+    // Fallback: Zustand storage agar direct keys na milein
+    if (!regUser || !Object.keys(regUser).length) {
+      try {
+        const rawAuth = localStorage.getItem("autobiller-auth");
+        if (rawAuth) {
+          const parsed = JSON.parse(rawAuth);
+          regUser = parsed?.state?.user || parsed?.user || {};
+          if (!regCompany || !Object.keys(regCompany).length) {
+            regCompany = parsed?.state?.company || parsed?.company || {};
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const userName =
+      regUser.name ||
+      regUser.fullName ||
+      regUser.username ||
+      "Aanjaneya Dikhit";
+
+    const compName =
+      regCompany.name ||
+      regCompany.companyName ||
+      regUser.company ||
+      regUser.companyName ||
+      `${userName}'s Workspace`;
+
+    return {
+      companyName: compName,
+      displayName: userName,
+      industry: regCompany.industry || "SaaS / Software",
+      companySize: regCompany.companySize || "1–10 employees",
+      currency: "INR (₹)",
+      fiscalYear: "April",
+      address: regCompany.address || "",
+      taxId: regCompany.taxId || regCompany.gstin || "",
+      vat: regCompany.vat || "",
+    };
+  };
 
   // Branding
   const [logoUrl, setLogoUrl] = useState(
@@ -35,28 +98,36 @@ export default function Settings() {
   });
 
   // Business
-  const [business, setBusiness] = useState({
-    companyName: "AutoBillr Inc.",
-    displayName: "AutoBillr",
-    industry: "SaaS / Software",
-    companySize: "50–250 employees",
-    currency: "USD ($)",
-    fiscalYear: "January",
-    address: "1287 Financial District, San Francisco, CA 94105, United States",
-    taxId: "84-3219872",
-    vat: "",
-  });
+  const [business, setBusiness] = useState(getInitialBusinessData);
 
   // Tax
-  const [tax, setTax] = useState({
-    rate: "8.5",
-    label: "Sales Tax (CA)",
-    prefix: "INV-",
-    nextNumber: "8831",
-    terms: "Net 15",
-    lateFee: "1.5% / month",
-    autoTax: true,
-    breakdown: false,
+  const [tax, setTax] = useState(() => {
+    try {
+      const savedTax = localStorage.getItem("autobillr-tax");
+      return savedTax
+        ? JSON.parse(savedTax)
+        : {
+            rate: "18",
+            label: "GST",
+            prefix: "INV-",
+            nextNumber: "1001",
+            terms: "Net 15",
+            lateFee: "1.5% / month",
+            autoTax: true,
+            breakdown: false,
+          };
+    } catch {
+      return {
+        rate: "18",
+        label: "GST",
+        prefix: "INV-",
+        nextNumber: "1001",
+        terms: "Net 15",
+        lateFee: "1.5% / month",
+        autoTax: true,
+        breakdown: false,
+      };
+    }
   });
 
   // Notifications
@@ -81,8 +152,41 @@ export default function Settings() {
   const setTaxField = (key) => (e) =>
     setTax((p) => ({ ...p, [key]: e.target.value }));
 
-  const handleSave = () => console.log("Save", activeTab);
-  const handleDiscard = () => console.log("Discard", activeTab);
+  const handleSave = () => {
+    if (activeTab === "business") {
+      localStorage.setItem("autobillr-business", JSON.stringify(business));
+
+      const currentCompany = getCompany() || {};
+      setCompany({
+        ...currentCompany,
+        name: business.companyName,
+        companyName: business.companyName,
+        displayName: business.displayName,
+        currency: business.currency,
+        address: business.address,
+        taxId: business.taxId,
+      });
+
+      toast.success("Business details saved successfully!");
+    } else if (activeTab === "branding") {
+      if (logoUrl) localStorage.setItem("autobillr-logo", logoUrl);
+      localStorage.setItem("autobillr-brand-color", brandColor);
+      toast.success("Branding settings saved!");
+    } else if (activeTab === "tax") {
+      localStorage.setItem("autobillr-tax", JSON.stringify(tax));
+      toast.success("Tax & invoicing settings saved!");
+    } else {
+      toast.success(`${activeTab.toUpperCase()} settings saved!`);
+    }
+  };
+
+  const handleDiscard = () => {
+    if (activeTab === "business") {
+      localStorage.removeItem("autobillr-business");
+      setBusiness(getInitialBusinessData());
+      toast("Changes discarded", { icon: "↩️" });
+    }
+  };
 
   return (
     <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
