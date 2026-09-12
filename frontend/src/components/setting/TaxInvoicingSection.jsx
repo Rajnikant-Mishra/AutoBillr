@@ -1,7 +1,7 @@
-import Card from "../ui/Card";
 import FormInput from "../ui/FormInput";
-import Toggle from "./Toggle";
+import Toggle from "../ui/Toggle";
 import SectionActions from "./SectionActions";
+import Card from "../ui/Card";
 
 const labelClass =
   "block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5";

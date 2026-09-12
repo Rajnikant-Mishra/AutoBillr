@@ -10,7 +10,6 @@ import BusinessInfoSection from "../../components/setting/BusinessInfoSection";
 import BrandingSection from "../../components/setting/BrandingSection";
 import TaxInvoicingSection from "../../components/setting/TaxInvoicingSection";
 
-
 const NOTIFICATION_ROWS = [
   { id: "paid", email: true, push: true, slack: true },
   { id: "overdue", email: true, push: false, slack: true },
@@ -22,6 +21,20 @@ const NOTIFICATION_ROWS = [
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business");
 
+  // Branding
+  const [logoUrl, setLogoUrl] = useState(
+    () => localStorage.getItem("autobillr-logo") || null
+  );
+  const [brandColor, setBrandColor] = useState(
+    () => localStorage.getItem("autobillr-brand-color") || "#0d9488"
+  );
+  const [brandToggles, setBrandToggles] = useState({
+    qr: true,
+    thumbnails: false,
+    footer: true,
+  });
+
+  // Business
   const [business, setBusiness] = useState({
     companyName: "AutoBillr Inc.",
     displayName: "AutoBillr",
@@ -34,13 +47,7 @@ export default function Settings() {
     vat: "",
   });
 
-  const [brandColor, setBrandColor] = useState("#0d9488");
-  const [brandToggles, setBrandToggles] = useState({
-    qr: true,
-    thumbnails: false,
-    footer: true,
-  });
-
+  // Tax
   const [tax, setTax] = useState({
     rate: "8.5",
     label: "Sales Tax (CA)",
@@ -52,6 +59,7 @@ export default function Settings() {
     breakdown: false,
   });
 
+  // Notifications
   const [notif, setNotif] = useState(
     Object.fromEntries(
       NOTIFICATION_ROWS.map((r) => [
@@ -61,6 +69,7 @@ export default function Settings() {
     )
   );
 
+  // Export
   const [exportToggles, setExportToggles] = useState({
     archive: true,
     encrypt: true,
@@ -68,6 +77,7 @@ export default function Settings() {
 
   const setBiz = (key) => (e) =>
     setBusiness((p) => ({ ...p, [key]: e.target.value }));
+
   const setTaxField = (key) => (e) =>
     setTax((p) => ({ ...p, [key]: e.target.value }));
 
@@ -94,16 +104,20 @@ export default function Settings() {
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "branding" && (
               <BrandingSection
                 brandColor={brandColor}
                 setBrandColor={setBrandColor}
                 brandToggles={brandToggles}
                 setBrandToggles={setBrandToggles}
+                logoUrl={logoUrl}
+                setLogoUrl={setLogoUrl}
                 onDiscard={handleDiscard}
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "tax" && (
               <TaxInvoicingSection
                 tax={tax}
@@ -113,18 +127,21 @@ export default function Settings() {
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "payments" && (
               <PaymentMethodsSection
                 onDiscard={handleDiscard}
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "integrations" && (
               <IntegrationsSection
                 onDiscard={handleDiscard}
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "notifications" && (
               <NotificationsSection
                 notif={notif}
@@ -133,12 +150,14 @@ export default function Settings() {
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "api" && (
               <ApiWebhooksSection
                 onDiscard={handleDiscard}
                 onSave={handleSave}
               />
             )}
+
             {activeTab === "export" && (
               <DataExportSection
                 exportToggles={exportToggles}

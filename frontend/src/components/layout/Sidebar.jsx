@@ -1,5 +1,3 @@
-
-
 import { NavLink, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
@@ -47,6 +45,39 @@ export default function Sidebar() {
 
   const [invoiceCount, setInvoiceCount] = useState(0);
   const [invoiceCountLoading, setInvoiceCountLoading] = useState(false);
+
+  // Branding
+  const [logoUrl, setLogoUrl] = useState(
+    () => localStorage.getItem("autobillr-logo") || null
+  );
+  const [brandColor, setBrandColor] = useState(
+    () => localStorage.getItem("autobillr-brand-color") || "#3a8783"
+  );
+
+  // Sync branding (same tab + other tabs)
+  useEffect(() => {
+    const syncBranding = () => {
+      const logo = localStorage.getItem("autobillr-logo") || null;
+      const color = localStorage.getItem("autobillr-brand-color") || "#3a8783";
+
+      setLogoUrl(logo);
+      setBrandColor(color);
+
+      // Keep CSS variable in sync
+      document.documentElement.style.setProperty("--color-primary", color);
+    };
+
+    // Run once on mount
+    syncBranding();
+
+    window.addEventListener("storage", syncBranding);
+    window.addEventListener("autobillr-branding-updated", syncBranding);
+
+    return () => {
+      window.removeEventListener("storage", syncBranding);
+      window.removeEventListener("autobillr-branding-updated", syncBranding);
+    };
+  }, []);
 
   const fetchInvoiceCount = useCallback(async () => {
     const token = getAuthToken();
@@ -108,13 +139,11 @@ export default function Sidebar() {
     navigate("/login", { replace: true });
   };
 
-  // Design-system aware link styles
   const linkClass = ({ isActive }) =>
     [
       "group flex items-center gap-3 px-3 py-2.5 rounded-lg",
       "text-sm font-medium transition-all duration-200",
       "outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
-
       isActive
         ? "bg-surface text-primary shadow-sm"
         : "text-text-muted hover:bg-surface-hover hover:text-text",
@@ -146,19 +175,30 @@ export default function Sidebar() {
           <div
             className="
               w-8 h-8 flex-none
-              bg-primary text-text-inverse
               rounded-lg
               flex items-center justify-center
               shadow-sm
+              overflow-hidden
             "
+            style={{
+              backgroundColor: logoUrl ? "transparent" : brandColor,
+            }}
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: "18px" }}
-              aria-hidden="true"
-            >
-              bolt
-            </span>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Brand logo"
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span
+                className="material-symbols-outlined text-white"
+                style={{ fontSize: "18px" }}
+                aria-hidden="true"
+              >
+                bolt
+              </span>
+            )}
           </div>
 
           <div>
@@ -202,7 +242,6 @@ export default function Sidebar() {
 
                   <span className="flex-1 truncate">{item.label}</span>
 
-                  {/* Invoice count */}
                   {item.count && (
                     <span
                       className="
@@ -216,7 +255,6 @@ export default function Sidebar() {
                     </span>
                   )}
 
-                  {/* AI badge */}
                   {item.badge && (
                     <span
                       className="
@@ -238,7 +276,6 @@ export default function Sidebar() {
 
       {/* ========== BOTTOM ACTIONS ========== */}
       <div className="p-4 border-t border-border space-y-3">
-        {/* Primary CTA – New Invoice */}
         <button
           type="button"
           onClick={() => navigate("/composer")}
@@ -266,7 +303,6 @@ export default function Sidebar() {
           New Invoice
         </button>
 
-        {/* Sign out */}
         <button
           type="button"
           onClick={handleLogout}

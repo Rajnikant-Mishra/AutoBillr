@@ -1,6 +1,7 @@
 import Card from "../ui/Card";
-import Toggle from "./Toggle";
+import Toggle from "../ui/Toggle";
 import SectionActions from "./SectionActions";
+
 
 const NOTIFICATION_ROWS = [
   {

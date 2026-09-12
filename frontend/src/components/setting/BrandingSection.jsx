@@ -1,5 +1,6 @@
+import { useRef } from "react";
 import Card from "../ui/Card";
-import Toggle from "./Toggle";
+import Toggle from "../ui/Toggle";
 import SectionActions from "./SectionActions";
 
 const BRAND_COLORS = [
@@ -19,9 +20,40 @@ export default function BrandingSection({
   setBrandColor,
   brandToggles,
   setBrandToggles,
+  logoUrl,
+  setLogoUrl,
   onDiscard,
   onSave,
 }) {
+  const fileInputRef = useRef(null);
+  const colorInputRef = useRef(null);
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a PNG or image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result;
+      setLogoUrl(base64);
+      localStorage.setItem("autobillr-logo", base64);
+      window.dispatchEvent(new Event("autobillr-branding-updated"));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleColorChange = (color) => {
+    setBrandColor(color);
+    localStorage.setItem("autobillr-brand-color", color);
+    document.documentElement.style.setProperty("--color-primary", color);
+    window.dispatchEvent(new Event("autobillr-branding-updated"));
+  };
+
   return (
     <>
       <Card padding="p-6">
@@ -34,44 +66,67 @@ export default function BrandingSection({
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Logo */}
+            {/* Logo Upload */}
             <div>
               <label className={labelClass}>Logo</label>
               <div className="flex items-center gap-3 p-4 border-2 border-dashed border-border rounded-xl">
                 <div
-                  className="w-12 h-12 rounded-lg grid place-items-center text-white"
-                  style={{ backgroundColor: "var(--color-primary)" }}
+                  className="w-12 h-12 rounded-lg grid place-items-center overflow-hidden shrink-0"
+                  style={{
+                    backgroundColor: logoUrl
+                      ? "transparent"
+                      : brandColor || "var(--color-primary)",
+                  }}
                 >
-                  <span className="material-symbols-outlined mi-fill text-[24px]">
-                    bolt
-                  </span>
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="material-symbols-outlined mi-fill text-[24px] text-white">
+                      bolt
+                    </span>
+                  )}
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-text">
-                    AutoBillr logo
+                    {logoUrl ? "Custom logo" : "AutoBillr logo"}
                   </div>
                   <div className="text-[11px] text-text-muted">
-                    PNG · 1024×1024 · Last updated Aug 2024
+                    PNG · 1024×1024 recommended
                   </div>
                 </div>
+
                 <button
                   type="button"
+                  onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-soft rounded-lg"
                 >
                   Upload
                 </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
               </div>
             </div>
 
-            {/* Colors */}
+            {/* Background / Brand Color */}
             <div>
-              <label className={labelClass}>Primary brand color</label>
+              <label className={labelClass}>Background / Brand color</label>
               <div className="flex items-center gap-3 flex-wrap">
                 {BRAND_COLORS.map((c) => (
                   <button
                     key={c}
                     type="button"
-                    onClick={() => setBrandColor(c)}
+                    onClick={() => handleColorChange(c)}
                     className={`w-10 h-10 rounded-xl border-2 transition ${
                       brandColor === c
                         ? "border-text scale-110"
@@ -80,14 +135,27 @@ export default function BrandingSection({
                     style={{ background: c }}
                   />
                 ))}
+
+                {/* Paint palette – opens native color picker */}
                 <button
                   type="button"
-                  className="w-10 h-10 rounded-xl border-2 border-dashed border-border text-text-light hover:border-primary grid place-items-center"
+                  onClick={() => colorInputRef.current?.click()}
+                  className="w-10 h-10 rounded-xl border-2 border-dashed border-border text-text-light hover:border-primary hover:text-primary grid place-items-center transition"
+                  title="Pick custom color"
                 >
-                  <span className="material-symbols-outlined text-[18px]">
+                  <span className="material-symbols-outlined text-[20px]">
                     palette
                   </span>
                 </button>
+
+                {/* Hidden native color input */}
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={brandColor || "#0d9488"}
+                  onChange={(e) => handleColorChange(e.target.value)}
+                  className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                />
               </div>
             </div>
           </div>
