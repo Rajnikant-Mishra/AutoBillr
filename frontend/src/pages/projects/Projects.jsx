@@ -1,4 +1,3 @@
-
 import React, {
   useCallback,
   useEffect,
@@ -48,29 +47,34 @@ const MILESTONE_STATUSES = ["scheduled", "pending", "paid"];
 const normalizeProject = (project) => {
   if (!project) return null;
 
+  const milestones = Array.isArray(project?.milestones)
+    ? project.milestones.map((m) => ({
+        ...m,
+        id: m?.id ?? m?._id,
+        title: m?.title || "",
+        amount: Number(m?.amount || 0),
+        status: String(m?.status || "scheduled").toLowerCase(),
+        dueDate: m?.dueDate || "",
+        paidAt: m?.paidAt || null,
+      }))
+    : [];
+
+  // Calculate billed from paid milestones
+  const calculatedBilled = milestones
+    .filter((m) => m.status === "paid")
+    .reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
   return {
     ...project,
-    id: project?.id,
+    id: project?.id ?? project?._id,
     title: project?.title || project?.name || "Untitled Project",
     clientName: project?.clientName || project?.client?.name || "No Client",
+    client: project?.client || null,
     budget: Number(project?.budget || 0),
-    billed: Number(project?.billed || 0),
-    progress: Math.min(
-      Math.max(Number(project?.progress || 0), 0),
-      100
-    ),
-    milestones: Array.isArray(project?.milestones)
-      ? project.milestones.map((milestone) => ({
-          ...milestone,
-          id: milestone?.id,
-          title: milestone?.title || "",
-          amount: Number(milestone?.amount || 0),
-          status: String(
-            milestone?.status || "scheduled"
-          ).toLowerCase(),
-          dueDate: milestone?.dueDate || "",
-        }))
-      : [],
+    billed: calculatedBilled || Number(project?.billed || 0),
+    progress: Math.min(Math.max(Number(project?.progress || 0), 0), 100),
+    members: Number(project?.members || 0),
+    milestones,
   };
 };
 
@@ -442,30 +446,7 @@ export default function Projects() {
       }
     }
 
-    // result.sort((a, b) => {
-    //   switch (filters.sortBy) {
-    //     case "budgetHigh":
-    //       return Number(b?.budget || 0) - Number(a?.budget || 0);
-    //     case "budgetLow":
-    //       return Number(a?.budget || 0) - Number(b?.budget || 0);
-    //     case "progressHigh":
-    //       return Number(b?.progress || 0) - Number(a?.progress || 0);
-    //     case "progressLow":
-    //       return Number(a?.progress || 0) - Number(b?.progress || 0);
-    //     case "oldest":
-    //       return (
-    //         new Date(a?.createdAt || 0).getTime() -
-    //         new Date(b?.createdAt || 0).getTime()
-    //       );
-    //     case "newest":
-    //     default:
-    //       return (
-    //         new Date(b?.createdAt || 0).getTime() -
-    //         new Date(a?.createdAt || 0).getTime()
-    //       );
-    //   }
-    // });
-     result.sort((a, b) => {
+    result.sort((a, b) => {
       switch (filters.sortBy) {
         case "budgetHigh":
           return Number(b?.budget || 0) - Number(a?.budget || 0);
@@ -484,6 +465,7 @@ export default function Projects() {
           );
       }
     });
+
     return result;
   }, [
     projects,
@@ -703,7 +685,7 @@ export default function Projects() {
   }, []);
 
   /* =======================================================
-     UPDATE MILESTONE STATUS
+     UPDATE MILESTONE STATUS  ← THIS WAS THE MISSING FIX
   ======================================================= */
 
   const updateMilestoneStatus = useCallback(
@@ -725,36 +707,44 @@ export default function Projects() {
             ? project.milestones
             : [];
 
+          const newMilestones = milestones.map((milestone, index) => {
+            if (index !== milestoneIndex) {
+              return milestone;
+            }
+
+            const currentStatus = String(
+              milestone?.status || "scheduled"
+            ).toLowerCase();
+
+            const currentIndex =
+              MILESTONE_STATUSES.indexOf(currentStatus);
+
+            const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+
+            const nextStatus =
+              MILESTONE_STATUSES[
+                (safeIndex + 1) % MILESTONE_STATUSES.length
+              ];
+
+            if (nextStatus === "paid" && currentStatus !== "paid") {
+              notifyMilestonePaid(project, milestone, format);
+            }
+
+            return {
+              ...milestone,
+              status: nextStatus,
+            };
+          });
+
+          // Recalculate billed from paid milestones
+          const newBilled = newMilestones
+            .filter((m) => String(m.status).toLowerCase() === "paid")
+            .reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
           return {
             ...project,
-            milestones: milestones.map((milestone, index) => {
-              if (index !== milestoneIndex) {
-                return milestone;
-              }
-
-              const currentStatus = String(
-                milestone?.status || "scheduled"
-              ).toLowerCase();
-
-              const currentIndex =
-                MILESTONE_STATUSES.indexOf(currentStatus);
-
-              const safeIndex = currentIndex >= 0 ? currentIndex : 0;
-
-              const nextStatus =
-                MILESTONE_STATUSES[
-                  (safeIndex + 1) % MILESTONE_STATUSES.length
-                ];
-
-              if (nextStatus === "paid" && currentStatus !== "paid") {
-                notifyMilestonePaid(project, milestone, format);
-              }
-
-              return {
-                ...milestone,
-                status: nextStatus,
-              };
-            }),
+            milestones: newMilestones,
+            billed: newBilled,
           };
         })
       );
@@ -871,9 +861,8 @@ export default function Projects() {
                 <ProjectCard
                   key={project?.id ?? `project-${index}`}
                   {...project}
-                  isSelected={
-                    String(selectedProjectId) === String(project?.id)
-                  }
+                  client={project.client || project.clientName}
+                  isSelected={String(selectedProjectId) === String(project?.id)}
                   onClick={() => setSelectedProjectId(project?.id)}
                 />
               ))

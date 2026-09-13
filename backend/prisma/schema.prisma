@@ -6,6 +6,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// =====================================================
+// COMPANY
+// =====================================================
+
 model Company {
   id          String   @id @default(cuid())
   name        String
@@ -14,15 +18,20 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  clients       Client[]
-  invoices      Invoice[]
-  subscriptions Subscription[]
-  users         User[]
-  projects      Project[]
-  notifications Notification[]
+  clients              Client[]
+  invoices             Invoice[]
+  subscriptions        Subscription[]
+  subscriptionPayments SubscriptionPayment[]
+  users                User[]
+  projects             Project[]
+  notifications        Notification[]
 
   @@index([name])
 }
+
+// =====================================================
+// USER
+// =====================================================
 
 model User {
   id           String   @id @default(cuid())
@@ -41,18 +50,28 @@ model User {
   @@index([companyId])
 }
 
+// =====================================================
+// PLAN
+// =====================================================
+
 model Plan {
-  id            String         @id
-  name          String
-  price         Decimal        @db.Decimal(10, 2)
-  currency      String         @default("USD")
-  interval      String         @default("month")
-  description   String?
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
+  id          String   @id
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  interval    String   @default("month")
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions        Subscription[]
+  subscriptionPayments SubscriptionPayment[]
 }
+
+// =====================================================
+// SUBSCRIPTION
+// =====================================================
 
 model Subscription {
   id                 String             @id @default(cuid())
@@ -68,63 +87,209 @@ model Subscription {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   plan    Plan    @relation(fields: [planId], references: [id])
 
+  payments SubscriptionPayment[]
+
   @@index([companyId])
   @@index([planId])
   @@index([status])
 }
 
-model Client {
-  id             String    @id @default(cuid())
+// =====================================================
+// SUBSCRIPTION PAYMENT
+// Fake/Test payment for registration and subscriptions
+// =====================================================
+
+model SubscriptionPayment {
+  id             String @id @default(cuid())
   companyId      String
-  name           String
-  email          String?
-  phone          String?
-  status         String    @default("active")
-  mrr            Decimal   @default(0) @db.Decimal(12, 2)
-  nextInvoice    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  automation     Json?
+  subscriptionId String
+  planId         String
+
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("USD")
+
+  status        String @default("PAID")
+  paymentMethod String @default("TEST_CARD")
+
+  transactionId String @unique
+
+  cardLast4 String?
+  cardBrand String?
+
+  isTest Boolean @default(true)
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@index([companyId])
+  @@index([subscriptionId])
+  @@index([planId])
+  @@index([status])
+}
+
+// =====================================================
+// CLIENT
+// =====================================================
+
+model Client {
+  id        String @id @default(cuid())
+  companyId String
+
+  // =====================================================
+  // BASIC INFORMATION
+  // =====================================================
+
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  industry    String?
+  tier        String?
+  color       String?
+  initials    String?
+
+  // =====================================================
+  // ADDRESS
+  // =====================================================
+
   billingAddress String?
   city           String?
-  color          String?
-  contactName    String?
-  country        String?
-  currency       String    @default("USD")
-  industry       String?
-  initials       String?
-  notes          String?
-  paymentMethod  String?
-  paymentTerms   String?
-  postalCode     String?
   stateRegion    String?
-  tags           Json?
-  taxId          String?
-  tier           String?
-  website        String?
+  postalCode     String?
+  country        String?
+
+  // =====================================================
+  // TAX
+  // =====================================================
+
+  taxId String?
+
+  // =====================================================
+  // BILLING
+  // =====================================================
+
+  currency      String         @default("USD")
+  mrr           Decimal        @default(0) @db.Decimal(15, 2)
+  billingCycle  BillingCycle   @default(MONTHLY)
+  paymentTerms  PaymentTerms   @default(NET_30)
+  paymentMethod PaymentMethod?
+
+  // =====================================================
+  // CLIENT STATUS
+  // =====================================================
+
+  status ClientStatus @default(ACTIVE)
+
+  // =====================================================
+  // AUTOMATION / PREFERENCES
+  // =====================================================
+
+  autoCharge   Boolean @default(false)
+  reminders    Boolean @default(true)
+  portalAccess Boolean @default(true)
+  welcomeEmail Boolean @default(true)
+
+  // =====================================================
+  // EXTRA INFORMATION
+  // =====================================================
+
+  notes String?
+
+  tags Json?
+
+  // =====================================================
+  // BILLING / INVOICE INFORMATION
+  // =====================================================
+
+  nextInvoiceDate    DateTime?
+  outstandingBalance Decimal   @default(0) @db.Decimal(15, 2)
+
+  // =====================================================
+  // AUDIT
+  // =====================================================
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  // =====================================================
+  // RELATIONS
+  // =====================================================
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoices Invoice[]
   projects Project[]
 
+  // =====================================================
+  // INDEXES
+  // =====================================================
+
   @@index([companyId])
-  @@index([email])
-  @@index([status])
+  @@index([companyId, status])
+  @@index([companyId, email])
+  @@index([companyId, name])
+  @@index([companyId, currency])
+  @@index([companyId, billingCycle])
+  @@index([companyId, createdAt])
 }
 
+// =====================================================
+// CLIENT ENUMS
+// =====================================================
+
+enum ClientStatus {
+  ACTIVE
+  PENDING
+  INACTIVE
+  ARCHIVED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum PaymentTerms {
+  DUE_ON_RECEIPT
+  NET_15
+  NET_30
+  NET_60
+}
+
+enum PaymentMethod {
+  ACH
+  CARD
+  WIRE
+  CHECK
+}
+
+// =====================================================
+// INVOICE
+// =====================================================
+
 model Invoice {
-  id            String    @id @default(cuid())
+  id            String @id @default(cuid())
   companyId     String
   clientId      String
   invoiceNumber String
-  status        String    @default("draft")
-  subtotal      Decimal   @default(0) @db.Decimal(12, 2)
-  tax           Decimal   @default(0) @db.Decimal(12, 2)
-  total         Decimal   @default(0) @db.Decimal(12, 2)
-  issueDate     DateTime  @default(now())
-  dueDate       DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+
+  status   String  @default("draft")
+  subtotal Decimal @default(0) @db.Decimal(12, 2)
+  tax      Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @default(0) @db.Decimal(12, 2)
+
+  issueDate DateTime  @default(now())
+  dueDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -138,27 +303,43 @@ model Invoice {
   @@index([status])
 }
 
+// =====================================================
+// INVOICE ITEM
+// =====================================================
+
 model InvoiceItem {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   invoiceId   String
   description String
-  quantity    Decimal  @default(1) @db.Decimal(12, 2)
-  unitPrice   Decimal  @default(0) @db.Decimal(12, 2)
-  amount      Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt   DateTime @default(now())
+
+  quantity  Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice Decimal @default(0) @db.Decimal(12, 2)
+  amount    Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
+// =====================================================
+// INVOICE PAYMENT
+// Existing customer invoice payment system
+// =====================================================
+
 model Payment {
-  id            String    @id @default(cuid())
-  invoiceId     String
-  amount        Decimal   @db.Decimal(12, 2)
-  currency      String    @default("USD")
-  status        String    @default("pending")
+  id        String @id @default(cuid())
+  invoiceId String
+
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("USD")
+
+  status        String  @default("pending")
   paymentMethod String?
-  paidAt        DateTime?
-  createdAt     DateTime  @default(now())
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -166,46 +347,40 @@ model Payment {
   @@index([status])
 }
 
-enum UserRole {
-  SUPER_ADMIN
-  OWNER
-  CFO
-  CONTROLLER
-  FINANCE_MANAGER
-  OTHER
-}
-
-enum SubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  EXPIRED
-}
+// =====================================================
+// PROJECT
+// =====================================================
 
 model Project {
-  id            String   @id @default(cuid())
-  companyId     String
-  clientId      String
-  title         String
-  clientName    String?
-  projectType   String?
-  startDate     DateTime
-  endDate       DateTime
-  description   String?
-  budget        Float
-  billed        Float    @default(0)
-  billingMethod String?
-  autoInvoice   Boolean  @default(false)
-  color         String?
-  progress      Int      @default(0)
-  status        String
-  icon          String?
-  teamMembers   Json?
-  members       Int      @default(0)
+  id          String  @id @default(cuid())
+  companyId   String
+  clientId    String
+  title       String
+  clientName  String?
+  projectType String?
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+
+  description String?
+
+  budget Float
+  billed Float @default(0)
+
+  billingMethod String?
+  autoInvoice   Boolean @default(false)
+
+  color    String?
+  progress Int     @default(0)
+  status   String
+  icon     String?
+
+  teamMembers Json?
+  members     Int   @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
   milestones Milestone[]
 
   createdAt DateTime @default(now())
@@ -216,13 +391,20 @@ model Project {
   @@index([status])
 }
 
+// =====================================================
+// MILESTONE
+// =====================================================
+
 model Milestone {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
   title     String
   dueDate   DateTime
-  amount    Decimal   @db.Decimal(15, 2)
-  status    String    @default("scheduled")
+
+  amount Decimal @db.Decimal(15, 2)
+
+  status String @default("scheduled")
+
   paidAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -234,33 +416,48 @@ model Milestone {
   @@index([dueDate])
 }
 
+// =====================================================
+// EMAIL VERIFICATION
+// =====================================================
+
 model EmailVerification {
   id        String   @id @default(cuid())
   email     String
   token     String   @unique
   verified  Boolean  @default(false)
   expiresAt DateTime
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([email])
 }
 
-model Notification {
-  id          String   @id @default(cuid())
-  companyId   String
-  title       String
-  message     String
-  type        String   @default("GENERAL")
-  isRead      Boolean  @default(false)
-  isImportant Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// =====================================================
+// NOTIFICATION
+// =====================================================
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+model Notification {
+  id        String @id @default(cuid())
+  companyId String
+  title     String
+  message   String
+
+  type        String  @default("GENERAL")
+  isRead      Boolean @default(false)
+  isImportant Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
 }
+
+// =====================================================
+// CURRENCY
+// =====================================================
 
 model Currency {
   code          String  @id
@@ -273,4 +470,29 @@ model Currency {
 
   @@index([active])
   @@index([sortOrder])
+}
+
+// =====================================================
+// USER ROLE
+// =====================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  CFO
+  CONTROLLER
+  FINANCE_MANAGER
+  OTHER
+}
+
+// =====================================================
+// SUBSCRIPTION STATUS
+// =====================================================
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
 }

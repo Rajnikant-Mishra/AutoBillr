@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import RightDrawer from "../layout/RightDrawer";
-import {
-  showErrorToast,
-  showSuccessToast,
-} from "../ui/CustomToast";
+import { showErrorToast, showSuccessToast } from "../ui/CustomToast";
 import Button from "../ui/Button";
 import FormInput from "../ui/FormInput";
 import useCurrency from "../../hooks/useCurrency";
 import { getAuthToken } from "../../utils/auth";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
 
 const INITIAL_FORM_DATA = {
   title: "",
@@ -57,32 +53,27 @@ const PROJECT_COLORS = [
 const createEmptyMilestone = () => ({
   title: "",
   dueDate: "",
-  amount: 0,
+  amount: "",
   status: "scheduled",
 });
 
 const getClientId = (client) =>
-   client?.id ?? client?.clientId ?? null;
+  client?.id ?? client?._id ?? client?.clientId ?? null;
 
 const getClientName = (client) =>
   client?.name ?? client?.clientName ?? "Unnamed Client";
 
 const parseJsonResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
-
   if (contentType.includes("application/json")) {
     return response.json();
   }
-
   const text = await response.text();
   if (!text) return {};
-
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(
-      `Server returned an invalid response (${response.status})`
-    );
+    throw new Error(`Server returned an invalid response (${response.status})`);
   }
 };
 
@@ -101,11 +92,7 @@ const sectionLabelClass =
 const stepBadgeClass =
   "w-5 h-5 rounded-md bg-primary-soft text-primary grid place-items-center text-[10px] font-black";
 
-export default function ProjectDrawer({
-  isOpen,
-  onClose,
-  onProjectCreated,
-}) {
+export default function ProjectDrawer({ isOpen, onClose, onProjectCreated }) {
   const { format, selectedCurrency, currencySymbol } = useCurrency();
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
@@ -113,9 +100,7 @@ export default function ProjectDrawer({
   const [milestones, setMilestones] = useState([]);
   const [teamMembers, setTeamMembers] = useState(INITIAL_TEAM_MEMBERS);
   const [removedMembers, setRemovedMembers] = useState([]);
-  const [nextMemberIndex, setNextMemberIndex] = useState(
-    INITIAL_TEAM_MEMBERS.length
-  );
+  const [nextMemberIndex, setNextMemberIndex] = useState(INITIAL_TEAM_MEMBERS.length);
   const [loading, setLoading] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(false);
 
@@ -126,6 +111,13 @@ export default function ProjectDrawer({
     setRemovedMembers([]);
     setNextMemberIndex(INITIAL_TEAM_MEMBERS.length);
   }, []);
+
+  // Clear milestones when switching away from Milestone billing
+  useEffect(() => {
+    if (formData.billingMethod !== "Milestone") {
+      setMilestones([]);
+    }
+  }, [formData.billingMethod]);
 
   const handleClose = useCallback(() => {
     if (loading) return;
@@ -154,23 +146,20 @@ export default function ProjectDrawer({
       const data = await parseJsonResponse(response);
 
       if (!response.ok) {
-        throw new Error(
-          data?.message || `Failed to load clients (${response.status})`
-        );
+        throw new Error(data?.message || `Failed to load clients (${response.status})`);
       }
 
-      const clientList =
-        Array.isArray(data)
-          ? data
-          : Array.isArray(data?.clients)
-          ? data.clients
-          : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.data?.clients)
-          ? data.data.clients
-          : Array.isArray(data?.result)
-          ? data.result
-          : [];
+      const clientList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.clients)
+        ? data.clients
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.data?.clients)
+        ? data.data.clients
+        : Array.isArray(data?.result)
+        ? data.result
+        : [];
 
       const normalized = clientList.map((c) => ({
         ...c,
@@ -226,12 +215,7 @@ export default function ProjectDrawer({
         if (i !== index) return m;
         return {
           ...m,
-          [field]:
-            field === "amount"
-              ? value === ""
-                ? ""
-                : Number(value)
-              : value,
+          [field]: field === "amount" ? (value === "" ? "" : Number(value)) : value,
         };
       })
     );
@@ -240,19 +224,14 @@ export default function ProjectDrawer({
   const addMember = useCallback(() => {
     if (nextMemberIndex < ALL_TEAM_MEMBERS.length) {
       const nextMember = ALL_TEAM_MEMBERS[nextMemberIndex];
-      setTeamMembers((prev) =>
-        prev.includes(nextMember) ? prev : [...prev, nextMember]
-      );
+      setTeamMembers((prev) => (prev.includes(nextMember) ? prev : [...prev, nextMember]));
       setNextMemberIndex((prev) => prev + 1);
       return;
     }
-
     if (removedMembers.length > 0) {
       const memberToRestore = removedMembers[0];
       setTeamMembers((prev) =>
-        prev.includes(memberToRestore)
-          ? prev
-          : [...prev, memberToRestore]
+        prev.includes(memberToRestore) ? prev : [...prev, memberToRestore]
       );
       setRemovedMembers((prev) => prev.slice(1));
     }
@@ -260,24 +239,16 @@ export default function ProjectDrawer({
 
   const removeMember = useCallback((member) => {
     setTeamMembers((prev) => prev.filter((m) => m !== member));
-    setRemovedMembers((prev) =>
-      prev.includes(member) ? prev : [...prev, member]
-    );
+    setRemovedMembers((prev) => (prev.includes(member) ? prev : [...prev, member]));
   }, []);
 
   const allMembersAdded = useMemo(
-    () =>
-      nextMemberIndex >= ALL_TEAM_MEMBERS.length &&
-      removedMembers.length === 0,
+    () => nextMemberIndex >= ALL_TEAM_MEMBERS.length && removedMembers.length === 0,
     [nextMemberIndex, removedMembers]
   );
 
   const totalMilestoneAmount = useMemo(
-    () =>
-      milestones.reduce(
-        (total, m) => total + (Number(m?.amount) || 0),
-        0
-      ),
+    () => milestones.reduce((total, m) => total + (Number(m?.amount) || 0), 0),
     [milestones]
   );
 
@@ -321,44 +292,40 @@ export default function ProjectDrawer({
       return false;
     }
 
-    for (let i = 0; i < milestones.length; i++) {
-      const m = milestones[i];
-      const mTitle = String(m?.title || "").trim();
-      const amount = Number(m?.amount);
+    if (formData.billingMethod === "Milestone") {
+      for (let i = 0; i < milestones.length; i++) {
+        const m = milestones[i];
+        const mTitle = String(m?.title || "").trim();
+        const amount = Number(m?.amount);
 
-      if (!mTitle) {
-        showErrorToast(`Milestone ${i + 1} title is required`);
-        return false;
-      }
-      if (!m?.dueDate) {
-        showErrorToast(`Milestone ${i + 1} due date is required`);
-        return false;
+        if (!mTitle) {
+          showErrorToast(`Milestone ${i + 1} title is required`);
+          return false;
+        }
+        if (!m?.dueDate) {
+          showErrorToast(`Milestone ${i + 1} due date is required`);
+          return false;
+        }
+
+        const dueDate = new Date(`${m.dueDate}T00:00:00`);
+        if (Number.isNaN(dueDate.getTime())) {
+          showErrorToast(`Milestone ${i + 1} has an invalid due date`);
+          return false;
+        }
+        if (dueDate < start || dueDate > end) {
+          showErrorToast(`Milestone ${i + 1} due date must be within the project dates`);
+          return false;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+          showErrorToast(`Milestone ${i + 1} amount must be greater than 0`);
+          return false;
+        }
       }
 
-      const dueDate = new Date(`${m.dueDate}T00:00:00`);
-      if (Number.isNaN(dueDate.getTime())) {
-        showErrorToast(`Milestone ${i + 1} has an invalid due date`);
+      if (milestones.length > 0 && totalMilestoneAmount > budget) {
+        showErrorToast("Total milestone amount cannot exceed the project budget");
         return false;
       }
-      if (dueDate < start || dueDate > end) {
-        showErrorToast(
-          `Milestone ${i + 1} due date must be within the project dates`
-        );
-        return false;
-      }
-      if (!Number.isFinite(amount) || amount <= 0) {
-        showErrorToast(
-          `Milestone ${i + 1} amount must be greater than 0`
-        );
-        return false;
-      }
-    }
-
-    if (milestones.length > 0 && totalMilestoneAmount > budget) {
-      showErrorToast(
-        "Total milestone amount cannot exceed the project budget"
-      );
-      return false;
     }
 
     return true;
@@ -373,7 +340,7 @@ export default function ProjectDrawer({
 
       const payload = {
         title: String(formData.title).trim(),
-        client: formData.client,
+        client: formData.client,               // ID
         clientName: String(formData.clientName || "").trim(),
         projectType: formData.projectType,
         startDate: formData.startDate,
@@ -383,12 +350,15 @@ export default function ProjectDrawer({
         billingMethod: formData.billingMethod,
         autoInvoice: Boolean(formData.autoInvoice),
         color: formData.color,
-        milestones: milestones.map((m) => ({
-          title: String(m?.title || "").trim(),
-          dueDate: m.dueDate,
-          amount: Number(m?.amount || 0),
-          status: String(m?.status || "scheduled").toLowerCase(),
-        })),
+        milestones:
+          formData.billingMethod === "Milestone"
+            ? milestones.map((m) => ({
+                title: String(m?.title || "").trim(),
+                dueDate: m.dueDate,
+                amount: Number(m?.amount || 0),
+                status: String(m?.status || "scheduled").toLowerCase(),
+              }))
+            : [],
         teamMembers: [...teamMembers],
         members: teamMembers.length,
         billed: 0,
@@ -414,17 +384,17 @@ export default function ProjectDrawer({
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            `Project creation failed (${response.status})`
+          data?.message || data?.error || `Project creation failed (${response.status})`
         );
       }
 
+      // Support common backend response shapes
       const createdProject = data?.project || data?.data || data;
 
       showSuccessToast("Project created successfully");
       onProjectCreated?.(createdProject);
 
+      // Optional global event (kept for compatibility)
       window.dispatchEvent(
         new CustomEvent("project-created", {
           detail: { project: createdProject },
@@ -452,12 +422,7 @@ export default function ProjectDrawer({
 
   const footer = (
     <div className="flex justify-end gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={handleClose}
-        disabled={loading}
-      >
+      <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
         Cancel
       </Button>
       <Button
@@ -537,9 +502,7 @@ export default function ProjectDrawer({
                 <select
                   id="project-type"
                   value={formData.projectType}
-                  onChange={(e) =>
-                    handleChange("projectType", e.target.value)
-                  }
+                  onChange={(e) => handleChange("projectType", e.target.value)}
                   disabled={loading}
                   className={selectClassName}
                 >
@@ -579,9 +542,7 @@ export default function ProjectDrawer({
                 id="project-description"
                 rows={3}
                 value={formData.description}
-                onChange={(e) =>
-                  handleChange("description", e.target.value)
-                }
+                onChange={(e) => handleChange("description", e.target.value)}
                 disabled={loading}
                 placeholder="Describe the project..."
                 className="
@@ -614,11 +575,7 @@ export default function ProjectDrawer({
                       transition-transform duration-fast
                       hover:scale-105
                       disabled:opacity-50 disabled:cursor-not-allowed
-                      ${
-                        formData.color === color
-                          ? "ring-2 ring-offset-2 ring-text scale-110"
-                          : ""
-                      }
+                      ${formData.color === color ? "ring-2 ring-offset-2 ring-text scale-110" : ""}
                     `}
                   />
                 ))}
@@ -684,9 +641,7 @@ export default function ProjectDrawer({
                       type="button"
                       disabled={loading}
                       aria-pressed={isActive}
-                      onClick={() =>
-                        handleChange("billingMethod", item.label)
-                      }
+                      onClick={() => handleChange("billingMethod", item.label)}
                       className={`
                         flex flex-col items-center p-3 rounded-lg border-2
                         transition-colors duration-fast
@@ -698,12 +653,8 @@ export default function ProjectDrawer({
                         }
                       `}
                     >
-                      <span className="material-symbols-outlined mb-1">
-                        {item.icon}
-                      </span>
-                      <span className="text-[11px] font-bold">
-                        {item.label}
-                      </span>
+                      <span className="material-symbols-outlined mb-1">{item.icon}</span>
+                      <span className="text-[11px] font-bold">{item.label}</span>
                     </button>
                   );
                 })}
@@ -712,9 +663,7 @@ export default function ProjectDrawer({
 
             <div className="flex items-center justify-between gap-4 p-3 bg-surface-secondary rounded-lg">
               <div>
-                <div className="text-[13px] font-bold text-text">
-                  Auto-generate invoices
-                </div>
+                <div className="text-[13px] font-bold text-text">Auto-generate invoices</div>
                 <div className="text-[11.5px] text-text-muted">
                   Create and send invoices when milestones complete
                 </div>
@@ -724,9 +673,7 @@ export default function ProjectDrawer({
                 role="switch"
                 aria-checked={formData.autoInvoice}
                 disabled={loading}
-                onClick={() =>
-                  handleChange("autoInvoice", !formData.autoInvoice)
-                }
+                onClick={() => handleChange("autoInvoice", !formData.autoInvoice)}
                 className={`
                   w-11 h-6 rounded-full relative transition-colors duration-fast shrink-0
                   disabled:opacity-50
@@ -745,154 +692,146 @@ export default function ProjectDrawer({
           </div>
         </section>
 
-        {/* Section 3 — Milestones */}
-        <section className="pt-5 border-t border-border-light">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className={`${sectionLabelClass} mb-0`}>
-              <span className={stepBadgeClass}>3</span>
-              Milestones
-            </h4>
-            <span className="text-[11px] font-bold text-primary">
-              {format(totalMilestoneAmount)}
-            </span>
-          </div>
+        {/* Section 3 — Milestones (only when Milestone billing) */}
+        {formData.billingMethod === "Milestone" && (
+          <section className="pt-5 border-t border-border-light">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className={`${sectionLabelClass} mb-0`}>
+                <span className={stepBadgeClass}>3</span>
+                Milestones
+              </h4>
+              <span className="text-[11px] font-bold text-primary">
+                {format(totalMilestoneAmount)}
+              </span>
+            </div>
 
-          <div className="space-y-2">
-            {milestones.map((item, index) => (
-              <div
-                key={`milestone-${index}`}
-                className="
-                  grid grid-cols-12 gap-2 items-start
-                  p-3 bg-surface-secondary rounded-lg
-                  border border-border-light
-                "
-              >
-                <div className="col-span-12 sm:col-span-6">
-                  <label className="text-[9px] uppercase text-text-light font-bold">
-                    Milestone
-                  </label>
-                  <input
-                    type="text"
-                    value={item?.title || ""}
-                    onChange={(e) =>
-                      updateMilestone(index, "title", e.target.value)
-                    }
-                    disabled={loading}
-                    placeholder="Milestone name"
-                    className="
-                      w-full bg-transparent border-0 p-0
-                      text-[13px] font-medium text-text
-                      outline-none focus:ring-0
-                      disabled:opacity-60
-                    "
-                  />
-                </div>
-
-                <div className="col-span-6 sm:col-span-3">
-                  <label
-                    htmlFor={`milestone-due-${index}`}
-                    className="block text-[9px] uppercase text-text-light font-bold mb-1"
-                  >
-                    Due
-                  </label>
-                  <input
-                    id={`milestone-due-${index}`}
-                    type="date"
-                    value={item?.dueDate ?? ""}
-                    onChange={(e) =>
-                      updateMilestone(index, "dueDate", e.target.value)
-                    }
-                    onClick={(e) => {
-                      if (
-                        !loading &&
-                        typeof e.currentTarget.showPicker === "function"
-                      ) {
-                        e.currentTarget.showPicker();
-                      }
-                    }}
-                    disabled={loading}
-                    className="
-                      w-full min-w-0 bg-transparent border-0 p-0
-                      text-[12px] text-text-secondary
-                      outline-none focus:ring-0 cursor-pointer
-                      disabled:opacity-60 disabled:cursor-not-allowed
-                    "
-                  />
-                </div>
-
-                <div className="col-span-5 sm:col-span-2">
-                  <label className="text-[9px] uppercase text-text-light font-bold">
-                    Amount ({selectedCurrency?.code || "USD"})
-                  </label>
-                  <div className="relative">
-                    <span
-                      aria-hidden
-                      className="absolute left-0 top-1/2 -translate-y-1/2 text-text-light text-xs"
-                    >
-                      {currencySymbol}
-                    </span>
+            <div className="space-y-2">
+              {milestones.map((item, index) => (
+                <div
+                  key={`milestone-${index}`}
+                  className="
+                    grid grid-cols-12 gap-2 items-start
+                    p-3 bg-surface-secondary rounded-lg
+                    border border-border-light
+                  "
+                >
+                  <div className="col-span-12 sm:col-span-6">
+                    <label className="text-[9px] uppercase text-text-light font-bold">
+                      Milestone
+                    </label>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item?.amount ?? ""}
-                      onChange={(e) =>
-                        updateMilestone(index, "amount", e.target.value)
-                      }
+                      type="text"
+                      value={item?.title || ""}
+                      onChange={(e) => updateMilestone(index, "title", e.target.value)}
                       disabled={loading}
+                      placeholder="Milestone name"
                       className="
-                        w-full pl-4 bg-transparent border-0 p-0
+                        w-full bg-transparent border-0 p-0
                         text-[13px] font-medium text-text
-                        outline-none disabled:opacity-60
+                        outline-none focus:ring-0
+                        disabled:opacity-60
                       "
                     />
                   </div>
+
+                  <div className="col-span-6 sm:col-span-3">
+                    <label
+                      htmlFor={`milestone-due-${index}`}
+                      className="block text-[9px] uppercase text-text-light font-bold mb-1"
+                    >
+                      Due
+                    </label>
+                    <input
+                      id={`milestone-due-${index}`}
+                      type="date"
+                      value={item?.dueDate ?? ""}
+                      onChange={(e) => updateMilestone(index, "dueDate", e.target.value)}
+                      onClick={(e) => {
+                        if (!loading && typeof e.currentTarget.showPicker === "function") {
+                          e.currentTarget.showPicker();
+                        }
+                      }}
+                      disabled={loading}
+                      className="
+                        w-full min-w-0 bg-transparent border-0 p-0
+                        text-[12px] text-text-secondary
+                        outline-none focus:ring-0 cursor-pointer
+                        disabled:opacity-60 disabled:cursor-not-allowed
+                      "
+                    />
+                  </div>
+
+                  <div className="col-span-5 sm:col-span-2">
+                    <label className="text-[9px] uppercase text-text-light font-bold">
+                      Amount ({selectedCurrency?.code || "USD"})
+                    </label>
+                    <div className="relative">
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1/2 -translate-y-1/2 text-text-light text-xs"
+                      >
+                        {currencySymbol}
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item?.amount ?? ""}
+                        onChange={(e) => updateMilestone(index, "amount", e.target.value)}
+                        disabled={loading}
+                        className="
+                          w-full pl-4 bg-transparent border-0 p-0
+                          text-[13px] font-medium text-text
+                          outline-none disabled:opacity-60
+                        "
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-1 flex justify-center pt-5">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      aria-label={`Delete milestone ${index + 1}`}
+                      onClick={() => deleteMilestone(index)}
+                      className="
+                        text-danger hover:text-danger-hover
+                        disabled:opacity-40 disabled:cursor-not-allowed
+                        transition-colors duration-fast
+                      "
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                    </button>
+                  </div>
                 </div>
+              ))}
 
-                <div className="col-span-1 flex justify-center pt-5">
-                  <button
-                    type="button"
-                    disabled={loading}
-                    aria-label={`Delete milestone ${index + 1}`}
-                    onClick={() => deleteMilestone(index)}
-                    className="
-                      text-danger hover:text-danger-hover
-                      disabled:opacity-40 disabled:cursor-not-allowed
-                      transition-colors duration-fast
-                    "
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+              <button
+                type="button"
+                disabled={loading}
+                onClick={addMilestone}
+                className="
+                  w-full py-2.5
+                  border-2 border-dashed border-border
+                  hover:border-primary/40
+                  rounded-lg text-xs font-semibold text-primary
+                  flex items-center justify-center gap-2
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition-colors duration-fast
+                "
+              >
+                <span className="material-symbols-outlined">add</span>
+                Add Milestone
+              </button>
 
-            <button
-              type="button"
-              disabled={loading}
-              onClick={addMilestone}
-              className="
-                w-full py-2.5
-                border-2 border-dashed border-border
-                hover:border-primary/40
-                rounded-lg text-xs font-semibold text-primary
-                flex items-center justify-center gap-2
-                disabled:opacity-50 disabled:cursor-not-allowed
-                transition-colors duration-fast
-              "
-            >
-              <span className="material-symbols-outlined">add</span>
-              Add Milestone
-            </button>
-
-            {Number(formData.budget) > 0 &&
-              totalMilestoneAmount > Number(formData.budget) && (
+              {Number(formData.budget) > 0 && totalMilestoneAmount > Number(formData.budget) && (
                 <p className="text-[11px] text-danger font-medium">
                   Milestone total exceeds project budget.
                 </p>
               )}
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
 
         {/* Section 4 — Team */}
         <section className="pt-5 border-t border-border-light">
@@ -934,9 +873,7 @@ export default function ProjectDrawer({
                     transition-colors duration-fast
                   "
                 >
-                  <span className="material-symbols-outlined text-[13px] mt-1">
-                    close
-                  </span>
+                  <span className="material-symbols-outlined text-[13px] mt-1">close</span>
                 </button>
               </span>
             ))}

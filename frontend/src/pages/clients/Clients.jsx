@@ -38,10 +38,10 @@ const DEFAULT_SORT = {
 
 const SORT_COLUMNS = [
   { id: "name", label: "Client Name", type: "string" },
-  { id: "billing", label: "Billing", type: "string" },
+  { id: "billingCycle", label: "Billing", type: "string" }, // was "billing"
   { id: "status", label: "Status", type: "string" },
   { id: "mrr", label: "MRR", type: "number" },
-  { id: "nextInvoice", label: "Next Invoice", type: "date" },
+  { id: "nextInvoiceDate", label: "Next Invoice", type: "date" }, // was "nextInvoice"
 ];
 
 const columnHelper = createColumnHelper();
@@ -66,6 +66,8 @@ const getStatusBadge = (status) => {
       return "bg-warning-soft text-warning";
     case "inactive":
       return "bg-surface-secondary text-text-muted";
+    case "archived":
+      return "bg-surface-secondary text-text-light";
     default:
       return "bg-surface-secondary text-text-muted";
   }
@@ -244,73 +246,76 @@ export default function Clients() {
   }, []);
 
   const processedData = useMemo(() => {
-    const searchTerm = normalize(search);
-    const rate = Number(selectedCurrency?.rate) || 1;
+  const searchTerm = normalize(search);
+  const rate = Number(selectedCurrency?.rate) || 1;
 
-    const filtered = clients.filter((client) => {
-      if (searchTerm) {
-        const searchableText = [client?.name, client?.email]
-          .map(normalize)
-          .join(" ");
-        if (!searchableText.includes(searchTerm)) return false;
-      }
+  const filtered = clients.filter((client) => {
+    // Hide archived clients by default
+    if (normalize(client?.status) === "archived") return false;
 
-      const matchesStatus =
-        filters.status.length === 0 ||
-        filters.status.includes(client?.status);
+    if (searchTerm) {
+      const searchableText = [client?.name, client?.email]
+        .map(normalize)
+        .join(" ");
+      if (!searchableText.includes(searchTerm)) return false;
+    }
 
-      const matchesBilling =
-        filters.billing.length === 0 ||
-        filters.billing.includes(client?.billing);
+    const matchesStatus =
+      filters.status.length === 0 ||
+      filters.status.includes(client?.status);
 
-      const amount = Number(client?.mrr) || 0;
-      const convertedAmount = amount * rate;
+    const matchesBilling =
+      filters.billing.length === 0 ||
+      filters.billing.includes(client?.billingCycle);
 
-      const minAmount =
-        filters.minAmount === "" ? null : Number(filters.minAmount);
-      const maxAmount =
-        filters.maxAmount === "" ? null : Number(filters.maxAmount);
+    const amount = Number(client?.mrr) || 0;
+    const convertedAmount = amount * rate;
 
-      const matchesMinAmount =
-        minAmount === null ||
-        (Number.isFinite(minAmount) && convertedAmount >= minAmount);
+    const minAmount =
+      filters.minAmount === "" ? null : Number(filters.minAmount);
+    const maxAmount =
+      filters.maxAmount === "" ? null : Number(filters.maxAmount);
 
-      const matchesMaxAmount =
-        maxAmount === null ||
-        (Number.isFinite(maxAmount) && convertedAmount <= maxAmount);
+    const matchesMinAmount =
+      minAmount === null ||
+      (Number.isFinite(minAmount) && convertedAmount >= minAmount);
 
-      if (!matchesMinAmount || !matchesMaxAmount) return false;
+    const matchesMaxAmount =
+      maxAmount === null ||
+      (Number.isFinite(maxAmount) && convertedAmount <= maxAmount);
 
-      const invoiceDate = parseDate(client?.nextInvoice);
+    if (!matchesMinAmount || !matchesMaxAmount) return false;
 
-      if (filters.fromDate) {
-        const fromDate = parseDateBoundary(filters.fromDate);
-        if (!invoiceDate || !fromDate || invoiceDate < fromDate) return false;
-      }
+    const invoiceDate = parseDate(client?.nextInvoiceDate);
 
-      if (filters.toDate) {
-        const toDate = parseDateBoundary(filters.toDate, true);
-        if (!invoiceDate || !toDate || invoiceDate > toDate) return false;
-      }
+    if (filters.fromDate) {
+      const fromDate = parseDateBoundary(filters.fromDate);
+      if (!invoiceDate || !fromDate || invoiceDate < fromDate) return false;
+    }
 
-      return matchesStatus && matchesBilling;
-    });
+    if (filters.toDate) {
+      const toDate = parseDateBoundary(filters.toDate, true);
+      if (!invoiceDate || !toDate || invoiceDate > toDate) return false;
+    }
 
-    if (!sortConfig.field) return filtered;
+    return matchesStatus && matchesBilling;
+  });
 
-    const sortType =
-      SORT_COLUMNS.find((column) => column.id === sortConfig.field)?.type ||
-      "string";
+  if (!sortConfig.field) return filtered;
 
-    return [...filtered].sort((a, b) =>
-      compareValues(
-        a?.[sortConfig.field],
-        b?.[sortConfig.field],
-        sortType,
-        sortConfig.direction
-      )
-    );
-  }, [clients, filters, search, selectedCurrency?.rate, sortConfig]);
+  const sortType =
+    SORT_COLUMNS.find((column) => column.id === sortConfig.field)?.type ||
+    "string";
+
+  return [...filtered].sort((a, b) =>
+    compareValues(
+      a?.[sortConfig.field],
+      b?.[sortConfig.field],
+      sortType,
+      sortConfig.direction
+    )
+  );
+}, [clients, filters, search, selectedCurrency?.rate, sortConfig]);
 
   useEffect(() => {
     setPagination((previous) =>
@@ -422,159 +427,169 @@ export default function Clients() {
     }));
   }, [totalPages]);
 
-  const columns = useMemo(
-    () => [
-      columnHelper.accessor("name", {
-        header: "Client Name",
-        cell: ({ row }) => {
-          const client = row.original;
-          return (
-            <div className="flex items-center gap-3">
-              <div
-                aria-hidden="true"
-                className={`
-                  grid h-10 w-10 shrink-0 place-items-center
-                  rounded-full border border-border
-                  text-xs font-bold
-                  ${client?.color || "bg-surface-secondary text-text-muted"}
-                `}
+const columns = useMemo(
+  () => [
+    columnHelper.accessor("name", {
+      header: "Client Name",
+      cell: ({ row }) => {
+        const client = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className={`
+                grid h-10 w-10 shrink-0 place-items-center
+                rounded-full border border-border
+                text-xs font-bold text-text-inverse
+                ${client?.color || "bg-surface-secondary text-text-muted"}
+              `}
+            >
+              {getClientInitials(client)}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-text">
+                {client?.name || "Unnamed Client"}
+              </div>
+              <div className="truncate text-xs text-text-muted">
+                {client?.email || "No email"}
+              </div>
+            </div>
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor("billingCycle", {
+      header: "Billing",
+      cell: ({ getValue }) => {
+        const billing = getValue();
+        const label = {
+          MONTHLY: "Monthly",
+          QUARTERLY: "Quarterly",
+          ANNUAL: "Annual",
+        }[billing] || billing || "N/A";
+
+        return (
+          <span
+            className={`
+              inline-flex rounded-full px-2.5 py-1
+              text-xs font-medium
+              ${getBillingBadge(billing)}
+            `}
+          >
+            {label}
+          </span>
+        );
+      },
+    }),
+
+    columnHelper.accessor("nextInvoiceDate", {
+      header: "Next Invoice",
+      cell: ({ getValue }) => {
+        const value = getValue();
+        return (
+          <div className="text-sm font-medium text-text-secondary">
+            {value
+              ? new Date(value).toLocaleDateString()
+              : "Pending setup"}
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor("status", {
+      header: "Status",
+      cell: ({ getValue }) => {
+        const status = getValue();
+        return (
+          <span
+            className={`
+              inline-flex items-center gap-1.5
+              rounded-full px-2.5 py-1
+              text-[11px] font-bold uppercase tracking-wider
+              ${getStatusBadge(status)}
+            `}
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
+            />
+            {status || "Unknown"}
+          </span>
+        );
+      },
+    }),
+
+    columnHelper.accessor("mrr", {
+      header: "MRR",
+      cell: ({ getValue }) => {
+        const amount = Number(getValue()) || 0;
+        return (
+          <div className="text-right font-bold text-text">
+            {format(amount)}
+          </div>
+        );
+      },
+    }),
+
+    // ← NO more "nextInvoice" column here
+
+    columnHelper.display({
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const client = row.original;
+
+        const handleEdit = (event) => {
+          event.stopPropagation();
+          openEdit(client);
+        };
+
+        const handleViewDetails = (event) => {
+          event.stopPropagation();
+          handleRowClick(client);
+        };
+
+        return (
+          <div className="text-right">
+            <div className="inline-flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+              <button
+                type="button"
+                aria-label={`Edit ${client?.name || "client"}`}
+                className="
+                  rounded-md p-1.5
+                  text-text-light
+                  transition-colors
+                  hover:bg-surface-hover hover:text-primary
+                  focus:outline-none focus:ring-2 focus:ring-primary/30
+                "
+                onClick={handleEdit}
               >
-                {getClientInitials(client)}
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-text">
-                  {client?.name || "Unnamed Client"}
-                </div>
-                <div className="truncate text-xs text-text-muted">
-                  {client?.email || "No email"}
-                </div>
-              </div>
+                <span className="material-symbols-outlined text-[18px]">
+                  edit
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="
+                  rounded-lg px-3 py-1.5
+                  text-xs font-semibold text-primary
+                  transition-colors hover:bg-primary-soft
+                  focus:outline-none focus:ring-2 focus:ring-primary/30
+                "
+                onClick={handleViewDetails}
+              >
+                View Details
+              </button>
             </div>
-          );
-        },
-      }),
-
-      columnHelper.accessor("billing", {
-        header: "Billing",
-        cell: ({ getValue }) => {
-          const billing = getValue();
-          return (
-            <span
-              className={`
-                inline-flex rounded-full px-2.5 py-1
-                text-xs font-medium
-                ${getBillingBadge(billing)}
-              `}
-            >
-              {billing || "N/A"}
-            </span>
-          );
-        },
-      }),
-
-      columnHelper.accessor("status", {
-        header: "Status",
-        cell: ({ getValue }) => {
-          const status = getValue();
-          return (
-            <span
-              className={`
-                inline-flex items-center gap-1.5
-                rounded-full px-2.5 py-1
-                text-[11px] font-bold uppercase tracking-wider
-                ${getStatusBadge(status)}
-              `}
-            >
-              <span
-                aria-hidden="true"
-                className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
-              />
-              {status || "Unknown"}
-            </span>
-          );
-        },
-      }),
-
-      columnHelper.accessor("mrr", {
-        header: "MRR",
-        cell: ({ getValue }) => {
-          const amount = Number(getValue()) || 0;
-          return (
-            <div className="text-right font-bold text-text">
-              {format(amount)}
-            </div>
-          );
-        },
-      }),
-
-      columnHelper.accessor("nextInvoice", {
-        header: "Next Invoice",
-        cell: ({ getValue }) => {
-          const value = getValue();
-          return (
-            <div className="text-sm font-medium text-text-secondary">
-              {value || "Pending setup"}
-            </div>
-          );
-        },
-      }),
-
-      columnHelper.display({
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => {
-          const client = row.original;
-
-          const handleEdit = (event) => {
-            event.stopPropagation();
-            openEdit(client);
-          };
-
-          const handleViewDetails = (event) => {
-            event.stopPropagation();
-            handleRowClick(client);
-          };
-
-          return (
-            <div className="text-right">
-              <div className="inline-flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-                <button
-                  type="button"
-                  aria-label={`Edit ${client?.name || "client"}`}
-                  className="
-                    rounded-md p-1.5
-                    text-text-light
-                    transition-colors
-                    hover:bg-surface-hover hover:text-primary
-                    focus:outline-none focus:ring-2 focus:ring-primary/30
-                  "
-                  onClick={handleEdit}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    edit
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className="
-                    rounded-lg px-3 py-1.5
-                    text-xs font-semibold text-primary
-                    transition-colors hover:bg-primary-soft
-                    focus:outline-none focus:ring-2 focus:ring-primary/30
-                  "
-                  onClick={handleViewDetails}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          );
-        },
-      }),
-    ],
-    [format, handleRowClick, openEdit]
-  );
+          </div>
+        );
+      },
+    }),
+  ],
+  [format, handleRowClick, openEdit]
+);
 
   const activeClients = useMemo(
     () =>
