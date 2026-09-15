@@ -1,10 +1,23 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import SectionHeader from "../../components/ui/SectionHeader";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import FormInput from "../../components/ui/FormInput";
 import Badge from "../../components/ui/Badge";
 import { showSuccessToast } from "../../components/ui/CustomToast";
+
+/* =========================================================
+   DYNAMIC THEME HELPER
+========================================================= */
+const applyThemeColor = (hex) => {
+  if (!hex) return;
+  document.documentElement.style.setProperty("--color-primary", hex);
+  document.documentElement.style.setProperty("--primary", hex);
+  document.documentElement.style.setProperty("--color-primary-hover", hex);
+  document.documentElement.style.setProperty("--primary-hover", hex);
+  document.documentElement.style.setProperty("--color-primary-soft", `${hex}1a`);
+  document.documentElement.style.setProperty("--primary-soft", `${hex}1a`);
+};
 
 /* =========================================================
    NAV
@@ -21,12 +34,12 @@ const SETTINGS_NAV = [
 ];
 
 const BRAND_COLORS = [
-  "#0d9488",
-  "#4f46e5",
-  "#dc2626",
-  "#f59e0b",
-  "#0891b2",
-  "#7c3aed",
+  "#0d9488", // Emerald
+  "#4f46e5", // Indigo
+  "#dc2626", // Red
+  "#f59e0b", // Amber
+  "#0891b2", // Cyan
+  "#7c3aed", // Purple
 ];
 
 const PAYMENT_METHODS = [
@@ -145,70 +158,20 @@ const INTEGRATIONS = [
 ];
 
 const NOTIFICATION_ROWS = [
-  {
-    id: "paid",
-    title: "Invoice paid",
-    sub: "₹50K+ invoices",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "overdue",
-    title: "Invoice overdue",
-    sub: "Any amount",
-    email: true,
-    push: false,
-    slack: true,
-  },
-  {
-    id: "errors",
-    title: "Workflow errors",
-    sub: "Immediate",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "mentions",
-    title: "Team mentions",
-    sub: "Real-time",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "weekly",
-    title: "Weekly summary",
-    sub: "Every Monday 9am",
-    email: true,
-    push: false,
-    slack: false,
-  },
+  { id: "paid", title: "Invoice paid", sub: "₹50K+ invoices", email: true, push: true, slack: true },
+  { id: "overdue", title: "Invoice overdue", sub: "Any amount", email: true, push: false, slack: true },
+  { id: "errors", title: "Workflow errors", sub: "Immediate", email: true, push: true, slack: true },
+  { id: "mentions", title: "Team mentions", sub: "Real-time", email: true, push: true, slack: true },
+  { id: "weekly", title: "Weekly summary", sub: "Every Monday 9am", email: true, push: false, slack: false },
 ];
 
 const EXPORT_CARDS = [
-  {
-    title: "Full invoice history",
-    sub: "1,284 invoices · CSV / XLSX / PDF",
-  },
-  {
-    title: "Client master list",
-    sub: "128 clients · CSV / JSON",
-  },
-  {
-    title: "Payment events",
-    sub: "42K events · CSV",
-  },
-  {
-    title: "Audit log",
-    sub: "SOC 2 audit trail · JSON",
-  },
+  { title: "Full invoice history", sub: "1,284 invoices · CSV / XLSX / PDF" },
+  { title: "Client master list", sub: "128 clients · CSV / JSON" },
+  { title: "Payment events", sub: "42K events · CSV" },
+  { title: "Audit log", sub: "SOC 2 audit trail · JSON" },
 ];
 
-/* =========================================================
-   DEFAULTS (INDIAN / GST STANDARD)
-========================================================= */
 const DEFAULT_BUSINESS = {
   companyName: "AutoBillr",
   displayName: "AutoBillr",
@@ -232,11 +195,7 @@ const DEFAULT_TAX = {
   breakdown: false,
 };
 
-/* =========================================================
-   SHARED UI HELPERS
-========================================================= */
-const labelClass =
-  "block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5";
+const labelClass = "block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5";
 
 const selectClassName = `
   w-full h-11 px-3
@@ -286,12 +245,15 @@ function SectionActions({ onDiscard, onSave }) {
 }
 
 /* =========================================================
-   MAIN COMPONENT
+   PAGE
 ========================================================= */
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState("business");
+  const [activeTab, setActiveTab] = useState("branding");
 
-  /* ---- Business State (Persistent) ---- */
+  const fileInputRef = useRef(null);
+  const colorPickerRef = useRef(null);
+
+  /* ---- Business ---- */
   const [business, setBusiness] = useState(() => {
     try {
       const saved = localStorage.getItem("autobillr-business");
@@ -301,22 +263,23 @@ export default function Settings() {
     }
   });
 
-  /* ---- Branding State (Persistent) ---- */
+  /* ---- Branding ---- */
   const [brandColor, setBrandColor] = useState(
     () => localStorage.getItem("autobillr-brand-color") || "#0d9488"
+  );
+  const [logoUrl, setLogoUrl] = useState(
+    () => localStorage.getItem("autobillr-logo") || null
   );
   const [brandToggles, setBrandToggles] = useState(() => {
     try {
       const saved = localStorage.getItem("autobillr-brand-toggles");
-      return saved
-        ? JSON.parse(saved)
-        : { qr: true, thumbnails: false, footer: true };
+      return saved ? JSON.parse(saved) : { qr: true, thumbnails: false, footer: true };
     } catch {
       return { qr: true, thumbnails: false, footer: true };
     }
   });
 
-  /* ---- Tax State (Persistent) ---- */
+  /* ---- Tax ---- */
   const [tax, setTax] = useState(() => {
     try {
       const saved = localStorage.getItem("autobillr-tax");
@@ -326,21 +289,18 @@ export default function Settings() {
     }
   });
 
-  /* ---- Notifications State (Persistent) ---- */
+  /* ---- Notifications ---- */
   const [notif, setNotif] = useState(() => {
     try {
       const saved = localStorage.getItem("autobillr-notif");
       if (saved) return JSON.parse(saved);
     } catch {}
     return Object.fromEntries(
-      NOTIFICATION_ROWS.map((r) => [
-        r.id,
-        { email: r.email, push: r.push, slack: r.slack },
-      ])
+      NOTIFICATION_ROWS.map((r) => [r.id, { email: r.email, push: r.push, slack: r.slack }])
     );
   });
 
-  /* ---- Export State (Persistent) ---- */
+  /* ---- Export ---- */
   const [exportToggles, setExportToggles] = useState(() => {
     try {
       const saved = localStorage.getItem("autobillr-export");
@@ -350,28 +310,52 @@ export default function Settings() {
     }
   });
 
-  const setBiz = (key) => (e) =>
-    setBusiness((p) => ({ ...p, [key]: e.target.value }));
-  const setTaxField = (key) => (e) =>
-    setTax((p) => ({ ...p, [key]: e.target.value }));
+  // Apply theme dynamically whenever brandColor changes
+  useEffect(() => {
+    applyThemeColor(brandColor);
+  }, [brandColor]);
 
-  /* =========================================================
-     SAVE & DISCARD HANDLERS
-  ========================================================= */
+  const handleColorChange = (color) => {
+    setBrandColor(color);
+    applyThemeColor(color);
+  };
+
+  const handleLogoFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Please upload an image smaller than 2MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLogoUrl(reader.result);
+      showSuccessToast("Logo uploaded!");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const setBiz = (key) => (e) => setBusiness((p) => ({ ...p, [key]: e.target.value }));
+  const setTaxField = (key) => (e) => setTax((p) => ({ ...p, [key]: e.target.value }));
+
+  /* ---- Save & Discard ---- */
   const handleSave = () => {
     try {
       localStorage.setItem("autobillr-business", JSON.stringify(business));
       localStorage.setItem("autobillr-brand-color", brandColor);
-      localStorage.setItem(
-        "autobillr-brand-toggles",
-        JSON.stringify(brandToggles)
-      );
+      if (logoUrl) {
+        localStorage.setItem("autobillr-logo", logoUrl);
+      } else {
+        localStorage.removeItem("autobillr-logo");
+      }
+      localStorage.setItem("autobillr-brand-toggles", JSON.stringify(brandToggles));
       localStorage.setItem("autobillr-tax", JSON.stringify(tax));
       localStorage.setItem("autobillr-notif", JSON.stringify(notif));
-      localStorage.setItem(
-        "autobillr-export",
-        JSON.stringify(exportToggles)
-      );
+      localStorage.setItem("autobillr-export", JSON.stringify(exportToggles));
+
+      applyThemeColor(brandColor);
 
       if (typeof showSuccessToast === "function") {
         showSuccessToast("Settings saved successfully!");
@@ -385,22 +369,17 @@ export default function Settings() {
 
   const handleDiscard = () => {
     try {
-      if (activeTab === "business") {
-        const saved = localStorage.getItem("autobillr-business");
-        setBusiness(saved ? JSON.parse(saved) : DEFAULT_BUSINESS);
-      } else if (activeTab === "tax") {
-        const saved = localStorage.getItem("autobillr-tax");
-        setTax(saved ? JSON.parse(saved) : DEFAULT_TAX);
-      } else if (activeTab === "branding") {
-        const savedColor = localStorage.getItem("autobillr-brand-color");
-        const savedToggles = localStorage.getItem("autobillr-brand-toggles");
-        setBrandColor(savedColor || "#0d9488");
-        setBrandToggles(
-          savedToggles
-            ? JSON.parse(savedToggles)
-            : { qr: true, thumbnails: false, footer: true }
-        );
-      }
+      const savedColor = localStorage.getItem("autobillr-brand-color") || "#0d9488";
+      setBrandColor(savedColor);
+      applyThemeColor(savedColor);
+      setLogoUrl(localStorage.getItem("autobillr-logo") || null);
+
+      const savedBiz = localStorage.getItem("autobillr-business");
+      setBusiness(savedBiz ? JSON.parse(savedBiz) : DEFAULT_BUSINESS);
+
+      const savedTax = localStorage.getItem("autobillr-tax");
+      setTax(savedTax ? JSON.parse(savedTax) : DEFAULT_TAX);
+
       if (typeof showSuccessToast === "function") {
         showSuccessToast("Changes reverted");
       }
@@ -459,37 +438,22 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Business details
-                    </div>
+                    <div className="text-base font-bold text-text">Business details</div>
                     <div className="text-xs text-text-muted mt-1">
-                      Public info shown on invoices, statements and client
-                      portal
+                      Public info shown on invoices, statements and client portal
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormInput
-                        label="Company name"
-                        value={business.companyName}
-                        onChange={setBiz("companyName")}
-                      />
-                      <FormInput
-                        label="Display name"
-                        value={business.displayName}
-                        onChange={setBiz("displayName")}
-                      />
+                      <FormInput label="Company name" value={business.companyName} onChange={setBiz("companyName")} />
+                      <FormInput label="Display name" value={business.displayName} onChange={setBiz("displayName")} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Industry</label>
-                        <select
-                          value={business.industry}
-                          onChange={setBiz("industry")}
-                          className={selectClassName}
-                        >
+                        <select value={business.industry} onChange={setBiz("industry")} className={selectClassName}>
                           <option>SaaS / Software</option>
                           <option>Agency</option>
                           <option>Consulting</option>
@@ -498,11 +462,7 @@ export default function Settings() {
                       </div>
                       <div>
                         <label className={labelClass}>Company size</label>
-                        <select
-                          value={business.companySize}
-                          onChange={setBiz("companySize")}
-                          className={selectClassName}
-                        >
+                        <select value={business.companySize} onChange={setBiz("companySize")} className={selectClassName}>
                           <option>1–10 employees</option>
                           <option>11–50 employees</option>
                           <option>50–250 employees</option>
@@ -515,11 +475,7 @@ export default function Settings() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Default currency</label>
-                        <select
-                          value={business.currency}
-                          onChange={setBiz("currency")}
-                          className={selectClassName}
-                        >
+                        <select value={business.currency} onChange={setBiz("currency")} className={selectClassName}>
                           <option>INR (₹)</option>
                           <option>USD ($)</option>
                           <option>EUR (€)</option>
@@ -528,11 +484,7 @@ export default function Settings() {
                       </div>
                       <div>
                         <label className={labelClass}>Fiscal year starts</label>
-                        <select
-                          value={business.fiscalYear}
-                          onChange={setBiz("fiscalYear")}
-                          className={selectClassName}
-                        >
+                        <select value={business.fiscalYear} onChange={setBiz("fiscalYear")} className={selectClassName}>
                           <option>April</option>
                           <option>January</option>
                           <option>July</option>
@@ -552,17 +504,8 @@ export default function Settings() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormInput
-                        label="Tax ID / GSTIN"
-                        value={business.taxId}
-                        onChange={setBiz("taxId")}
-                      />
-                      <FormInput
-                        label="VAT (EU only)"
-                        value={business.vat}
-                        onChange={setBiz("vat")}
-                        placeholder="—"
-                      />
+                      <FormInput label="Tax ID / GSTIN" value={business.taxId} onChange={setBiz("taxId")} />
+                      <FormInput label="VAT (EU only)" value={business.vat} onChange={setBiz("vat")} placeholder="—" />
                     </div>
                   </div>
                 </Card>
@@ -575,9 +518,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Brand identity
-                    </div>
+                    <div className="text-base font-bold text-text">Brand identity</div>
                     <div className="text-xs text-text-muted mt-1">
                       How your invoices look in client inboxes
                     </div>
@@ -585,55 +526,113 @@ export default function Settings() {
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Logo */}
+                      {/* Logo Upload Box */}
                       <div>
                         <label className={labelClass}>Logo</label>
                         <div className="flex items-center gap-3 p-4 border-2 border-dashed border-border rounded-xl">
                           <div
-                            className="w-12 h-12 rounded-lg grid place-items-center text-white"
-                            style={{ backgroundColor: brandColor }}
+                            className="w-12 h-12 rounded-lg grid place-items-center overflow-hidden shrink-0"
+                            style={{ backgroundColor: logoUrl ? "#f3f4f6" : brandColor }}
                           >
-                            <span className="material-symbols-outlined mi-fill text-[24px]">
-                              bolt
-                            </span>
+                            {logoUrl ? (
+                              <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="material-symbols-outlined mi-fill text-[24px] text-white">
+                                bolt
+                              </span>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-text">
-                              AutoBillr logo
+                            <div className="text-sm font-semibold text-text truncate">
+                              {logoUrl ? "Custom Logo" : "AutoBillr logo"}
                             </div>
                             <div className="text-[11px] text-text-muted">
-                              PNG · 1024×1024
+                              PNG, JPG or SVG · Max 2MB
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-soft rounded-lg"
-                          >
-                            Upload
-                          </button>
+
+                          {/* Hidden File Input */}
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                            onChange={handleLogoFileChange}
+                            className="hidden"
+                          />
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-soft rounded-lg transition-colors cursor-pointer"
+                            >
+                              Upload
+                            </button>
+                            {logoUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setLogoUrl(null)}
+                                className="px-2 py-1 text-xs text-danger hover:underline cursor-pointer"
+                                title="Remove custom logo"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Colors */}
+                      {/* Primary Brand Color & Picker */}
                       <div>
                         <label className={labelClass}>Primary brand color</label>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {BRAND_COLORS.map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => setBrandColor(c)}
-                              className={`w-10 h-10 rounded-xl border-2 transition ${
-                                brandColor === c
-                                  ? "border-text scale-110"
-                                  : "border-transparent hover:scale-105"
-                              }`}
-                              style={{ background: c }}
-                            />
-                          ))}
+                        <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                          {BRAND_COLORS.map((c) => {
+                            const isSelected = brandColor.toLowerCase() === c.toLowerCase();
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => handleColorChange(c)}
+                                className={`w-10 h-10 rounded-xl border-2 transition-transform cursor-pointer ${
+                                  isSelected
+                                    ? "border-text scale-110 shadow-md ring-2 ring-primary/30"
+                                    : "border-transparent hover:scale-105"
+                                }`}
+                                style={{ background: c }}
+                                title={c}
+                              />
+                            );
+                          })}
+
+                          {/* Native Color Picker Trigger */}
+                          <input
+                            type="color"
+                            ref={colorPickerRef}
+                            value={brandColor}
+                            onChange={(e) => handleColorChange(e.target.value)}
+                            className="sr-only"
+                          />
                           <button
                             type="button"
-                            className="w-10 h-10 rounded-xl border-2 border-dashed border-border text-text-light hover:border-primary grid place-items-center"
+                            onClick={() => colorPickerRef.current?.click()}
+                            className={`w-10 h-10 rounded-xl border-2 border-dashed grid place-items-center transition cursor-pointer relative ${
+                              !BRAND_COLORS.some((c) => c.toLowerCase() === brandColor.toLowerCase())
+                                ? "border-text scale-110 shadow-md ring-2 ring-primary/30"
+                                : "border-border text-text-light hover:border-primary"
+                            }`}
+                            style={{
+                              backgroundColor: !BRAND_COLORS.some(
+                                (c) => c.toLowerCase() === brandColor.toLowerCase()
+                              )
+                                ? brandColor
+                                : "transparent",
+                              color: !BRAND_COLORS.some(
+                                (c) => c.toLowerCase() === brandColor.toLowerCase()
+                              )
+                                ? "#ffffff"
+                                : undefined,
+                            }}
+                            title="Choose custom color"
                           >
                             <span className="material-symbols-outlined text-[18px]">
                               palette
@@ -695,9 +694,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Tax & invoicing rules
-                    </div>
+                    <div className="text-base font-bold text-text">Tax & invoicing rules</div>
                     <div className="text-xs text-text-muted mt-1">
                       Configure default tax behavior and invoice numbering
                     </div>
@@ -718,30 +715,12 @@ export default function Settings() {
                           </span>
                         </div>
                       </div>
-                      <FormInput
-                        label="Tax label"
-                        value={tax.label}
-                        onChange={setTaxField("label")}
-                      />
-                      <FormInput
-                        label="Invoice prefix"
-                        value={tax.prefix}
-                        onChange={setTaxField("prefix")}
-                      />
-                      <FormInput
-                        label="Next invoice number"
-                        value={tax.nextNumber}
-                        onChange={setTaxField("nextNumber")}
-                      />
+                      <FormInput label="Tax label" value={tax.label} onChange={setTaxField("label")} />
+                      <FormInput label="Invoice prefix" value={tax.prefix} onChange={setTaxField("prefix")} />
+                      <FormInput label="Next invoice number" value={tax.nextNumber} onChange={setTaxField("nextNumber")} />
                       <div>
-                        <label className={labelClass}>
-                          Payment terms (default)
-                        </label>
-                        <select
-                          value={tax.terms}
-                          onChange={setTaxField("terms")}
-                          className={selectClassName}
-                        >
+                        <label className={labelClass}>Payment terms (default)</label>
+                        <select value={tax.terms} onChange={setTaxField("terms")} className={selectClassName}>
                           <option>Due on receipt</option>
                           <option>Net 15</option>
                           <option>Net 30</option>
@@ -750,11 +729,7 @@ export default function Settings() {
                       </div>
                       <div>
                         <label className={labelClass}>Late fee policy</label>
-                        <select
-                          value={tax.lateFee}
-                          onChange={setTaxField("lateFee")}
-                          className={selectClassName}
-                        >
+                        <select value={tax.lateFee} onChange={setTaxField("lateFee")} className={selectClassName}>
                           <option>None</option>
                           <option>1.5% / month</option>
                           <option>Flat ₹500</option>
@@ -788,9 +763,7 @@ export default function Settings() {
                         </div>
                         <Toggle
                           enabled={tax[row.key]}
-                          onToggle={() =>
-                            setTax((p) => ({ ...p, [row.key]: !p[row.key] }))
-                          }
+                          onToggle={() => setTax((p) => ({ ...p, [row.key]: !p[row.key] }))}
                         />
                       </div>
                     ))}
@@ -805,9 +778,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Payment methods
-                    </div>
+                    <div className="text-base font-bold text-text">Payment methods</div>
                     <div className="text-xs text-text-muted mt-1">
                       Configure how you accept payments from clients
                     </div>
@@ -815,29 +786,18 @@ export default function Settings() {
 
                   <div className="space-y-3">
                     {PAYMENT_METHODS.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-center gap-4 p-4 bg-surface-secondary rounded-xl"
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-lg grid place-items-center ${m.iconBg}`}
-                        >
-                          <span className="material-symbols-outlined text-[20px]">
-                            {m.icon}
-                          </span>
+                      <div key={m.id} className="flex items-center gap-4 p-4 bg-surface-secondary rounded-xl">
+                        <div className={`w-10 h-10 rounded-lg grid place-items-center ${m.iconBg}`}>
+                          <span className="material-symbols-outlined text-[20px]">{m.icon}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-text">
-                            {m.name}
-                          </div>
-                          <div className="text-[11.5px] text-text-muted">
-                            {m.sub}
-                          </div>
+                          <div className="text-sm font-bold text-text">{m.name}</div>
+                          <div className="text-[11.5px] text-text-muted">{m.sub}</div>
                         </div>
                         <Badge label={m.status} variant={m.statusVariant} />
                         <button
                           type="button"
-                          className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-surface rounded-lg"
+                          className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-surface rounded-lg cursor-pointer"
                         >
                           Configure
                         </button>
@@ -854,9 +814,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Integrations
-                    </div>
+                    <div className="text-base font-bold text-text">Integrations</div>
                     <div className="text-xs text-text-muted mt-1">
                       Connect AutoBillr to your existing financial stack
                     </div>
@@ -867,33 +825,23 @@ export default function Settings() {
                       <div
                         key={item.id}
                         className={`p-4 rounded-xl border ${
-                          item.connected
-                            ? "border-primary/30 bg-primary-soft/30"
-                            : "border-border bg-surface"
+                          item.connected ? "border-primary/30 bg-primary-soft/30" : "border-border bg-surface"
                         }`}
                       >
                         <div className="flex items-start justify-between mb-2">
-                          <div
-                            className={`w-10 h-10 rounded-lg grid place-items-center font-bold text-xs ${item.initialsBg}`}
-                          >
+                          <div className={`w-10 h-10 rounded-lg grid place-items-center font-bold text-xs ${item.initialsBg}`}>
                             {item.initials}
                           </div>
                           <Badge
-                            label={
-                              item.connected ? "Connected" : "Not connected"
-                            }
+                            label={item.connected ? "Connected" : "Not connected"}
                             variant={item.connected ? "paid" : "default"}
                           />
                         </div>
-                        <div className="text-sm font-bold text-text mb-1">
-                          {item.name}
-                        </div>
-                        <div className="text-[11.5px] text-text-muted mb-3">
-                          {item.sub}
-                        </div>
+                        <div className="text-sm font-bold text-text mb-1">{item.name}</div>
+                        <div className="text-[11.5px] text-text-muted mb-3">{item.sub}</div>
                         <button
                           type="button"
-                          className={`w-full py-1.5 rounded-lg text-xs font-bold transition ${
+                          className={`w-full py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                             item.connected
                               ? "bg-surface border border-border text-text-secondary hover:bg-surface-hover"
                               : "bg-primary text-white hover:bg-primary-hover"
@@ -914,12 +862,8 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Notifications
-                    </div>
-                    <div className="text-xs text-text-muted mt-1">
-                      When and how to ping you
-                    </div>
+                    <div className="text-base font-bold text-text">Notifications</div>
+                    <div className="text-xs text-text-muted mt-1">When and how to ping you</div>
                   </div>
 
                   <div className="space-y-1">
@@ -936,12 +880,8 @@ export default function Settings() {
                         className="grid grid-cols-[2fr_repeat(3,_70px)] gap-3 py-3 border-b border-border-light items-center"
                       >
                         <div>
-                          <div className="text-[13px] font-bold text-text">
-                            {row.title}
-                          </div>
-                          <div className="text-[11px] text-text-muted">
-                            {row.sub}
-                          </div>
+                          <div className="text-[13px] font-bold text-text">{row.title}</div>
+                          <div className="text-[11px] text-text-muted">{row.sub}</div>
                         </div>
                         {["email", "push", "slack"].map((channel) => (
                           <div key={channel} className="grid place-items-center">
@@ -973,9 +913,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      API keys & webhooks
-                    </div>
+                    <div className="text-base font-bold text-text">API keys & webhooks</div>
                     <div className="text-xs text-text-muted mt-1">
                       Programmatic access to your AutoBillr workspace
                     </div>
@@ -993,11 +931,7 @@ export default function Settings() {
                         <Button variant="secondary" size="sm">
                           Copy
                         </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="text-danger"
-                        >
+                        <Button variant="secondary" size="sm" className="text-danger">
                           Rotate
                         </Button>
                       </div>
@@ -1022,37 +956,22 @@ export default function Settings() {
                         <span>Webhook endpoints</span>
                         <button
                           type="button"
-                          className="text-primary hover:bg-primary-soft px-2 py-1 rounded text-xs flex items-center gap-1 font-bold"
+                          className="text-primary hover:bg-primary-soft px-2 py-1 rounded text-xs flex items-center gap-1 font-bold cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[12px]">
-                            add
-                          </span>
+                          <span className="material-symbols-outlined text-[12px]">add</span>
                           Add endpoint
                         </button>
                       </div>
 
                       <div className="space-y-2">
                         {[
-                          {
-                            url: "https://api.autobillr.io/webhooks/payments",
-                            events: "payment.* · 4 events",
-                          },
-                          {
-                            url: "https://hooks.slack.com/services/T0/B0",
-                            events: "invoice.overdue",
-                          },
+                          { url: "https://api.autobillr.io/webhooks/payments", events: "payment.* · 4 events" },
+                          { url: "https://hooks.slack.com/services/T0/B0", events: "invoice.overdue" },
                         ].map((wh) => (
-                          <div
-                            key={wh.url}
-                            className="p-3 border border-border rounded-lg"
-                          >
-                            <div className="text-[12px] font-mono text-text-secondary">
-                              {wh.url}
-                            </div>
+                          <div key={wh.url} className="p-3 border border-border rounded-lg">
+                            <div className="text-[12px] font-mono text-text-secondary">{wh.url}</div>
                             <div className="flex justify-between mt-2 text-[11px]">
-                              <span className="text-text-muted">
-                                {wh.events}
-                              </span>
+                              <span className="text-text-muted">{wh.events}</span>
                               <Badge label="active" variant="paid" />
                             </div>
                           </div>
@@ -1070,9 +989,7 @@ export default function Settings() {
               <>
                 <Card padding="p-6">
                   <div className="mb-5 pb-4 border-b border-border-light">
-                    <div className="text-base font-bold text-text">
-                      Export & retention
-                    </div>
+                    <div className="text-base font-bold text-text">Export & retention</div>
                     <div className="text-xs text-text-muted mt-1">
                       Get your data out · SOC 2 & GDPR compliant
                     </div>
@@ -1081,23 +998,14 @@ export default function Settings() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {EXPORT_CARDS.map((card) => (
-                        <div
-                          key={card.title}
-                          className="p-4 border border-border rounded-xl bg-surface-secondary"
-                        >
-                          <div className="text-[13px] font-bold text-text">
-                            {card.title}
-                          </div>
-                          <div className="text-[11px] text-text-muted mt-1">
-                            {card.sub}
-                          </div>
+                        <div key={card.title} className="p-4 border border-border rounded-xl bg-surface-secondary">
+                          <div className="text-[13px] font-bold text-text">{card.title}</div>
+                          <div className="text-[11px] text-text-muted mt-1">{card.sub}</div>
                           <button
                             type="button"
-                            className="mt-3 px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover text-xs font-bold rounded-lg text-primary flex items-center gap-1.5"
+                            className="mt-3 px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover text-xs font-bold rounded-lg text-primary flex items-center gap-1.5 cursor-pointer"
                           >
-                            <span className="material-symbols-outlined text-[14px]">
-                              download
-                            </span>
+                            <span className="material-symbols-outlined text-[14px]">download</span>
                             Download
                           </button>
                         </div>
@@ -1121,21 +1029,12 @@ export default function Settings() {
                         className="flex items-center justify-between py-3 border-b border-border-light last:border-0"
                       >
                         <div>
-                          <div className="text-[13.5px] font-semibold text-text">
-                            {row.title}
-                          </div>
-                          <div className="text-[11.5px] text-text-muted mt-0.5">
-                            {row.sub}
-                          </div>
+                          <div className="text-[13.5px] font-semibold text-text">{row.title}</div>
+                          <div className="text-[11.5px] text-text-muted mt-0.5">{row.sub}</div>
                         </div>
                         <Toggle
                           enabled={exportToggles[row.key]}
-                          onToggle={() =>
-                            setExportToggles((p) => ({
-                              ...p,
-                              [row.key]: !p[row.key],
-                            }))
-                          }
+                          onToggle={() => setExportToggles((p) => ({ ...p, [row.key]: !p[row.key] }))}
                         />
                       </div>
                     ))}
