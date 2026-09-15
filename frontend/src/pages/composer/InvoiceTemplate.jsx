@@ -8,6 +8,8 @@ export default function InvoiceTemplate({
   tax,
   total,
   format,
+  taxLabel,
+  taxRate,
 }) {
   const formatCurrency = (value) => {
     return format
@@ -141,9 +143,15 @@ export default function InvoiceTemplate({
           </div>
 
           <div className="flex justify-between text-[13px]">
-            <span className="text-text-muted">Tax (8.5%)</span>
-            <span className="text-text">{formatCurrency(tax)}</span>
-          </div>
+          <span className="text-text-muted">
+           {(() => {
+             const saved = JSON.parse(localStorage.getItem("autobillr-tax") || "{}");
+                 const label = taxLabel || saved.label || "Tax";
+               const rate = taxRate ?? saved.rate ?? 18;
+              return `${label} (${rate}%)`;})()}
+  </span>
+  <span className="text-text">{formatCurrency(tax)}</span>
+</div>
 
           <div className="flex justify-between pt-3 border-t border-border">
             <span className="font-black uppercase text-xs text-text">

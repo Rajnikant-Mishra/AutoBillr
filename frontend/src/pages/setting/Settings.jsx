@@ -1,10 +1,10 @@
-import React, { useState } from "react";
-
+import { useState } from "react";
 import SectionHeader from "../../components/ui/SectionHeader";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import FormInput from "../../components/ui/FormInput";
 import Badge from "../../components/ui/Badge";
+import { showSuccessToast } from "../../components/ui/CustomToast";
 
 /* =========================================================
    NAV
@@ -33,7 +33,7 @@ const PAYMENT_METHODS = [
   {
     id: "stripe",
     name: "Stripe (Cards + ACH)",
-    sub: "$390K processed this year",
+    sub: "₹3,90,000 processed this year",
     icon: "credit_card",
     iconBg: "bg-indigo-100 text-indigo-600",
     status: "Connected",
@@ -41,8 +41,8 @@ const PAYMENT_METHODS = [
   },
   {
     id: "plaid",
-    name: "Plaid Bank Transfers",
-    sub: "12 bank accounts linked",
+    name: "UPI & Net Banking",
+    sub: "Instant settlements enabled",
     icon: "account_balance",
     iconBg: "bg-primary-soft text-primary",
     status: "Connected",
@@ -51,7 +51,7 @@ const PAYMENT_METHODS = [
   {
     id: "paypal",
     name: "PayPal",
-    sub: "$18K processed this year",
+    sub: "International payments",
     icon: "payments",
     iconBg: "bg-warning-soft text-warning",
     status: "Connected",
@@ -68,7 +68,7 @@ const PAYMENT_METHODS = [
   },
   {
     id: "wire",
-    name: "Wire Transfer",
+    name: "Bank Wire Transfer (NEFT/RTGS)",
     sub: "Account details printed on invoice",
     icon: "swap_horiz",
     iconBg: "bg-info-soft text-info",
@@ -148,7 +148,7 @@ const NOTIFICATION_ROWS = [
   {
     id: "paid",
     title: "Invoice paid",
-    sub: "$10K+ invoices",
+    sub: "₹50K+ invoices",
     email: true,
     push: true,
     slack: true,
@@ -207,7 +207,33 @@ const EXPORT_CARDS = [
 ];
 
 /* =========================================================
-   SHARED
+   DEFAULTS (INDIAN / GST STANDARD)
+========================================================= */
+const DEFAULT_BUSINESS = {
+  companyName: "AutoBillr",
+  displayName: "AutoBillr",
+  industry: "SaaS / Software",
+  companySize: "1–10 employees",
+  currency: "INR (₹)",
+  fiscalYear: "April",
+  address: "Bhubaneswar, Odisha, India",
+  taxId: "21AAAAA0000A1Z5",
+  vat: "",
+};
+
+const DEFAULT_TAX = {
+  rate: "18",
+  label: "GST",
+  prefix: "INV-",
+  nextNumber: "1001",
+  terms: "Due on receipt",
+  lateFee: "None",
+  autoTax: true,
+  breakdown: false,
+};
+
+/* =========================================================
+   SHARED UI HELPERS
 ========================================================= */
 const labelClass =
   "block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5";
@@ -260,59 +286,68 @@ function SectionActions({ onDiscard, onSave }) {
 }
 
 /* =========================================================
-   PAGE
+   MAIN COMPONENT
 ========================================================= */
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business");
 
-  /* ---- Business ---- */
-  const [business, setBusiness] = useState({
-    companyName: "AutoBillr Inc.",
-    displayName: "AutoBillr",
-    industry: "SaaS / Software",
-    companySize: "50–250 employees",
-    currency: "USD ($)",
-    fiscalYear: "January",
-    address:
-      "1287 Financial District, San Francisco, CA 94105, United States",
-    taxId: "84-3219872",
-    vat: "",
+  /* ---- Business State (Persistent) ---- */
+  const [business, setBusiness] = useState(() => {
+    try {
+      const saved = localStorage.getItem("autobillr-business");
+      return saved ? JSON.parse(saved) : DEFAULT_BUSINESS;
+    } catch {
+      return DEFAULT_BUSINESS;
+    }
   });
 
-  /* ---- Branding ---- */
-  const [brandColor, setBrandColor] = useState("#0d9488");
-  const [brandToggles, setBrandToggles] = useState({
-    qr: true,
-    thumbnails: false,
-    footer: true,
+  /* ---- Branding State (Persistent) ---- */
+  const [brandColor, setBrandColor] = useState(
+    () => localStorage.getItem("autobillr-brand-color") || "#0d9488"
+  );
+  const [brandToggles, setBrandToggles] = useState(() => {
+    try {
+      const saved = localStorage.getItem("autobillr-brand-toggles");
+      return saved
+        ? JSON.parse(saved)
+        : { qr: true, thumbnails: false, footer: true };
+    } catch {
+      return { qr: true, thumbnails: false, footer: true };
+    }
   });
 
-  /* ---- Tax ---- */
-  const [tax, setTax] = useState({
-    rate: "8.5",
-    label: "Sales Tax (CA)",
-    prefix: "INV-",
-    nextNumber: "8831",
-    terms: "Net 15",
-    lateFee: "1.5% / month",
-    autoTax: true,
-    breakdown: false,
+  /* ---- Tax State (Persistent) ---- */
+  const [tax, setTax] = useState(() => {
+    try {
+      const saved = localStorage.getItem("autobillr-tax");
+      return saved ? JSON.parse(saved) : DEFAULT_TAX;
+    } catch {
+      return DEFAULT_TAX;
+    }
   });
 
-  /* ---- Notifications ---- */
-  const [notif, setNotif] = useState(
-    Object.fromEntries(
+  /* ---- Notifications State (Persistent) ---- */
+  const [notif, setNotif] = useState(() => {
+    try {
+      const saved = localStorage.getItem("autobillr-notif");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return Object.fromEntries(
       NOTIFICATION_ROWS.map((r) => [
         r.id,
         { email: r.email, push: r.push, slack: r.slack },
       ])
-    )
-  );
+    );
+  });
 
-  /* ---- Export ---- */
-  const [exportToggles, setExportToggles] = useState({
-    archive: true,
-    encrypt: true,
+  /* ---- Export State (Persistent) ---- */
+  const [exportToggles, setExportToggles] = useState(() => {
+    try {
+      const saved = localStorage.getItem("autobillr-export");
+      return saved ? JSON.parse(saved) : { archive: true, encrypt: true };
+    } catch {
+      return { archive: true, encrypt: true };
+    }
   });
 
   const setBiz = (key) => (e) =>
@@ -320,8 +355,59 @@ export default function Settings() {
   const setTaxField = (key) => (e) =>
     setTax((p) => ({ ...p, [key]: e.target.value }));
 
-  const handleSave = () => console.log("Save", activeTab);
-  const handleDiscard = () => console.log("Discard", activeTab);
+  /* =========================================================
+     SAVE & DISCARD HANDLERS
+  ========================================================= */
+  const handleSave = () => {
+    try {
+      localStorage.setItem("autobillr-business", JSON.stringify(business));
+      localStorage.setItem("autobillr-brand-color", brandColor);
+      localStorage.setItem(
+        "autobillr-brand-toggles",
+        JSON.stringify(brandToggles)
+      );
+      localStorage.setItem("autobillr-tax", JSON.stringify(tax));
+      localStorage.setItem("autobillr-notif", JSON.stringify(notif));
+      localStorage.setItem(
+        "autobillr-export",
+        JSON.stringify(exportToggles)
+      );
+
+      if (typeof showSuccessToast === "function") {
+        showSuccessToast("Settings saved successfully!");
+      } else {
+        alert("Settings saved successfully!");
+      }
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    }
+  };
+
+  const handleDiscard = () => {
+    try {
+      if (activeTab === "business") {
+        const saved = localStorage.getItem("autobillr-business");
+        setBusiness(saved ? JSON.parse(saved) : DEFAULT_BUSINESS);
+      } else if (activeTab === "tax") {
+        const saved = localStorage.getItem("autobillr-tax");
+        setTax(saved ? JSON.parse(saved) : DEFAULT_TAX);
+      } else if (activeTab === "branding") {
+        const savedColor = localStorage.getItem("autobillr-brand-color");
+        const savedToggles = localStorage.getItem("autobillr-brand-toggles");
+        setBrandColor(savedColor || "#0d9488");
+        setBrandToggles(
+          savedToggles
+            ? JSON.parse(savedToggles)
+            : { qr: true, thumbnails: false, footer: true }
+        );
+      }
+      if (typeof showSuccessToast === "function") {
+        showSuccessToast("Changes reverted");
+      }
+    } catch (err) {
+      console.error("Failed to discard settings:", err);
+    }
+  };
 
   return (
     <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
@@ -434,10 +520,10 @@ export default function Settings() {
                           onChange={setBiz("currency")}
                           className={selectClassName}
                         >
+                          <option>INR (₹)</option>
                           <option>USD ($)</option>
                           <option>EUR (€)</option>
                           <option>GBP (£)</option>
-                          <option>INR (₹)</option>
                         </select>
                       </div>
                       <div>
@@ -447,8 +533,8 @@ export default function Settings() {
                           onChange={setBiz("fiscalYear")}
                           className={selectClassName}
                         >
-                          <option>January</option>
                           <option>April</option>
+                          <option>January</option>
                           <option>July</option>
                           <option>October</option>
                         </select>
@@ -467,7 +553,7 @@ export default function Settings() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormInput
-                        label="Tax ID / EIN"
+                        label="Tax ID / GSTIN"
                         value={business.taxId}
                         onChange={setBiz("taxId")}
                       />
@@ -505,7 +591,7 @@ export default function Settings() {
                         <div className="flex items-center gap-3 p-4 border-2 border-dashed border-border rounded-xl">
                           <div
                             className="w-12 h-12 rounded-lg grid place-items-center text-white"
-                            style={{ backgroundColor: "var(--color-primary)" }}
+                            style={{ backgroundColor: brandColor }}
                           >
                             <span className="material-symbols-outlined mi-fill text-[24px]">
                               bolt
@@ -516,7 +602,7 @@ export default function Settings() {
                               AutoBillr logo
                             </div>
                             <div className="text-[11px] text-text-muted">
-                              PNG · 1024×1024 · Last updated Aug 2024
+                              PNG · 1024×1024
                             </div>
                           </div>
                           <button
@@ -625,7 +711,7 @@ export default function Settings() {
                           <input
                             value={tax.rate}
                             onChange={setTaxField("rate")}
-                            className="w-full h-11 pl-3 pr-8 border border-border rounded-lg text-sm tabular bg-[var(--input-background)] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            className="w-full h-11 pl-3 pr-8 border border-border rounded-lg text-sm tabular bg-[var(--input-background)] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-text"
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light text-sm">
                             %
@@ -656,10 +742,10 @@ export default function Settings() {
                           onChange={setTaxField("terms")}
                           className={selectClassName}
                         >
+                          <option>Due on receipt</option>
                           <option>Net 15</option>
                           <option>Net 30</option>
                           <option>Net 60</option>
-                          <option>Due on receipt</option>
                         </select>
                       </div>
                       <div>
@@ -669,9 +755,9 @@ export default function Settings() {
                           onChange={setTaxField("lateFee")}
                           className={selectClassName}
                         >
-                          <option>1.5% / month</option>
-                          <option>Flat $50</option>
                           <option>None</option>
+                          <option>1.5% / month</option>
+                          <option>Flat ₹500</option>
                         </select>
                       </div>
                     </div>
@@ -680,7 +766,7 @@ export default function Settings() {
                       {
                         key: "autoTax",
                         title: "Auto-calculate tax based on client location",
-                        sub: "Use Avalara to determine destination-based tax",
+                        sub: "Automatically determine intra-state vs inter-state GST",
                       },
                       {
                         key: "breakdown",
@@ -964,7 +1050,9 @@ export default function Settings() {
                               {wh.url}
                             </div>
                             <div className="flex justify-between mt-2 text-[11px]">
-                              <span className="text-text-muted">{wh.events}</span>
+                              <span className="text-text-muted">
+                                {wh.events}
+                              </span>
                               <Badge label="active" variant="paid" />
                             </div>
                           </div>
