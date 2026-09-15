@@ -2301,7 +2301,7 @@ export default function Composer() {
             <div ref={invoiceRef}>
 
               <div className="bg-surface border border-border rounded-xl overflow-hidden">
-
+            
                <InvoiceTemplate
            invoice={invoice}
            selectedClient={selectedClient}

@@ -142,6 +142,8 @@ export default function InvoiceTemplate({
             <span className="text-text">{formatCurrency(subtotal)}</span>
           </div>
 
+
+           // Tax change
           <div className="flex justify-between text-[13px]">
           <span className="text-text-muted">
            {(() => {
@@ -149,7 +151,7 @@ export default function InvoiceTemplate({
                  const label = taxLabel || saved.label || "Tax";
                const rate = taxRate ?? saved.rate ?? 18;
               return `${label} (${rate}%)`;})()}
-  </span>
+           </span>
   <span className="text-text">{formatCurrency(tax)}</span>
 </div>
 
