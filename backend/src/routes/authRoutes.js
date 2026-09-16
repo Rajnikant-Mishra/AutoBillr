@@ -1,37 +1,19 @@
 const express = require("express");
-
 const router = express.Router();
 
 const {
   register,
   login,
+  redirectToGoogle,
+  handleGoogleCallback,
 } = require("../controllers/authController");
 
-const validate = require("../middleware/validateMiddleware");
+// Manual Auth Routes
+router.post("/register", register);
+router.post("/login", login);
 
-const {
-  registerSchema,
-  loginSchema,
-} = require("../validations/authValidation");
-
-// ===============================
-// REGISTER
-// ===============================
-
-router.post(
-  "/register",
-  validate(registerSchema),
-  register
-);
-
-// ===============================
-// LOGIN
-// ===============================
-
-router.post(
-  "/login",
-  validate(loginSchema),
-  login
-);
+// Google OAuth Routes
+router.get("/google", redirectToGoogle);
+router.get("/google/callback", handleGoogleCallback);
 
 module.exports = router;
