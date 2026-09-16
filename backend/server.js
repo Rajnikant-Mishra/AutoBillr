@@ -13,7 +13,7 @@ const notificationRoutes = require("./src/routes/notificationRoutes");
 const automationRoutes = require("./src/routes/automationRoutes");
 const { initAutomationCron } = require("./src/services/automationCron");
 const analyticsRoutes = require("./src/routes/analyticsRoutes");
-
+const teamRoutes = require("./src/routes/teamRoutes");
 let currencyRoutes;
 try {
   currencyRoutes = require("./src/routes/currencyRoutes");
@@ -40,8 +40,8 @@ app.use(
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // =====================================================
 // STATIC UPLOADS
@@ -64,7 +64,7 @@ app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/email-verification", emailVerificationRoutes);
-
+app.use("/api/v1/team", teamRoutes);
 if (currencyRoutes) {
   app.use("/api/v1/currencies", currencyRoutes);
 } else {

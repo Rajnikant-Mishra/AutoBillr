@@ -25,7 +25,8 @@ model Company {
   users                User[]
   projects             Project[]
   notifications        Notification[]
-
+teamMembers  TeamMember[]
+  roles       Role[]
   @@index([name])
 }
 
@@ -454,7 +455,81 @@ model Notification {
 
   @@index([companyId])
 }
+// =====================================================
+// CUSTOM ROLE
+// =====================================================
 
+// =====================================================
+// ROLE  (was CustomRole)
+// =====================================================
+
+model Role {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+
+  @@map("Role")   
+}
+// =====================================================
+// TEAM MEMBER
+// =====================================================
+
+model TeamMember {
+  id        String @id @default(cuid())
+  companyId String
+
+  name   String
+  email  String
+  avatar String?
+
+  role   TeamRole         @default(VIEWER)
+  status TeamMemberStatus @default(PENDING)
+
+  channels String[] // ["email", "whatsapp", "github", "discord"]
+  whatsapp String?
+  github   String?
+  discord  String?
+
+  invitationToken   String?  @unique
+  invitationMessage String?
+  invitedById       String?
+  invitedAt         DateTime @default(now())
+  acceptedAt        DateTime?
+  lastActivityAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, role])
+  @@index([invitationToken])
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MANAGER
+  ANALYST
+  VIEWER
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
 // =====================================================
 // CURRENCY
 // =====================================================

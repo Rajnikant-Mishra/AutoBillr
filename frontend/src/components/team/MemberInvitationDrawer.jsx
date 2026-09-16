@@ -1,50 +1,72 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import React, { useCallback, useEffect, useState } from "react";
+import RightDrawer from "../../components/layout/RightDrawer";
+import Button from "../../components/ui/Button";
+import FormInput from "../../components/ui/FormInput";
+import Card from "../../components/ui/Card";
+import Badge from "../../components/ui/Badge";
 
-import RightDrawer from "../layout/RightDrawer";
-import Button from "../ui/Button";
-import FormInput from "../ui/FormInput";
-import Badge from "../ui/Badge";
+import { inviteTeamMember } from "../../services/teamService";
 
 import {
   showErrorToast,
   showSuccessToast,
-} from "../ui/CustomToast";
+} from "../../components/ui/CustomToast";
 
 import { useNotificationStore } from "../../store/notificationStore";
 
 /* =========================================================
-   CONSTANTS
+   API
 ========================================================= */
 
-const ROLES = ["Admin", "Manager", "Analyst", "Viewer"];
+const API_BASE = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000/api/v1"
+).replace(/\/$/, "");
+
+const TEAM_ROLES_API = `${API_BASE}/team/roles`;
+
+/* =========================================================
+   CHANNELS
+========================================================= */
 
 const INVITATION_CHANNELS = [
   {
     value: "email",
     label: "Email",
     icon: "mail",
-    description: "Send invitation to email",
+    description: "Send invitation via email",
   },
   {
     value: "whatsapp",
     label: "WhatsApp",
     icon: "chat",
-    description: "Send invitation to WhatsApp",
+    description: "Send invitation via WhatsApp",
   },
   {
     value: "github",
     label: "GitHub",
     icon: "code",
-    description: "Invite GitHub account",
+    description: "Invite via GitHub account",
   },
   {
     value: "discord",
     label: "Discord",
     icon: "forum",
-    description: "Send invitation to Discord",
+    description: "Send invitation via Discord",
   },
 ];
+
+const labelClass =
+  "mb-1.5 block text-[11.5px] font-semibold text-text-secondary";
+
+const sectionTitleClass =
+  "mb-3 text-[11.5px] font-bold uppercase tracking-widest text-text-secondary";
 
 /* =========================================================
    INITIAL FORM
@@ -54,15 +76,11 @@ const getInitialFormData = () => ({
   name: "",
   email: "",
   avatar: "",
-
-  role: "Viewer",
-
+  role: "",
   channels: ["email"],
-
   whatsapp: "",
   github: "",
   discord: "",
-
   message: "",
 });
 
@@ -73,30 +91,25 @@ const getInitialFormData = () => ({
 const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-/* =========================================================
-   CHANNEL ICON
-========================================================= */
+const getInitials = (name) => {
+  const clean = String(name || "").trim();
+  if (!clean) return "?";
 
-function ChannelIcon({ channel }) {
-  const icons = {
-    email: "mail",
-    whatsapp: "chat",
-    github: "code",
-    discord: "forum",
-  };
+  const words = clean.split(/\s+/).filter(Boolean);
 
-  return (
-    <span
-      className="material-symbols-outlined"
-      style={{ fontSize: 20 }}
-    >
-      {icons[channel] || "send"}
-    </span>
-  );
-}
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  return words
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase();
+};
 
 /* =========================================================
-   MEMBER INVITATION DRAWER
+   COMPONENT
 ========================================================= */
 
 const MemberInvitationDrawer = ({
@@ -106,22 +119,75 @@ const MemberInvitationDrawer = ({
 }) => {
   const { addNotification } = useNotificationStore();
 
-  const [formData, setFormData] = useState(
-    getInitialFormData
-  );
-
+  const [formData, setFormData] = useState(getInitialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Roles come only from the backend
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+
   /* =======================================================
-     RESET FORM
+     LOAD ROLES FROM BACKEND
   ======================================================= */
 
-  const resetForm = useCallback(() => {
-    setFormData(getInitialFormData());
+  const loadRoles = useCallback(async () => {
+    try {
+      setRolesLoading(true);
+
+      const res = await fetch(TEAM_ROLES_API, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const text = await res.text();
+      let result = {};
+
+      try {
+        result = text ? JSON.parse(text) : {};
+      } catch {
+        setRoles([]);
+        return;
+      }
+
+      if (!res.ok || !result?.success) {
+        setRoles([]);
+        return;
+      }
+
+      const list = Array.isArray(result.data) ? result.data : [];
+
+      // Normalize to { value, label, description }
+      const mapped = list
+        .filter((r) => r?.name)
+        .map((r) => ({
+          value: r.name,
+          label: r.name,
+          description: r.description || "Workspace role",
+          id: r.id,
+        }));
+
+      setRoles(mapped);
+
+      // Set default role if form has none
+      setFormData((prev) => {
+        if (prev.role) return prev;
+        const defaultRole =
+          mapped.find((r) => r.value === "Viewer") ||
+          mapped[0];
+        return defaultRole
+          ? { ...prev, role: defaultRole.value }
+          : prev;
+      });
+    } catch (error) {
+      console.error("Load roles error:", error);
+      setRoles([]);
+    } finally {
+      setRolesLoading(false);
+    }
   }, []);
 
   /* =======================================================
-     INITIALIZE DRAWER
+     RESET + LOAD WHEN DRAWER OPENS
   ======================================================= */
 
   useEffect(() => {
@@ -129,77 +195,72 @@ const MemberInvitationDrawer = ({
 
     setFormData(getInitialFormData());
     setIsSubmitting(false);
-  }, [isOpen]);
+    loadRoles();
+  }, [isOpen, loadRoles]);
 
   /* =======================================================
-     UPDATE FORM
+     FORM HELPERS
   ======================================================= */
 
+  const resetForm = useCallback(() => {
+    setFormData(getInitialFormData());
+  }, []);
+
   const updateForm = useCallback((key, value) => {
-    setFormData((current) => ({
-      ...current,
+    setFormData((previous) => ({
+      ...previous,
       [key]: value,
     }));
   }, []);
 
-  /* =======================================================
-     TOGGLE INVITATION CHANNEL
-  ======================================================= */
-
   const toggleChannel = useCallback((channel) => {
-    setFormData((current) => {
-      const channels = Array.isArray(current.channels)
-        ? current.channels
+    setFormData((previous) => {
+      const channels = Array.isArray(previous.channels)
+        ? previous.channels
         : [];
 
       const exists = channels.includes(channel);
 
       if (exists) {
-        const updated = channels.filter(
-          (item) => item !== channel
-        );
-
+        const updated = channels.filter((item) => item !== channel);
         return {
-          ...current,
-          channels:
-            updated.length > 0 ? updated : ["email"],
+          ...previous,
+          channels: updated.length > 0 ? updated : ["email"],
         };
       }
 
       return {
-        ...current,
+        ...previous,
         channels: [...channels, channel],
       };
     });
   }, []);
 
-  /* =======================================================
-     AVATAR
-  ======================================================= */
+  const handleAvatarChange = useCallback(
+    (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-  const handleAvatarChange = (event) => {
-    const file = event.target.files?.[0];
+      if (!file.type.startsWith("image/")) {
+        showErrorToast("Please select a valid image.");
+        event.target.value = "";
+        return;
+      }
 
-    if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        showErrorToast("Avatar must be smaller than 2MB.");
+        event.target.value = "";
+        return;
+      }
 
-    if (!file.type.startsWith("image/")) {
-      showErrorToast("Please select a valid image.");
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      showErrorToast("Avatar must be smaller than 2MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      updateForm("avatar", reader.result);
-    };
-
-    reader.readAsDataURL(file);
-  };
+      const reader = new FileReader();
+      reader.onload = () => updateForm("avatar", reader.result);
+      reader.onerror = () =>
+        showErrorToast("Unable to read the selected image.");
+      reader.readAsDataURL(file);
+    },
+    [updateForm]
+  );
 
   /* =======================================================
      VALIDATION
@@ -224,7 +285,16 @@ const MemberInvitationDrawer = ({
       return false;
     }
 
-    if (!ROLES.includes(formData.role)) {
+    if (!formData.role) {
+      showErrorToast("Please select a role.");
+      return false;
+    }
+
+    const roleExists = roles.some(
+      (role) => role.value === formData.role
+    );
+
+    if (!roleExists) {
       showErrorToast("Please select a valid role.");
       return false;
     }
@@ -233,9 +303,7 @@ const MemberInvitationDrawer = ({
       !Array.isArray(formData.channels) ||
       formData.channels.length === 0
     ) {
-      showErrorToast(
-        "Please select at least one invitation method."
-      );
+      showErrorToast("Please select at least one invitation method.");
       return false;
     }
 
@@ -243,9 +311,7 @@ const MemberInvitationDrawer = ({
       formData.channels.includes("whatsapp") &&
       !formData.whatsapp.trim()
     ) {
-      showErrorToast(
-        "Please enter a WhatsApp number."
-      );
+      showErrorToast("Please enter a WhatsApp number.");
       return false;
     }
 
@@ -253,9 +319,7 @@ const MemberInvitationDrawer = ({
       formData.channels.includes("github") &&
       !formData.github.trim()
     ) {
-      showErrorToast(
-        "Please enter the GitHub username."
-      );
+      showErrorToast("Please enter the GitHub username.");
       return false;
     }
 
@@ -263,140 +327,99 @@ const MemberInvitationDrawer = ({
       formData.channels.includes("discord") &&
       !formData.discord.trim()
     ) {
-      showErrorToast(
-        "Please enter the Discord username."
-      );
+      showErrorToast("Please enter the Discord username.");
       return false;
     }
 
     return true;
-  }, [formData]);
+  }, [formData, roles]);
 
   /* =======================================================
-     BUILD PAYLOAD
+     PAYLOAD
   ======================================================= */
 
   const buildPayload = useCallback(() => {
+    const email = formData.email.trim().toLowerCase();
+
+    const channels = [
+      ...new Set(
+        Array.isArray(formData.channels)
+          ? formData.channels
+          : ["email"]
+      ),
+    ];
+
     return {
       name: formData.name.trim(),
-
-      email: formData.email
-        .trim()
-        .toLowerCase(),
-
+      email,
       avatar: formData.avatar || null,
-
       role: formData.role,
-
-      channels: [...new Set(formData.channels)],
-
+      channels,
       recipients: {
-        email: formData.email
-          .trim()
-          .toLowerCase(),
-
-        whatsapp:
-          formData.whatsapp.trim() || null,
-
-        github:
-          formData.github.trim() || null,
-
-        discord:
-          formData.discord.trim() || null,
+        email,
+        whatsapp: formData.whatsapp.trim() || null,
+        github: formData.github.trim() || null,
+        discord: formData.discord.trim() || null,
       },
-
-      message: formData.message.trim(),
+      message: formData.message.trim() || null,
     };
   }, [formData]);
 
   /* =======================================================
-     SEND INVITATION
+     SUBMIT
   ======================================================= */
 
   const handleSubmit = useCallback(async () => {
     if (isSubmitting) return;
-
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
     try {
-      const payload = buildPayload();
+      const requestPayload = buildPayload();
+      const result = await inviteTeamMember(requestPayload);
 
-      /*
-       * =====================================================
-       * BACKEND API
-       * =====================================================
-       *
-       * Connect your real invitation API here.
-       *
-       * Example:
-       *
-       * const response = await inviteTeamMember(payload);
-       *
-       * =====================================================
-       */
+      if (!result || !result.success) {
+        throw new Error(
+          result?.message || "Unable to send invitation"
+        );
+      }
 
-      await new Promise((resolve) =>
-        setTimeout(resolve, 700)
-      );
+      const member = result.data;
 
-      const member = {
-        id: `invite-${Date.now()}`,
-
-        name: payload.name,
-
-        email: payload.email,
-
-        role: payload.role,
-
-        status: "pending",
-
-        lastLogin: "—",
-
-        avatar:
-          payload.avatar ||
-          `https://i.pravatar.cc/80?u=${encodeURIComponent(
-            payload.email
-          )}`,
-      };
-
-      /* =====================================================
-         APPLICATION NOTIFICATION
-      ===================================================== */
+      if (!member) {
+        throw new Error(
+          "Invitation was created, but the server did not return the member."
+        );
+      }
 
       addNotification({
         type: "team",
         icon: "person_add",
         title: "Member Invitation Sent",
-        description: `${payload.name} has been invited as ${payload.role}.`,
+        description: `${member.name} has been invited as ${member.role}.`,
       });
-
-      /* =====================================================
-         SEND DATA TO PARENT
-      ===================================================== */
 
       if (typeof onInvited === "function") {
         onInvited({
+          success: true,
+          data: member,
           member,
-          ...payload,
         });
       }
 
       showSuccessToast(
         "Invitation sent",
-        `${payload.name} has been invited to your workspace.`
+        `${member.name} has been invited to your workspace.`
       );
 
       resetForm();
 
-      onClose();
+      if (typeof onClose === "function") {
+        onClose();
+      }
     } catch (error) {
-      console.error(
-        "Member invitation error:",
-        error
-      );
-
+      console.error("Member invitation error:", error);
       showErrorToast(
         error?.message ||
           "Unable to send the invitation. Please try again."
@@ -413,6 +436,15 @@ const MemberInvitationDrawer = ({
     resetForm,
     validateForm,
   ]);
+
+  /* =======================================================
+     PREVIEW
+  ======================================================= */
+
+  const previewInitials = useMemo(
+    () => getInitials(formData.name),
+    [formData.name]
+  );
 
   /* =======================================================
      FOOTER
@@ -433,22 +465,11 @@ const MemberInvitationDrawer = ({
         type="button"
         variant="primary"
         onClick={handleSubmit}
-        disabled={isSubmitting}
-        icon={
-          <span
-            className={`material-symbols-outlined text-sm ${
-              isSubmitting ? "animate-spin" : ""
-            }`}
-          >
-            {isSubmitting
-              ? "progress_activity"
-              : "send"}
-          </span>
-        }
+        disabled={isSubmitting || rolesLoading}
+        loading={isSubmitting}
+        icon="send"
       >
-        {isSubmitting
-          ? "Sending..."
-          : "Send Invitation"}
+        {isSubmitting ? "Sending..." : "Send Invitation"}
       </Button>
     </div>
   );
@@ -460,138 +481,66 @@ const MemberInvitationDrawer = ({
   return (
     <RightDrawer
       isOpen={isOpen}
-      onClose={
-        isSubmitting ? undefined : onClose
-      }
+      onClose={isSubmitting ? undefined : onClose}
       title="Invite Team Member"
       icon="person_add"
       width="max-w-xl"
       footer={footer}
     >
       <div className="space-y-6">
-
-        {/* =================================================
-            INTRO
-        ================================================= */}
-
-        <div
-          className="
-            rounded-xl
-            border border-border-light
-            bg-surface-secondary/50
-            p-4
-          "
+        {/* Live Preview */}
+        <Card
+          bordered
+          padding="p-4"
+          className="flex items-center gap-3 bg-surface-secondary/50"
         >
-          <div className="flex items-start gap-3">
-            <div
-              className="
-                grid h-10 w-10 shrink-0
-                place-items-center
-                rounded-lg
-                bg-primary-soft
-                text-primary
-              "
-            >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: 20 }}
-              >
-                person_add
-              </span>
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold text-text">
-                Invite someone to your workspace
+          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border bg-surface-secondary">
+            {formData.avatar ? (
+              <img
+                src={formData.avatar}
+                alt="Avatar preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full w-full place-items-center bg-primary text-sm font-bold text-text-inverse">
+                {previewInitials}
               </div>
-
-              <div className="mt-1 text-[11.5px] leading-5 text-text-muted">
-                Add their details, choose a role and
-                select where you want to send the
-                invitation.
-              </div>
-            </div>
-
-            <Badge
-              label="Team"
-              variant="active"
-            />
+            )}
           </div>
-        </div>
 
-        {/* =================================================
-            MEMBER DETAILS
-        ================================================= */}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold text-text">
+              {formData.name || "New team member"}
+            </div>
+            <div className="truncate text-[11.5px] text-text-muted">
+              {formData.email || "No email yet"}
+              {formData.role ? ` · ${formData.role}` : ""}
+            </div>
+          </div>
 
-        <section>
-          <h4
-            className="
-              mb-3
-              text-[11.5px]
-              font-bold
-              uppercase
-              tracking-widest
-              text-text-secondary
-            "
-          >
+          <Badge label="Preview" variant="active" />
+        </Card>
+
+        {/* Member Details */}
+        <section aria-labelledby="member-details-section">
+          <h4 id="member-details-section" className={sectionTitleClass}>
             Member Details
           </h4>
 
           <div className="space-y-4">
-
-            {/* =================================================
-                AVATAR
-            ================================================= */}
-
+            {/* Avatar */}
             <div>
-              <label
-                htmlFor="member-avatar"
-                className="
-                  mb-2
-                  block
-                  text-[11.5px]
-                  font-semibold
-                  text-text-secondary
-                "
-              >
-                Profile Photo
-              </label>
-
+              <label className={labelClass}>Profile Photo</label>
               <div className="flex items-center gap-4">
-
-                <div
-                  className="
-                    relative
-                    w-14 h-14
-                    shrink-0
-                    overflow-hidden
-                    rounded-full
-                    border
-                    border-border
-                    bg-surface-secondary
-                  "
-                >
+                <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-surface-secondary">
                   {formData.avatar ? (
                     <img
                       src={formData.avatar}
-                      alt="Member avatar preview"
-                      className="
-                        w-full h-full
-                        object-cover
-                      "
+                      alt=""
+                      className="h-full w-full object-cover"
                     />
                   ) : (
-                    <span
-                      className="
-                        material-symbols-outlined
-                        absolute
-                        inset-0
-                        grid
-                        place-items-center
-                        text-text-light
-                      "
-                      style={{ fontSize: 24 }}
-                    >
+                    <span className="material-symbols-outlined text-[24px] text-text-light">
                       person
                     </span>
                   )}
@@ -600,37 +549,18 @@ const MemberInvitationDrawer = ({
                 <div>
                   <label
                     htmlFor="member-avatar"
-                    className="
-                      inline-flex
-                      cursor-pointer
-                      items-center
-                      gap-2
-                      rounded-lg
-                      border border-border
-                      bg-surface
-                      px-3
-                      py-2
-                      text-xs
-                      font-semibold
-                      text-text-secondary
-                      transition
-                      hover:bg-surface-hover
-                    "
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface-hover"
                   >
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontSize: 16 }}
-                    >
+                    <span className="material-symbols-outlined text-[16px]">
                       upload
                     </span>
-
                     Choose Photo
                   </label>
 
                   <input
                     id="member-avatar"
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp"
                     onChange={handleAvatarChange}
                     disabled={isSubmitting}
                     className="hidden"
@@ -643,300 +573,176 @@ const MemberInvitationDrawer = ({
               </div>
             </div>
 
-            {/* =================================================
-                NAME
-            ================================================= */}
-
             <FormInput
               label="Member Name"
               icon="person"
               value={formData.name}
-              onChange={(event) =>
-                updateForm(
-                  "name",
-                  event.target.value
-                )
-              }
+              onChange={(e) => updateForm("name", e.target.value)}
               placeholder="John Doe"
-              autoComplete="name"
               required
               disabled={isSubmitting}
             />
-
-            {/* =================================================
-                EMAIL
-            ================================================= */}
 
             <FormInput
               label="Email Address"
               icon="mail"
               type="email"
               value={formData.email}
-              onChange={(event) =>
-                updateForm(
-                  "email",
-                  event.target.value
-                )
-              }
-              placeholder="john@example.com"
-              autoComplete="email"
+              onChange={(e) => updateForm("email", e.target.value)}
+              placeholder="john@company.com"
               required
               disabled={isSubmitting}
-              helperText="Used for the member's AutoBillr account and email invitation."
+              helperText="Used for the member's account and email invitation."
             />
 
-            {/* =================================================
-                ROLE
-            ================================================= */}
-
+            {/* Roles from backend only */}
             <div>
-              <label
-                htmlFor="member-invitation-role"
-                className="
-                  mb-1.5
-                  block
-                  text-[11.5px]
-                  font-semibold
-                  text-text-secondary
-                "
-              >
-                Workspace Role
-              </label>
+              <label className={labelClass}>Workspace Role</label>
 
-              <select
-                id="member-invitation-role"
-                value={formData.role}
-                onChange={(event) =>
-                  updateForm(
-                    "role",
-                    event.target.value
-                  )
-                }
-                disabled={isSubmitting}
-                className="
-                  w-full
-                  rounded-lg
-                  border border-border
-                  bg-[var(--input-background)]
-                  px-3.5
-                  py-2.5
-                  text-sm
-                  text-text
-                  outline-none
-                  transition
-                  focus:border-primary
-                  focus:ring-2
-                  focus:ring-primary/20
-                "
-              >
-                {ROLES.map((role) => (
-                  <option
-                    key={role}
-                    value={role}
-                  >
-                    {role}
-                  </option>
-                ))}
-              </select>
+              {rolesLoading ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-text-muted">
+                  <span className="material-symbols-outlined animate-spin text-[18px]">
+                    progress_activity
+                  </span>
+                  Loading roles...
+                </div>
+              ) : roles.length === 0 ? (
+                <p className="py-3 text-sm text-text-muted">
+                  No roles available. Create roles in Team &amp; Permissions first.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {roles.map((role) => {
+                    const selected = formData.role === role.value;
 
-              <p className="mt-1.5 text-[11px] text-text-light">
-                This role controls what the member
-                can access in AutoBillr.
-              </p>
+                    return (
+                      <button
+                        key={role.id || role.value}
+                        type="button"
+                        aria-pressed={selected}
+                        disabled={isSubmitting}
+                        onClick={() => updateForm("role", role.value)}
+                        className={`
+                          rounded-lg border-2 px-3 py-2.5 text-left transition-colors
+                          ${
+                            selected
+                              ? "border-primary/30 bg-primary-soft text-primary-dark"
+                              : "border-border bg-surface text-text-secondary hover:border-border-dark"
+                          }
+                          disabled:cursor-not-allowed disabled:opacity-60
+                        `}
+                      >
+                        <div className="text-[12.5px] font-bold">
+                          {role.label}
+                        </div>
+                        <div className="mt-0.5 text-[10px] text-text-muted line-clamp-2">
+                          {role.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        {/* =================================================
-            INVITATION METHODS
-        ================================================= */}
-
+        {/* Invitation Channels */}
         <section
-          className="
-            border-t
-            border-border-light
-            pt-5
-          "
+          aria-labelledby="channels-section"
+          className="border-t border-border-light pt-5"
         >
-          <div className="mb-3">
-            <h4
-              className="
-                text-[11.5px]
-                font-bold
-                uppercase
-                tracking-widest
-                text-text-secondary
-              "
-            >
-              Send Invitation Through
-            </h4>
+          <h4 id="channels-section" className={sectionTitleClass}>
+            Send Invitation Through
+          </h4>
 
-            <p className="mt-1 text-[10.5px] text-text-light">
-              Select one or more methods.
-            </p>
-          </div>
+          <p className="mb-3 text-[11px] text-text-muted">
+            Select one or more methods
+          </p>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {INVITATION_CHANNELS.map((channel) => {
+              const selected = formData.channels.includes(channel.value);
 
-            {INVITATION_CHANNELS.map(
-              (channel) => {
-                const selected =
-                  formData.channels.includes(
-                    channel.value
-                  );
-
-                return (
-                  <button
-                    key={channel.value}
-                    type="button"
-                    disabled={isSubmitting}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      toggleChannel(
-                        channel.value
-                      )
+              return (
+                <button
+                  key={channel.value}
+                  type="button"
+                  disabled={isSubmitting}
+                  aria-pressed={selected}
+                  onClick={() => toggleChannel(channel.value)}
+                  className={`
+                    flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all
+                    ${
+                      selected
+                        ? "border-primary/30 bg-primary-soft ring-2 ring-primary/10"
+                        : "border-border bg-surface hover:border-primary/30 hover:bg-surface-secondary"
                     }
+                    disabled:cursor-not-allowed disabled:opacity-60
+                  `}
+                >
+                  <div
                     className={`
-                      group
-                      flex
-                      items-center
-                      gap-3
-                      rounded-xl
-                      border-2
-                      p-3
-                      text-left
-                      transition-all
-
+                      grid h-10 w-10 shrink-0 place-items-center rounded-lg
                       ${
                         selected
-                          ? "border-primary/30 bg-primary-soft ring-2 ring-primary/10"
-                          : "border-border bg-surface hover:border-primary/30 hover:bg-surface-secondary"
+                          ? "bg-primary text-text-inverse"
+                          : "bg-surface-secondary text-text-muted"
                       }
-
-                      disabled:cursor-not-allowed
-                      disabled:opacity-60
                     `}
                   >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {channel.icon}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
                     <div
                       className={`
-                        grid
-                        h-10
-                        w-10
-                        shrink-0
-                        place-items-center
-                        rounded-lg
-
-                        ${
-                          selected
-                            ? "bg-primary text-text-inverse"
-                            : "bg-surface-secondary text-text-muted group-hover:text-primary"
-                        }
+                        text-[12.5px] font-bold
+                        ${selected ? "text-primary-dark" : "text-text"}
                       `}
                     >
-                      <ChannelIcon
-                        channel={
-                          channel.value
-                        }
-                      />
+                      {channel.label}
                     </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className={`
-                          text-[12.5px]
-                          font-bold
-
-                          ${
-                            selected
-                              ? "text-primary-dark"
-                              : "text-text"
-                          }
-                        `}
-                      >
-                        {channel.label}
-                      </div>
-
-                      <div
-                        className="
-                          mt-0.5
-                          text-[10.5px]
-                          leading-4
-                          text-text-muted
-                        "
-                      >
-                        {channel.description}
-                      </div>
+                    <div className="mt-0.5 text-[10.5px] leading-4 text-text-muted">
+                      {channel.description}
                     </div>
+                  </div>
 
-                    {selected && (
-                      <span
-                        className="
-                          material-symbols-outlined
-                          shrink-0
-                          text-primary
-                        "
-                        style={{
-                          fontSize: 18,
-                        }}
-                      >
-                        check_circle
-                      </span>
-                    )}
-                  </button>
-                );
-              }
-            )}
+                  {selected && (
+                    <span className="material-symbols-outlined shrink-0 text-primary text-[18px]">
+                      check_circle
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        {/* =================================================
-            CHANNEL RECIPIENTS
-        ================================================= */}
-
-        {formData.channels.includes(
-          "whatsapp"
-        ) && (
-          <section
-            className="
-              rounded-xl
-              border border-border-light
-              bg-surface-secondary/50
-              p-4
-            "
-          >
+        {/* Conditional channel fields */}
+        {formData.channels.includes("whatsapp") && (
+          <section className="rounded-xl border border-border-light bg-surface-secondary/50 p-4">
             <div className="mb-3 flex items-center gap-2">
-              <span
-                className="
-                  material-symbols-outlined
-                  text-primary
-                "
-                style={{ fontSize: 18 }}
-              >
-                chat
-              </span>
-
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary-soft text-primary">
+                <span className="material-symbols-outlined text-[18px]">
+                  chat
+                </span>
+              </div>
               <div>
-                <div className="text-sm font-bold text-text">
-                  WhatsApp Recipient
-                </div>
-
+                <div className="text-sm font-bold text-text">WhatsApp</div>
                 <div className="text-[10.5px] text-text-muted">
-                  Enter the member's WhatsApp number.
+                  Enter the member's WhatsApp number
                 </div>
               </div>
             </div>
-
             <FormInput
               label="WhatsApp Number"
               icon="phone"
               type="tel"
               value={formData.whatsapp}
-              onChange={(event) =>
-                updateForm(
-                  "whatsapp",
-                  event.target.value
-                )
-              }
+              onChange={(e) => updateForm("whatsapp", e.target.value)}
               placeholder="+91 98765 43210"
               required
               disabled={isSubmitting}
@@ -944,49 +750,27 @@ const MemberInvitationDrawer = ({
           </section>
         )}
 
-        {formData.channels.includes(
-          "github"
-        ) && (
-          <section
-            className="
-              rounded-xl
-              border border-border-light
-              bg-surface-secondary/50
-              p-4
-            "
-          >
+        {formData.channels.includes("github") && (
+          <section className="rounded-xl border border-border-light bg-surface-secondary/50 p-4">
             <div className="mb-3 flex items-center gap-2">
-              <span
-                className="
-                  material-symbols-outlined
-                  text-primary
-                "
-                style={{ fontSize: 18 }}
-              >
-                code
-              </span>
-
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary-soft text-primary">
+                <span className="material-symbols-outlined text-[18px]">
+                  code
+                </span>
+              </div>
               <div>
-                <div className="text-sm font-bold text-text">
-                  GitHub Recipient
-                </div>
-
+                <div className="text-sm font-bold text-text">GitHub</div>
                 <div className="text-[10.5px] text-text-muted">
-                  Enter their GitHub username.
+                  Enter their GitHub username
                 </div>
               </div>
             </div>
-
             <FormInput
               label="GitHub Username"
               icon="code"
               value={formData.github}
-              onChange={(event) =>
-                updateForm(
-                  "github",
-                  event.target.value
-                    .replace(/^@/, "")
-                )
+              onChange={(e) =>
+                updateForm("github", e.target.value.replace(/^@/, ""))
               }
               placeholder="octocat"
               required
@@ -995,49 +779,26 @@ const MemberInvitationDrawer = ({
           </section>
         )}
 
-        {formData.channels.includes(
-          "discord"
-        ) && (
-          <section
-            className="
-              rounded-xl
-              border border-border-light
-              bg-surface-secondary/50
-              p-4
-            "
-          >
+        {formData.channels.includes("discord") && (
+          <section className="rounded-xl border border-border-light bg-surface-secondary/50 p-4">
             <div className="mb-3 flex items-center gap-2">
-              <span
-                className="
-                  material-symbols-outlined
-                  text-primary
-                "
-                style={{ fontSize: 18 }}
-              >
-                forum
-              </span>
-
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary-soft text-primary">
+                <span className="material-symbols-outlined text-[18px]">
+                  forum
+                </span>
+              </div>
               <div>
-                <div className="text-sm font-bold text-text">
-                  Discord Recipient
-                </div>
-
+                <div className="text-sm font-bold text-text">Discord</div>
                 <div className="text-[10.5px] text-text-muted">
-                  Enter their Discord username.
+                  Enter their Discord username
                 </div>
               </div>
             </div>
-
             <FormInput
               label="Discord Username"
               icon="forum"
               value={formData.discord}
-              onChange={(event) =>
-                updateForm(
-                  "discord",
-                  event.target.value
-                )
-              }
+              onChange={(e) => updateForm("discord", e.target.value)}
               placeholder="username"
               required
               disabled={isSubmitting}
@@ -1045,41 +806,20 @@ const MemberInvitationDrawer = ({
           </section>
         )}
 
-        {/* =================================================
-            PERSONAL MESSAGE
-        ================================================= */}
-
+        {/* Personal Message */}
         <section
-          className="
-            border-t
-            border-border-light
-            pt-5
-          "
+          aria-labelledby="message-section"
+          className="border-t border-border-light pt-5"
         >
-          <h4
-            className="
-              mb-3
-              text-[11.5px]
-              font-bold
-              uppercase
-              tracking-widest
-              text-text-secondary
-            "
-          >
+          <h4 id="message-section" className={sectionTitleClass}>
             Personal Message
           </h4>
 
           <label
             htmlFor="member-invitation-message"
-            className="
-              mb-1.5
-              block
-              text-[11.5px]
-              font-semibold
-              text-text-secondary
-            "
+            className={labelClass}
           >
-            Message
+            Optional message
           </label>
 
           <textarea
@@ -1087,159 +827,89 @@ const MemberInvitationDrawer = ({
             rows={4}
             maxLength={1000}
             value={formData.message}
-            onChange={(event) =>
-              updateForm(
-                "message",
-                event.target.value
-              )
-            }
+            onChange={(e) => updateForm("message", e.target.value)}
             placeholder="Hi John, I'd like to invite you to our AutoBillr workspace..."
             disabled={isSubmitting}
             className="
-              w-full
-              resize-none
-              rounded-lg
-              border border-border
-              bg-[var(--input-background)]
-              px-3.5
-              py-2.5
-              text-sm
-              text-text
-              outline-none
-              transition
-              focus:border-primary
-              focus:ring-2
-              focus:ring-primary/15
-              disabled:cursor-not-allowed
-              disabled:opacity-60
+              w-full resize-none rounded-lg border border-border
+              bg-surface px-3.5 py-2.5 text-sm text-text
+              outline-none transition-colors
+              placeholder:text-text-light
+              focus:border-primary focus:ring-2 focus:ring-primary/15
+              disabled:cursor-not-allowed disabled:opacity-60
             "
           />
 
-          <div
-            className="
-              mt-1
-              text-right
-              text-[10px]
-              text-text-light
-            "
-          >
+          <div className="mt-1 text-right text-[10px] text-text-light">
             {formData.message.length}/1000
           </div>
         </section>
 
-        {/* =================================================
-            INVITATION SUMMARY
-        ================================================= */}
-
-        <section
-          className="
-            rounded-xl
-            border border-primary/10
-            bg-primary-soft/50
-            p-4
-          "
+        {/* Summary */}
+        <Card
+          bordered
+          padding="p-4"
+          className="border-primary/10 bg-primary-soft/40"
         >
           <div className="flex items-start gap-3">
-            <span
-              className="
-                material-symbols-outlined
-                shrink-0
-                text-primary
-              "
-              style={{ fontSize: 19 }}
-            >
-              send
-            </span>
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+              <span className="material-symbols-outlined text-[18px]">
+                send
+              </span>
+            </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-sm font-bold text-text">
                 Invitation Summary
               </div>
 
-              <div className="mt-2 space-y-1 text-[11px] text-text-muted">
+              <div className="mt-2 space-y-1 text-[11.5px] text-text-muted">
                 <div>
-                  <strong className="text-text-secondary">
+                  <span className="font-semibold text-text-secondary">
                     Member:
-                  </strong>{" "}
-                  {formData.name ||
-                    "Not specified"}
+                  </span>{" "}
+                  {formData.name || "—"}
                 </div>
-
                 <div>
-                  <strong className="text-text-secondary">
+                  <span className="font-semibold text-text-secondary">
                     Email:
-                  </strong>{" "}
-                  {formData.email ||
-                    "Not specified"}
+                  </span>{" "}
+                  {formData.email || "—"}
                 </div>
-
                 <div>
-                  <strong className="text-text-secondary">
+                  <span className="font-semibold text-text-secondary">
                     Role:
-                  </strong>{" "}
-                  {formData.role}
+                  </span>{" "}
+                  {formData.role || "—"}
                 </div>
-
                 <div>
-                  <strong className="text-text-secondary">
-                    Send through:
-                  </strong>{" "}
+                  <span className="font-semibold text-text-secondary">
+                    Via:
+                  </span>{" "}
                   {formData.channels
                     .map(
-                      (channel) =>
-                        INVITATION_CHANNELS.find(
-                          (item) =>
-                            item.value ===
-                            channel
-                        )?.label
+                      (v) =>
+                        INVITATION_CHANNELS.find((c) => c.value === v)
+                          ?.label
                     )
+                    .filter(Boolean)
                     .join(", ")}
                 </div>
               </div>
             </div>
           </div>
-        </section>
+        </Card>
 
-        {/* =================================================
-            SECURITY NOTE
-        ================================================= */}
-
-        <div
-          className="
-            flex
-            items-start
-            gap-3
-            rounded-lg
-            border
-            border-border-light
-            bg-surface-secondary
-            p-3
-          "
-        >
-          <span
-            className="
-              material-symbols-outlined
-              shrink-0
-              text-primary
-            "
-            style={{ fontSize: 18 }}
-          >
+        {/* Security note */}
+        <div className="flex items-start gap-3 rounded-lg border border-border-light bg-surface-secondary p-3">
+          <span className="material-symbols-outlined shrink-0 text-primary text-[18px]">
             verified_user
           </span>
-
-          <div
-            className="
-              text-[11px]
-              leading-5
-              text-text-muted
-            "
-          >
-            Invitations should use a unique,
-            expiring token generated by your
-            backend. Pending invitations can
-            also be revoked by workspace
-            administrators.
-          </div>
+          <p className="text-[11px] leading-5 text-text-muted">
+            Invitations use a unique, expiring token generated by your
+            backend. Pending invitations can be revoked by workspace
+            administrators at any time.
+          </p>
         </div>
       </div>
     </RightDrawer>
@@ -1247,4 +917,3 @@ const MemberInvitationDrawer = ({
 };
 
 export default MemberInvitationDrawer;
-
