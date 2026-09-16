@@ -260,7 +260,43 @@ const createCustomRole = async (req, res) => {
     });
   }
 };
+/* =========================================================
+   ACCEPT TEAM INVITATION
+========================================================= */
 
+const acceptTeamInvitation = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation token is required.",
+      });
+    }
+
+    const member =
+      await teamService.acceptInvitation(token);
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation accepted successfully.",
+      data: member,
+    });
+  } catch (error) {
+    console.error(
+      "ACCEPT TEAM INVITATION ERROR:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Unable to accept invitation.",
+    });
+  }
+};
 /*
 |--------------------------------------------------------------------------
 | DELETE CUSTOM ROLE
@@ -299,6 +335,7 @@ module.exports = {
   getTeamMembers,
   getTeamStats,
   inviteTeamMember,
+  acceptTeamInvitation,
   updateTeamMemberRole,
   deleteTeamMember,
   listCustomRoles,

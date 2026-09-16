@@ -10,7 +10,7 @@ import { Toaster } from "react-hot-toast";
 // Layout / Auth
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
-
+import AcceptInvitation from "./pages/auth/AcceptInvitation";
 // ============================================================
 // PUBLIC PAGES
 // ============================================================
@@ -102,7 +102,10 @@ function App() {
           path="/verify-email"
           element={<VerifyEmail />}
         />
-
+<Route
+  path="/accept-invitation"
+  element={<AcceptInvitation />}
+/>
         {/* ======================================================
             PROTECTED ROUTES
         ====================================================== */}

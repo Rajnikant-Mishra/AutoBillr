@@ -490,7 +490,7 @@ model TeamMember {
   email  String
   avatar String?
 
-  role   TeamRole         @default(VIEWER)
+  role   String            @default("VIEWER")
   status TeamMemberStatus @default(PENDING)
 
   channels String[] // ["email", "whatsapp", "github", "discord"]

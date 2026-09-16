@@ -69,7 +69,22 @@ export const inviteTeamMember =
 
     return response.data;
   };
+/* 
+|--------------------------------------------------------------------------
+| ACCEPT TEAM INVITATION
+|--------------------------------------------------------------------------
+*/
 
+export const acceptTeamInvitation = async (token) => {
+  const response = await axios.post(
+    `${API_URL}/accept-invitation`,
+    {
+      token,
+    }
+  );
+
+  return response.data;
+};
 /*
 |--------------------------------------------------------------------------
 | GET MEMBERS

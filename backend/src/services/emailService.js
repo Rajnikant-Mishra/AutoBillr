@@ -181,6 +181,26 @@ AutoBillr
 };
 
 
+
+
+/* =========================================================
+   HTML ESCAPING
+========================================================= */
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}
+
+
 // ============================================================
 // SEND INVOICE PDF TO CLIENT
 // ============================================================
@@ -193,19 +213,7 @@ const sendInvoiceEmail = async ({
   pdfBuffer,
 }) => {
 
-  console.log("====================================");
-  console.log("SEND INVOICE EMAIL");
-  console.log("====================================");
 
-  console.log("FROM:", process.env.MAIL_USER);
-  console.log("TO:", email);
-  console.log("CLIENT:", clientName);
-  console.log("INVOICE:", invoiceNumber);
-  console.log("PDF BUFFER:", !!pdfBuffer);
-  console.log("PDF IS BUFFER:", Buffer.isBuffer(pdfBuffer));
-  console.log("PDF SIZE:", pdfBuffer?.length);
-
-  console.log("====================================");
 
 
   // ----------------------------------------------------------
@@ -374,16 +382,7 @@ AutoBillr
 
   // ----------------------------------------------------------
   // SEND
-  // ----------------------------------------------------------
-
-  console.log("====================================");
-  console.log(">>> SENDING INVOICE EMAIL...");
-  console.log("SMTP FROM:", process.env.MAIL_USER);
-  console.log("SMTP TO:", email);
-  console.log("SUBJECT:", mailOptions.subject);
-  console.log("PDF FILENAME:", `${invoiceNumber}.pdf`);
-  console.log("PDF SIZE:", pdfBuffer.length);
-  console.log("====================================");
+ 
 
 
   try {
@@ -391,39 +390,8 @@ AutoBillr
     const info = await transporter.sendMail(mailOptions);
 
 
-    // --------------------------------------------------------
-    // RESULT
-    // --------------------------------------------------------
+    
 
-    console.log("====================================");
-    console.log(">>> INVOICE EMAIL SMTP RESULT");
-    console.log("====================================");
-
-    console.log("MESSAGE ID:", info.messageId);
-
-    console.log("FROM:", process.env.MAIL_USER);
-
-    console.log("TO:", email);
-
-    console.log("ACCEPTED:", info.accepted);
-
-    console.log("REJECTED:", info.rejected);
-
-    console.log("RESPONSE:", info.response);
-
-    console.log("ENVELOPE:", info.envelope);
-
-    console.log(
-      "PDF ATTACHED:",
-      mailOptions.attachments.length > 0
-    );
-
-    console.log(
-      "PDF SIZE:",
-      pdfBuffer.length
-    );
-
-    console.log("====================================");
 
 
     // --------------------------------------------------------
@@ -444,17 +412,7 @@ AutoBillr
 
   } catch (error) {
 
-    console.error("====================================");
-    console.error(">>> INVOICE EMAIL FAILED");
-    console.error("====================================");
-
-    console.error("ERROR MESSAGE:", error.message);
-    console.error("ERROR CODE:", error.code);
-    console.error("ERROR RESPONSE:", error.response);
-    console.error("ERROR RESPONSE CODE:", error.responseCode);
-    console.error("ERROR COMMAND:", error.command);
-
-    console.error("====================================");
+   
 
     throw error;
   }
@@ -546,11 +504,171 @@ AutoBillr
   }
 };
 
+const sendTeamInvitationEmail = async ({
+  to,
+  memberName,
+  companyName,
+  role,
+  invitationUrl,
+  message,
+}) => {
+  if (!to) {
+    throw new Error(
+      "Invitation recipient email is required."
+    );
+  }
+
+  if (!invitationUrl) {
+    throw new Error(
+      "Invitation URL is required."
+    );
+  }
+
+  const from =
+    process.env.MAIL_FROM ||
+    `AutoBillr <${process.env.MAIL_USER}>`;
+
+  const safeMemberName =
+    String(memberName || "there");
+
+  const safeCompanyName =
+    String(companyName || "AutoBillr");
+
+  const safeRole =
+    String(role || "Viewer");
+
+  const personalMessage =
+    message
+      ? String(message)
+      : "You have been invited to join the AutoBillr workspace.";
+
+  const text = `
+Hello ${safeMemberName},
+
+You have been invited to join ${safeCompanyName} on AutoBillr.
+
+Role: ${safeRole}
+
+${personalMessage}
+
+Accept your invitation:
+${invitationUrl}
+
+This invitation link is unique to you.
+
+If you were not expecting this invitation, you can ignore this email.
+
+AutoBillr
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>AutoBillr Invitation</title>
+</head>
+
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+
+  <div style="max-width:600px;margin:40px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+
+    <div style="padding:28px;background:#0f9d94;color:#ffffff;">
+      <h1 style="margin:0;font-size:24px;">
+        AutoBillr
+      </h1>
+    </div>
+
+    <div style="padding:32px;">
+
+      <h2 style="margin-top:0;color:#0f172a;">
+        You're invited to join ${safeCompanyName}
+      </h2>
+
+      <p style="color:#475569;line-height:1.7;">
+        Hello ${safeMemberName},
+      </p>
+
+      <p style="color:#475569;line-height:1.7;">
+        You have been invited to join
+        <strong>${safeCompanyName}</strong>
+        on AutoBillr.
+      </p>
+
+      <div style="margin:24px 0;padding:16px;background:#f8fafc;border-radius:10px;">
+        <strong style="color:#0f172a;">
+          Your role:
+        </strong>
+
+        <span style="color:#475569;">
+          ${safeRole}
+        </span>
+      </div>
+
+      <p style="color:#475569;line-height:1.7;">
+        ${personalMessage}
+      </p>
+
+      <div style="margin:30px 0;text-align:center;">
+
+        <a
+          href="${invitationUrl}"
+          style="
+            display:inline-block;
+            padding:14px 28px;
+            background:#0f9d94;
+            color:#ffffff;
+            text-decoration:none;
+            border-radius:8px;
+            font-weight:600;
+          "
+        >
+          Accept Invitation
+        </a>
+
+      </div>
+
+      <p style="font-size:13px;color:#94a3b8;line-height:1.6;">
+        If the button does not work, copy and paste this link into your browser:
+      </p>
+
+      <p style="font-size:13px;word-break:break-all;color:#0f9d94;">
+        ${invitationUrl}
+      </p>
+
+      <p style="font-size:13px;color:#94a3b8;">
+        If you were not expecting this invitation, you can safely ignore this email.
+      </p>
+
+    </div>
+
+  </div>
+
+</body>
+</html>
+`;
+
+  const info = await transporter.sendMail({
+    from,
+    to,
+    subject: `You're invited to join ${safeCompanyName} on AutoBillr`,
+    text,
+    html,
+  });
+
+  console.log(
+    "TEAM INVITATION EMAIL SENT:",
+    info.messageId
+  );
+
+  return info;
+};
 
 module.exports = {
-  sendVerificationEmail,
+   sendVerificationEmail,
   sendInvoiceEmail,
   sendReminderEmail,
+  sendTeamInvitationEmail,
 };
 
 

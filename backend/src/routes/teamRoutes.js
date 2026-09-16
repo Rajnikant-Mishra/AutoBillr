@@ -120,7 +120,10 @@ router.patch(
   requireCompany,
   teamController.updateTeamMemberRole
 );
-
+router.post(
+  "/accept-invitation",
+  teamController.acceptTeamInvitation
+);
 /*
 |--------------------------------------------------------------------------
 | DELETE MEMBER

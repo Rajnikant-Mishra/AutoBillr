@@ -1,8 +1,17 @@
-// src/services/teamService.js
-const prisma = require("../../config/prisma"); // adjust path if needed
+// backend/services/teamService.js
+
+const prisma = require("../../config/prisma");
 const crypto = require("crypto");
 
-const ROLE_MAP = {
+const {
+  sendTeamInvitationEmail,
+} = require("./emailService");
+
+/* =========================================================
+   SYSTEM ROLES
+========================================================= */
+
+const SYSTEM_ROLES = {
   Owner: "OWNER",
   Admin: "ADMIN",
   Manager: "MANAGER",
@@ -10,15 +19,35 @@ const ROLE_MAP = {
   Viewer: "VIEWER",
 };
 
+/* =========================================================
+   HELPERS
+========================================================= */
+
 function toFrontend(member) {
+  const roleName = member.role || "VIEWER";
+
+  const displayRole =
+    roleName === "OWNER"
+      ? "Owner"
+      : roleName === "ADMIN"
+      ? "Admin"
+      : roleName === "MANAGER"
+      ? "Manager"
+      : roleName === "ANALYST"
+      ? "Analyst"
+      : roleName === "VIEWER"
+      ? "Viewer"
+      : roleName;
+
   return {
     id: member.id,
     name: member.name,
     email: member.email,
     avatar: member.avatar,
-    role: member.role.charAt(0) + member.role.slice(1).toLowerCase(), // OWNER → Owner
+    role: displayRole,
     status: member.status.toLowerCase(),
-    lastActivityAt: member.lastActivityAt?.toISOString() || null,
+    lastActivityAt:
+      member.lastActivityAt?.toISOString() || null,
     channels: member.channels || ["email"],
     whatsapp: member.whatsapp,
     github: member.github,
@@ -27,182 +56,600 @@ function toFrontend(member) {
 }
 
 /* =========================================================
-   TEAM MEMBERS
+   RESOLVE ROLE
+========================================================= */
+
+async function resolveRole(companyId, roleName) {
+  if (!roleName) {
+    return "VIEWER";
+  }
+
+  /* -------------------------------------------------------
+     SYSTEM ROLE
+  ------------------------------------------------------- */
+
+  if (SYSTEM_ROLES[roleName]) {
+    return SYSTEM_ROLES[roleName];
+  }
+
+  /* -------------------------------------------------------
+     CUSTOM ROLE
+  ------------------------------------------------------- */
+
+  const custom = await prisma.role.findFirst({
+    where: {
+      companyId,
+      name: {
+        equals: roleName,
+        mode: "insensitive",
+      },
+    },
+  });
+
+  if (custom) {
+    return custom.name;
+  }
+
+  throw new Error("Invalid role");
+}
+
+/* =========================================================
+   LIST TEAM MEMBERS
 ========================================================= */
 
 async function listMembers(companyId) {
   const members = await prisma.teamMember.findMany({
-    where: { companyId },
-    orderBy: [{ status: "asc" }, { name: "asc" }],
+    where: {
+      companyId,
+    },
+    orderBy: [
+      {
+        status: "asc",
+      },
+      {
+        name: "asc",
+      },
+    ],
   });
+
   return members.map(toFrontend);
 }
 
-async function inviteMember(companyId, invitedById, payload) {
-  const email = payload.email.trim().toLowerCase();
-  const name = payload.name.trim();
-  const role = ROLE_MAP[payload.role] || "VIEWER";
+/* =========================================================
+   INVITE TEAM MEMBER
+========================================================= */
 
-  const existing = await prisma.teamMember.findUnique({
-    where: {
-      companyId_email: { companyId, email },
-    },
-  });
+async function inviteMember(
+  companyId,
+  invitedById,
+  payload
+) {
+  /* -------------------------------------------------------
+     VALIDATE PAYLOAD
+  ------------------------------------------------------- */
 
-  if (existing && existing.status !== "INACTIVE") {
-    throw new Error("A member with this email already exists.");
+  if (!payload) {
+    throw new Error("Invitation data is required.");
   }
 
-  const invitationToken = crypto.randomBytes(32).toString("hex");
+  const email = String(payload.email || "")
+    .trim()
+    .toLowerCase();
 
-  const member = await prisma.teamMember.upsert({
+  const name = String(payload.name || "").trim();
+
+  if (!name) {
+    throw new Error("Member name is required.");
+  }
+
+  if (!email) {
+    throw new Error("Member email is required.");
+  }
+
+  const emailRegex =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    throw new Error("Invalid email address.");
+  }
+
+  /* -------------------------------------------------------
+     RESOLVE ROLE
+  ------------------------------------------------------- */
+
+  const role = await resolveRole(
+    companyId,
+    payload.role
+  );
+
+  /* -------------------------------------------------------
+     CHECK EXISTING MEMBER
+  ------------------------------------------------------- */
+
+  const existing =
+    await prisma.teamMember.findUnique({
+      where: {
+        companyId_email: {
+          companyId,
+          email,
+        },
+      },
+    });
+
+  if (
+    existing &&
+    existing.status !== "INACTIVE"
+  ) {
+    throw new Error(
+      "A member with this email already exists."
+    );
+  }
+
+  /* -------------------------------------------------------
+     GENERATE SECURE INVITATION TOKEN
+  ------------------------------------------------------- */
+
+  const invitationToken =
+    crypto.randomBytes(48).toString("hex");
+
+  /* -------------------------------------------------------
+     INVITATION URL
+  ------------------------------------------------------- */
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL ||
+    "http://localhost:5173"
+  ).replace(/\/$/, "");
+
+  const invitationUrl =
+    `${frontendUrl}/accept-invitation` +
+    `?token=${encodeURIComponent(
+      invitationToken
+    )}`;
+
+  /* -------------------------------------------------------
+     CHANNELS
+
+     Email is always included because the actual
+     invitation is currently sent through SMTP.
+  ------------------------------------------------------- */
+
+  const channels = [
+    ...new Set([
+      "email",
+      ...(Array.isArray(payload.channels)
+        ? payload.channels
+        : []),
+    ]),
+  ];
+
+  /* -------------------------------------------------------
+     CREATE / UPDATE PENDING MEMBER
+  ------------------------------------------------------- */
+
+  const member =
+    await prisma.teamMember.upsert({
+      where: {
+        companyId_email: {
+          companyId,
+          email,
+        },
+      },
+
+      /* ===================================================
+         CREATE
+      =================================================== */
+
+      create: {
+        companyId,
+        name,
+        email,
+        avatar: payload.avatar || null,
+
+        role,
+
+        status: "PENDING",
+
+        channels,
+
+        whatsapp:
+          payload.recipients?.whatsapp ||
+          null,
+
+        github:
+          payload.recipients?.github ||
+          null,
+
+        discord:
+          payload.recipients?.discord ||
+          null,
+
+        invitationToken,
+
+        invitationMessage:
+          payload.message || null,
+
+        invitedById,
+
+        lastActivityAt: new Date(),
+      },
+
+      /* ===================================================
+         UPDATE / RESEND INVITATION
+      =================================================== */
+
+      update: {
+        name,
+
+        avatar:
+          payload.avatar || null,
+
+        role,
+
+        status: "PENDING",
+
+        channels,
+
+        whatsapp:
+          payload.recipients?.whatsapp ||
+          null,
+
+        github:
+          payload.recipients?.github ||
+          null,
+
+        discord:
+          payload.recipients?.discord ||
+          null,
+
+        invitationToken,
+
+        invitationMessage:
+          payload.message || null,
+
+        invitedById,
+
+        lastActivityAt: new Date(),
+
+        acceptedAt: null,
+      },
+    });
+
+  /* -------------------------------------------------------
+     GET COMPANY
+  ------------------------------------------------------- */
+
+  const company =
+    await prisma.company.findUnique({
+      where: {
+        id: companyId,
+      },
+
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+  if (!company) {
+    throw new Error(
+      "Company associated with this invitation was not found."
+    );
+  }
+
+  /* -------------------------------------------------------
+     SEND INVITATION EMAIL
+     
+     THIS IS THE IMPORTANT PART.
+
+     `to: email` means the email entered in the
+     Member Invitation Drawer receives the email.
+  ------------------------------------------------------- */
+
+  console.log(
+    "========================================"
+  );
+
+  console.log(
+    "TEAM INVITATION RECIPIENT:",
+    email
+  );
+
+  console.log(
+    "TEAM INVITATION ROLE:",
+    role
+  );
+
+  console.log(
+    "TEAM INVITATION COMPANY:",
+    company.name
+  );
+
+  console.log(
+    "TEAM INVITATION URL:",
+    invitationUrl
+  );
+
+  console.log(
+    "========================================"
+  );
+
+  await sendTeamInvitationEmail({
+    to: email,
+
+    memberName: name,
+
+    companyName: company.name,
+
+    role,
+
+    invitationUrl,
+
+    message:
+      payload.message || null,
+  });
+
+  /* -------------------------------------------------------
+     RETURN MEMBER
+  ------------------------------------------------------- */
+
+  return toFrontend(member);
+}
+
+/* =========================================================
+   ACCEPT TEAM INVITATION
+========================================================= */
+
+async function acceptInvitation(token) {
+  if (!token) {
+    throw new Error("Invitation token is required.");
+  }
+
+  const member = await prisma.teamMember.findFirst({
     where: {
-      companyId_email: { companyId, email },
-    },
-    create: {
-      companyId,
-      name,
-      email,
-      avatar: payload.avatar || null,
-      role,
+      invitationToken: token,
       status: "PENDING",
-      channels: payload.channels || ["email"],
-      whatsapp: payload.recipients?.whatsapp || null,
-      github: payload.recipients?.github || null,
-      discord: payload.recipients?.discord || null,
-      invitationToken,
-      invitationMessage: payload.message || null,
-      invitedById,
-      lastActivityAt: new Date(),
-    },
-    update: {
-      name,
-      avatar: payload.avatar || null,
-      role,
-      status: "PENDING",
-      channels: payload.channels || ["email"],
-      whatsapp: payload.recipients?.whatsapp || null,
-      github: payload.recipients?.github || null,
-      discord: payload.recipients?.discord || null,
-      invitationToken,
-      invitationMessage: payload.message || null,
-      invitedById,
-      lastActivityAt: new Date(),
-      acceptedAt: null,
     },
   });
 
-  return toFrontend(member);
-}
+  if (!member) {
+    throw new Error(
+      "Invalid or expired invitation. The invitation may have already been accepted."
+    );
+  }
 
-async function updateRole(companyId, memberId, newRole) {
-  const role = ROLE_MAP[newRole];
-  if (!role) throw new Error("Invalid role");
-
-  // Optional: make sure the member belongs to this company
-  const existing = await prisma.teamMember.findFirst({
-    where: { id: memberId, companyId },
-  });
-  if (!existing) throw new Error("Team member not found");
-
-  const member = await prisma.teamMember.update({
-    where: { id: memberId },
+  const updatedMember = await prisma.teamMember.update({
+    where: {
+      id: member.id,
+    },
     data: {
-      role,
+      status: "ACTIVE",
+      acceptedAt: new Date(),
+      invitationToken: null,
       lastActivityAt: new Date(),
     },
   });
 
+  return toFrontend(updatedMember);
+}
+/* =========================================================
+   UPDATE ROLE
+========================================================= */
+
+async function updateRole(
+  companyId,
+  memberId,
+  newRole
+) {
+  const role = await resolveRole(
+    companyId,
+    newRole
+  );
+
+  const existing =
+    await prisma.teamMember.findFirst({
+      where: {
+        id: memberId,
+        companyId,
+      },
+    });
+
+  if (!existing) {
+    throw new Error(
+      "Team member not found"
+    );
+  }
+
+  const member =
+    await prisma.teamMember.update({
+      where: {
+        id: memberId,
+      },
+
+      data: {
+        role,
+        lastActivityAt: new Date(),
+      },
+    });
+
   return toFrontend(member);
 }
 
-async function removeMember(companyId, memberId) {
-  const existing = await prisma.teamMember.findFirst({
-    where: { id: memberId, companyId },
-  });
-  if (!existing) throw new Error("Team member not found");
+/* =========================================================
+   REMOVE MEMBER
+========================================================= */
+
+async function removeMember(
+  companyId,
+  memberId
+) {
+  const existing =
+    await prisma.teamMember.findFirst({
+      where: {
+        id: memberId,
+        companyId,
+      },
+    });
+
+  if (!existing) {
+    throw new Error(
+      "Team member not found"
+    );
+  }
 
   await prisma.teamMember.delete({
-    where: { id: memberId },
+    where: {
+      id: memberId,
+    },
   });
 }
 
+/* =========================================================
+   TEAM STATS
+========================================================= */
+
 async function getStats(companyId) {
-  const [total, active, pending] = await Promise.all([
-    prisma.teamMember.count({ where: { companyId } }),
-    prisma.teamMember.count({ where: { companyId, status: "ACTIVE" } }),
-    prisma.teamMember.count({ where: { companyId, status: "PENDING" } }),
+  const [
+    total,
+    active,
+    pending,
+  ] = await Promise.all([
+    prisma.teamMember.count({
+      where: {
+        companyId,
+      },
+    }),
+
+    prisma.teamMember.count({
+      where: {
+        companyId,
+        status: "ACTIVE",
+      },
+    }),
+
+    prisma.teamMember.count({
+      where: {
+        companyId,
+        status: "PENDING",
+      },
+    }),
   ]);
 
-  return { total, active, pending };
+  return {
+    total,
+    active,
+    pending,
+  };
 }
 
 /* =========================================================
    CUSTOM ROLES
 ========================================================= */
 
-/* =========================================================
-   CUSTOM ROLES  (model name = Role)
-========================================================= */
-
 async function listCustomRoles(companyId) {
-  const roles = await prisma.role.findMany({
-    where: { companyId },
-    orderBy: { name: "asc" },
-  });
+  const roles =
+    await prisma.role.findMany({
+      where: {
+        companyId,
+      },
+
+      orderBy: {
+        name: "asc",
+      },
+    });
 
   return roles.map((role) => ({
     id: role.id,
     name: role.name,
-    description: role.description || "Custom workspace role.",
+    description:
+      role.description ||
+      "Custom workspace role.",
     createdAt: role.createdAt,
   }));
 }
 
-async function createCustomRole(companyId, payload) {
-  const name = (payload.name || "").trim();
-  const description = (payload.description || "").trim();
+/* =========================================================
+   CREATE CUSTOM ROLE
+========================================================= */
+
+async function createCustomRole(
+  companyId,
+  payload
+) {
+  const name = (
+    payload.name || ""
+  ).trim();
+
+  const description = (
+    payload.description || ""
+  ).trim();
 
   if (!name) {
-    throw new Error("Role name is required.");
+    throw new Error(
+      "Role name is required."
+    );
   }
 
   if (name.length < 2) {
-    throw new Error("Role name must contain at least 2 characters.");
+    throw new Error(
+      "Role name must contain at least 2 characters."
+    );
   }
 
   if (name.length > 50) {
-    throw new Error("Role name cannot exceed 50 characters.");
+    throw new Error(
+      "Role name cannot exceed 50 characters."
+    );
   }
 
-  // Prevent colliding with default system roles
-  const defaultRoles = ["Owner", "Admin", "Manager", "Analyst", "Viewer"];
-  if (defaultRoles.some((r) => r.toLowerCase() === name.toLowerCase())) {
-    throw new Error("A role with this name already exists.");
+  const defaultRoles = [
+    "Owner",
+    "Admin",
+    "Manager",
+    "Analyst",
+    "Viewer",
+  ];
+
+  if (
+    defaultRoles.some(
+      (role) =>
+        role.toLowerCase() ===
+        name.toLowerCase()
+    )
+  ) {
+    throw new Error(
+      "A role with this name already exists."
+    );
   }
 
-  // Case-insensitive uniqueness check
-  const existing = await prisma.role.findFirst({
-    where: {
-      companyId,
-      name: {
-        equals: name,
-        mode: "insensitive",
+  const existing =
+    await prisma.role.findFirst({
+      where: {
+        companyId,
+
+        name: {
+          equals: name,
+          mode: "insensitive",
+        },
       },
-    },
-  });
+    });
 
   if (existing) {
-    throw new Error("A role with this name already exists.");
+    throw new Error(
+      "A role with this name already exists."
+    );
   }
 
-  const role = await prisma.role.create({
-    data: {
-      companyId,
-      name,
-      description: description || "Custom workspace role.",
-    },
-  });
+  const role =
+    await prisma.role.create({
+      data: {
+        companyId,
+        name,
+        description:
+          description ||
+          "Custom workspace role.",
+      },
+    });
 
   return {
     id: role.id,
@@ -212,28 +659,46 @@ async function createCustomRole(companyId, payload) {
   };
 }
 
-async function deleteCustomRole(companyId, roleId) {
-  const existing = await prisma.role.findFirst({
-    where: { id: roleId, companyId },
-  });
+/* =========================================================
+   DELETE CUSTOM ROLE
+========================================================= */
+
+async function deleteCustomRole(
+  companyId,
+  roleId
+) {
+  const existing =
+    await prisma.role.findFirst({
+      where: {
+        id: roleId,
+        companyId,
+      },
+    });
 
   if (!existing) {
-    throw new Error("Custom role not found.");
+    throw new Error(
+      "Custom role not found."
+    );
   }
 
   await prisma.role.delete({
-    where: { id: roleId },
+    where: {
+      id: roleId,
+    },
   });
 }
+
+/* =========================================================
+   EXPORTS
+========================================================= */
 
 module.exports = {
   listMembers,
   inviteMember,
+  acceptInvitation,
   updateRole,
   removeMember,
   getStats,
-
-  // Custom roles
   listCustomRoles,
   createCustomRole,
   deleteCustomRole,

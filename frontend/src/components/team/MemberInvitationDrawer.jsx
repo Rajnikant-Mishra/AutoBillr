@@ -21,15 +21,36 @@ import {
 import { useNotificationStore } from "../../store/notificationStore";
 
 /* =========================================================
-   API
+   SYSTEM ROLES (always available)
 ========================================================= */
 
-const API_BASE = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api/v1"
-).replace(/\/$/, "");
-
-const TEAM_ROLES_API = `${API_BASE}/team/roles`;
+const SYSTEM_ROLES = [
+  {
+    value: "Owner",
+    label: "Owner",
+    description: "Full workspace ownership and administrative access.",
+  },
+  {
+    value: "Admin",
+    label: "Admin",
+    description: "Manage workspace settings, members and billing.",
+  },
+  {
+    value: "Manager",
+    label: "Manager",
+    description: "Manage projects, clients and operational workflows.",
+  },
+  {
+    value: "Analyst",
+    label: "Analyst",
+    description: "View reports, analytics and business information.",
+  },
+  {
+    value: "Viewer",
+    label: "Viewer",
+    description: "Read-only access to permitted workspace information.",
+  },
+];
 
 /* =========================================================
    CHANNELS
@@ -76,7 +97,7 @@ const getInitialFormData = () => ({
   name: "",
   email: "",
   avatar: "",
-  role: "",
+  role: "Viewer",
   channels: ["email"],
   whatsapp: "",
   github: "",
@@ -116,78 +137,32 @@ const MemberInvitationDrawer = ({
   isOpen,
   onClose,
   onInvited,
+  roles = [], // custom roles from parent (Role table)
 }) => {
   const { addNotification } = useNotificationStore();
 
   const [formData, setFormData] = useState(getInitialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Roles come only from the backend
-  const [roles, setRoles] = useState([]);
-  const [rolesLoading, setRolesLoading] = useState(false);
-
   /* =======================================================
-     LOAD ROLES FROM BACKEND
+     ALL ROLES = system + custom
   ======================================================= */
 
-  const loadRoles = useCallback(async () => {
-    try {
-      setRolesLoading(true);
+  const allRoles = useMemo(() => {
+    const custom = (roles || [])
+      .filter((r) => r?.name)
+      .map((r) => ({
+        value: r.name,
+        label: r.name,
+        description: r.description || "Workspace role",
+        id: r.id,
+      }));
 
-      const res = await fetch(TEAM_ROLES_API, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const text = await res.text();
-      let result = {};
-
-      try {
-        result = text ? JSON.parse(text) : {};
-      } catch {
-        setRoles([]);
-        return;
-      }
-
-      if (!res.ok || !result?.success) {
-        setRoles([]);
-        return;
-      }
-
-      const list = Array.isArray(result.data) ? result.data : [];
-
-      // Normalize to { value, label, description }
-      const mapped = list
-        .filter((r) => r?.name)
-        .map((r) => ({
-          value: r.name,
-          label: r.name,
-          description: r.description || "Workspace role",
-          id: r.id,
-        }));
-
-      setRoles(mapped);
-
-      // Set default role if form has none
-      setFormData((prev) => {
-        if (prev.role) return prev;
-        const defaultRole =
-          mapped.find((r) => r.value === "Viewer") ||
-          mapped[0];
-        return defaultRole
-          ? { ...prev, role: defaultRole.value }
-          : prev;
-      });
-    } catch (error) {
-      console.error("Load roles error:", error);
-      setRoles([]);
-    } finally {
-      setRolesLoading(false);
-    }
-  }, []);
+    return [...SYSTEM_ROLES, ...custom];
+  }, [roles]);
 
   /* =======================================================
-     RESET + LOAD WHEN DRAWER OPENS
+     RESET WHEN DRAWER OPENS
   ======================================================= */
 
   useEffect(() => {
@@ -195,8 +170,7 @@ const MemberInvitationDrawer = ({
 
     setFormData(getInitialFormData());
     setIsSubmitting(false);
-    loadRoles();
-  }, [isOpen, loadRoles]);
+  }, [isOpen]);
 
   /* =======================================================
      FORM HELPERS
@@ -290,7 +264,7 @@ const MemberInvitationDrawer = ({
       return false;
     }
 
-    const roleExists = roles.some(
+    const roleExists = allRoles.some(
       (role) => role.value === formData.role
     );
 
@@ -332,38 +306,42 @@ const MemberInvitationDrawer = ({
     }
 
     return true;
-  }, [formData, roles]);
+  }, [formData, allRoles]);
 
   /* =======================================================
      PAYLOAD
   ======================================================= */
 
-  const buildPayload = useCallback(() => {
-    const email = formData.email.trim().toLowerCase();
+ const buildPayload = useCallback(() => {
+  const email = formData.email.trim().toLowerCase();
 
-    const channels = [
-      ...new Set(
-        Array.isArray(formData.channels)
-          ? formData.channels
-          : ["email"]
-      ),
-    ];
+  const channels = [
+    ...new Set([
+      "email",
+      ...(Array.isArray(formData.channels)
+        ? formData.channels
+        : []),
+    ]),
+  ];
 
-    return {
-      name: formData.name.trim(),
+  return {
+    name: formData.name.trim(),
+    email,
+    avatar: formData.avatar || null,
+    role: formData.role,
+
+    channels,
+
+    recipients: {
       email,
-      avatar: formData.avatar || null,
-      role: formData.role,
-      channels,
-      recipients: {
-        email,
-        whatsapp: formData.whatsapp.trim() || null,
-        github: formData.github.trim() || null,
-        discord: formData.discord.trim() || null,
-      },
-      message: formData.message.trim() || null,
-    };
-  }, [formData]);
+      whatsapp: formData.whatsapp.trim() || null,
+      github: formData.github.trim() || null,
+      discord: formData.discord.trim() || null,
+    },
+
+    message: formData.message.trim() || null,
+  };
+}, [formData]);
 
   /* =======================================================
      SUBMIT
@@ -465,7 +443,7 @@ const MemberInvitationDrawer = ({
         type="button"
         variant="primary"
         onClick={handleSubmit}
-        disabled={isSubmitting || rolesLoading}
+        disabled={isSubmitting}
         loading={isSubmitting}
         icon="send"
       >
@@ -595,24 +573,17 @@ const MemberInvitationDrawer = ({
               helperText="Used for the member's account and email invitation."
             />
 
-            {/* Roles from backend only */}
+            {/* Roles = system + custom */}
             <div>
               <label className={labelClass}>Workspace Role</label>
 
-              {rolesLoading ? (
-                <div className="flex items-center gap-2 py-4 text-sm text-text-muted">
-                  <span className="material-symbols-outlined animate-spin text-[18px]">
-                    progress_activity
-                  </span>
-                  Loading roles...
-                </div>
-              ) : roles.length === 0 ? (
+              {allRoles.length === 0 ? (
                 <p className="py-3 text-sm text-text-muted">
-                  No roles available. Create roles in Team &amp; Permissions first.
+                  No roles available.
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                  {roles.map((role) => {
+                  {allRoles.map((role) => {
                     const selected = formData.role === role.value;
 
                     return (
