@@ -406,31 +406,29 @@ async function acceptInvitation(token) {
   }
 
   const member = await prisma.teamMember.findFirst({
-    where: {
-      invitationToken: token,
-      status: "PENDING",
-    },
+    where: { invitationToken: token },
   });
 
   if (!member) {
-    throw new Error(
-      "Invalid or expired invitation. The invitation may have already been accepted."
-    );
+    throw new Error("Invalid or expired invitation.");
   }
 
-  const updatedMember = await prisma.teamMember.update({
-    where: {
-      id: member.id,
-    },
+  if (member.status === "ACTIVE") {
+    // already accepted
+    return toFrontend(member);
+  }
+
+  const updated = await prisma.teamMember.update({
+    where: { id: member.id },
     data: {
       status: "ACTIVE",
       acceptedAt: new Date(),
-      invitationToken: null,
       lastActivityAt: new Date(),
+      invitationToken: null, // clear token so it can't be reused
     },
   });
 
-  return toFrontend(updatedMember);
+  return toFrontend(updated);
 }
 /* =========================================================
    UPDATE ROLE

@@ -31,6 +31,12 @@ const requireCompany = (req, res, next) => {
 
 /*
 |--------------------------------------------------------------------------
+| STATIC ROUTES (must come BEFORE /:id routes)
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
 | GET TEAM MEMBERS
 | GET /api/v1/team
 |--------------------------------------------------------------------------
@@ -60,7 +66,6 @@ router.get(
 | LIST CUSTOM ROLES
 | GET /api/v1/team/roles
 |--------------------------------------------------------------------------
-| IMPORTANT: Place static routes BEFORE /:id routes
 */
 router.get(
   "/roles",
@@ -110,6 +115,26 @@ router.post(
 
 /*
 |--------------------------------------------------------------------------
+| ACCEPT INVITATION
+| POST /api/v1/team/accept-invitation
+|--------------------------------------------------------------------------
+| Public route – no auth / company middleware
+| Must be BEFORE any /:id routes
+|--------------------------------------------------------------------------
+*/
+router.post(
+  "/accept-invitation",
+  teamController.acceptTeamInvitation
+);
+
+/*
+|--------------------------------------------------------------------------
+| DYNAMIC ROUTES (must come AFTER static routes)
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
 | UPDATE ROLE
 | PATCH /api/v1/team/:id/role
 |--------------------------------------------------------------------------
@@ -120,10 +145,7 @@ router.patch(
   requireCompany,
   teamController.updateTeamMemberRole
 );
-router.post(
-  "/accept-invitation",
-  teamController.acceptTeamInvitation
-);
+
 /*
 |--------------------------------------------------------------------------
 | DELETE MEMBER

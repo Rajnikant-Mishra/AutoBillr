@@ -1342,11 +1342,10 @@ export default function Composer() {
     1 * 0.99 = 0.99
   */
 
-  const tax =
-    subtotal * 0.085;
-
-  const total =
-    subtotal + tax;
+ const savedTax = JSON.parse(localStorage.getItem("autobillr-tax") || "{}");
+ const taxRate = Number(savedTax.rate) || 18;
+ const tax = (subtotal * taxRate) / 100;
+ const total = subtotal + tax;
 
   /* =========================================================
      FINALIZE / SAVE INVOICE
@@ -2302,22 +2301,17 @@ export default function Composer() {
             <div ref={invoiceRef}>
 
               <div className="bg-surface border border-border rounded-xl overflow-hidden">
-
-                <InvoiceTemplate
-                  invoice={invoice}
-                  selectedClient={
-                    selectedClient
-                  }
-                  selectedProject={
-                    selectedProject
-                  }
-                  subtotal={
-                    subtotal
-                  }
-                  tax={tax}
-                  total={total}
-                  format={format}
-                />
+            
+               <InvoiceTemplate
+           invoice={invoice}
+           selectedClient={selectedClient}
+           selectedProject={selectedProject}
+          subtotal={subtotal}
+          tax={tax}
+         taxRate={taxRate}
+         taxLabel="Tax"
+          total={total}
+         format={format}/>
 
               </div>
 
