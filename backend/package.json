@@ -3,11 +3,11 @@
     "start": "node server.js",
     "postinstall": "prisma generate --schema=prisma/schema.prisma && prisma migrate deploy --schema=prisma/schema.prisma",
     "seed": "node prisma/seed.js"
-  }
-}
+  },
+
   "dependencies": {
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "axios": "^1.20.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -22,11 +22,12 @@
     "node-cron": "^4.6.0",
     "nodemailer": "^9.1.1",
     "pg": "^8.23.0",
-    "prisma": "^7.9.1",
+    "prisma": "7.9.1",
     "resend": "^6.25.0",
     "ws": "^8.21.3",
     "zod": "^4.5.4"
   },
+
   "devDependencies": {
     "nodemon": "^3.1.14"
   }
