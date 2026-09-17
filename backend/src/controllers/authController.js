@@ -1,6 +1,5 @@
-
-
 const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
 const prisma = require("../../config/prisma");
 const generateToken = require("../utils/generateToken");
 
@@ -12,6 +11,42 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const REDIRECT_URI = `${BACKEND_URL}/api/v1/auth/google/callback`;
+
+// =====================================================
+// EMAIL TRANSPORTER HELPER
+// =====================================================
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.MAIL_HOST,
+    port: Number(process.env.MAIL_PORT) || 587,
+    secure: process.env.MAIL_SECURE === "true",
+    auth: {
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASSWORD,
+    },
+  });
+};
+
+const sendOtpEmail = async (email, otp) => {
+  const transporter = createTransporter();
+  const mailOptions = {
+    from: `"AutoBillr Support" <${process.env.MAIL_FROM || process.env.MAIL_USER}>`,
+    to: email,
+    subject: `${otp} is your AutoBillr Password Reset OTP`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2d7a78; margin-bottom: 8px;">AutoBillr</h2>
+        <p style="color: #334155; font-size: 14px;">A password reset request was received for your account. Use this 6-digit verification code to proceed:</p>
+        <div style="background-color: #f1f5f9; padding: 16px; border-radius: 6px; text-align: center; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #2d7a78;">${otp}</span>
+        </div>
+        <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">This OTP is valid for 10 minutes. If you did not request this, you can safely ignore this email.</p>
+      </div>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+};
 
 // =====================================================
 // 1. REDIRECT TO GOOGLE
@@ -40,7 +75,6 @@ const handleGoogleCallback = async (req, res) => {
   }
 
   try {
-    // 1. Code ke badle Google se tokens exchange karein
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -59,7 +93,6 @@ const handleGoogleCallback = async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/login?error=token_failed`);
     }
 
-    // 2. Google se user profile data layein
     const userResponse = await fetch(
       "https://www.googleapis.com/oauth2/v2/userinfo",
       {
@@ -78,14 +111,12 @@ const handleGoogleCallback = async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/login?error=account_not_found`);
     }
 
-    // 4. User mil gaya -> JWT Token generate karein
     const token = generateToken({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
     });
 
-    // 5. Token aur details frontend ko redirect karein
     const firstName = encodeURIComponent(user.firstName || "");
     const lastName = encodeURIComponent(user.lastName || "");
     const email = encodeURIComponent(user.email || "");
@@ -319,9 +350,178 @@ const login = async (req, res) => {
   }
 };
 
+// =====================================================
+// 5. FORGOT PASSWORD (GENERATE & SEND OTP)
+// =====================================================
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this email address",
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiryMinutes = Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES) || 10;
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+
+    await prisma.emailVerification.deleteMany({
+      where: { email: normalizedEmail },
+    });
+
+    await prisma.emailVerification.create({
+      data: {
+        email: normalizedEmail,
+        token: otp,
+        verified: false,
+        expiresAt,
+      },
+    });
+
+    await sendOtpEmail(normalizedEmail, otp);
+
+    return res.status(200).json({
+      success: true,
+      message: "Verification code sent to your email.",
+    });
+  } catch (error) {
+    console.error("FORGOT PASSWORD ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to process password reset request. Please try again later.",
+    });
+  }
+};
+
+// =====================================================
+// 6. VERIFY RESET OTP
+// =====================================================
+const verifyResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
+    const cleanOtp = otp?.trim();
+
+    if (!normalizedEmail || !cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    const record = await prisma.emailVerification.findFirst({
+      where: {
+        email: normalizedEmail,
+        token: cleanOtp,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code",
+      });
+    }
+
+    await prisma.emailVerification.update({
+      where: { id: record.id },
+      data: { verified: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully. Please enter your new password.",
+    });
+  } catch (error) {
+    console.error("VERIFY OTP ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify OTP",
+    });
+  }
+};
+
+// =====================================================
+// 7. RESET PASSWORD
+// =====================================================
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required",
+      });
+    }
+
+    if (newPassword.length < 12) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 12 characters long",
+      });
+    }
+
+    const validRecord = await prisma.emailVerification.findFirst({
+      where: {
+        email: normalizedEmail,
+        ...(otp ? { token: otp.trim() } : { verified: true }),
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    if (!validRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Session expired or code unverified. Please restart reset request.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { email: normalizedEmail },
+      data: { passwordHash },
+    });
+
+    await prisma.emailVerification.deleteMany({
+      where: { email: normalizedEmail },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful! Please log in with your new password.",
+    });
+  } catch (error) {
+    console.error("RESET PASSWORD ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reset password. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   redirectToGoogle,
   handleGoogleCallback,
   register,
   login,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
 };

@@ -11,10 +11,11 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const navigate = useNavigate();
 
-    useEffect(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     const error = params.get("error");
@@ -59,7 +60,7 @@ export default function Login() {
   }, [navigate]);
 
   // =====================================================
-  // 2. MANUAL LOGIN
+  // MANUAL LOGIN
   // =====================================================
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -135,7 +136,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f5faf8] font-[Inter]">
+    <div className="min-h-screen flex flex-col bg-[#f5faf8] font-[Inter] relative">
       <main className="flex flex-1 flex-col md:flex-row">
         {/* LEFT SECTION */}
         <section className="hidden md:flex md:w-1/2 lg:w-3/5 bg-teal-600 relative overflow-hidden items-center justify-center p-16">
@@ -219,7 +220,8 @@ export default function Login() {
                   </label>
                   <button
                     type="button"
-                    className="text-[11.5px] font-semibold text-teal-600 hover:underline"
+                    onClick={() => setShowForgotModal(true)}
+                    className="text-[11.5px] font-semibold text-teal-600 hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -282,6 +284,296 @@ export default function Login() {
           </div>
         </section>
       </main>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotModal}
+        initialEmail={email}
+        onClose={() => setShowForgotModal(false)}
+      />
+    </div>
+  );
+}
+
+/* ================== Forgot Password Modal ================== */
+
+function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
+  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
+  const [modalEmail, setModalEmail] = useState(initialEmail);
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    if (initialEmail) {
+      setModalEmail(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    let interval;
+    if (resendTimer > 0) {
+      interval = setInterval(() => setResendTimer((prev) => prev - 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  if (!isOpen) return null;
+
+  const handleClose = () => {
+    setStep(1);
+    setOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+    onClose();
+  };
+
+  // Step 1: Request OTP
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!modalEmail.trim()) {
+      setError("Please enter your registered email address.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch("http://localhost:5000/api/v1/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: modalEmail.trim().toLowerCase() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to send reset code.");
+
+      showSuccessToast("OTP Sent", "Check your email for the 6-digit code.");
+      setStep(2);
+      setResendTimer(60);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (otp.length !== 6) {
+      setError("Please enter the complete 6-digit OTP code.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch("http://localhost:5000/api/v1/auth/verify-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: modalEmail.trim().toLowerCase(),
+          otp: otp.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Invalid verification code.");
+
+      setStep(3);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Update Password
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (newPassword.length < 12) {
+      setError("Password must be at least 12 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch("http://localhost:5000/api/v1/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: modalEmail.trim().toLowerCase(),
+          otp: otp.trim(),
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update password.");
+
+      showSuccessToast("Password Updated", "You can now log in with your new password.");
+      handleClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 md:p-8 relative border border-slate-100">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
+        >
+          <span className="material-symbols-outlined text-[20px]">close</span>
+        </button>
+
+        <div className="mb-6">
+          <div className="w-10 h-10 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined">
+              {step === 1 && "mail"}
+              {step === 2 && "dialpad"}
+              {step === 3 && "key"}
+            </span>
+          </div>
+          <h3 className="text-xl font-bold text-slate-900">
+            {step === 1 && "Reset your password"}
+            {step === 2 && "Enter verification code"}
+            {step === 3 && "Set new password"}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            {step === 1 && "Enter your registered email address to receive a 6-digit OTP code."}
+            {step === 2 && `Enter the 6-digit code sent to ${modalEmail}.`}
+            {step === 3 && "Enter a new secure password (at least 12 characters)."}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+            {error}
+          </div>
+        )}
+
+        {/* STEP 1: Enter Email */}
+        {step === 1 && (
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                Work Email Address
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="name@company.com"
+                value={modalEmail}
+                onChange={(e) => setModalEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-600 focus:bg-white transition"
+              />
+            </div>
+
+            <Button type="submit" disabled={loading} fullWidth size="md">
+              {loading ? "Sending OTP..." : "Send Verification Code"}
+            </Button>
+          </form>
+        )}
+
+        {/* STEP 2: Enter 6-digit OTP */}
+        {step === 2 && (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                6-Digit OTP Code
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="w-full text-center tracking-[0.4em] font-mono text-xl py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-600 focus:bg-white transition"
+              />
+            </div>
+
+            <Button type="submit" disabled={loading || otp.length !== 6} fullWidth size="md">
+              {loading ? "Verifying..." : "Verify Code"}
+            </Button>
+
+            <div className="flex items-center justify-between text-xs pt-1">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-slate-500 hover:text-slate-800"
+              >
+                Change Email
+              </button>
+
+              <button
+                type="button"
+                disabled={resendTimer > 0}
+                onClick={handleSendOtp}
+                className="text-teal-600 font-semibold hover:underline disabled:text-slate-400 disabled:no-underline"
+              >
+                {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* STEP 3: Enter New Password */}
+        {step === 3 && (
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                New Password (min 12 characters)
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••••••"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-600 focus:bg-white transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-600 focus:bg-white transition"
+              />
+            </div>
+
+            <Button type="submit" disabled={loading} fullWidth size="md">
+              {loading ? "Updating Password..." : "Update Password"}
+            </Button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
