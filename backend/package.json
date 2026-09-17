@@ -1,11 +1,10 @@
 {
   "scripts": {
-    "scripts": {
-  "start": "node server.js",
-  "postinstall": "prisma generate && prisma migrate deploy && node prisma/seed.js",
-  "seed": "node prisma/seed.js"
+    "start": "node server.js",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma && prisma migrate deploy --schema=prisma/schema.prisma",
+    "seed": "node prisma/seed.js"
+  }
 }
-  },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
