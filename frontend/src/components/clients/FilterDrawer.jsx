@@ -1,49 +1,114 @@
 import React, { memo, useCallback, useMemo } from "react";
+
 import RightDrawer from "../layout/RightDrawer";
 import Button from "../ui/Button";
 import FormInput from "../ui/FormInput";
-import useCurrency from "../../hooks/useCurrency";
+
+/* =========================================================
+   DEFAULT FILTERS
+========================================================= */
 
 const DEFAULT_FILTERS = Object.freeze({
   status: [],
-  billing: [],
   fromDate: "",
   toDate: "",
-  minAmount: "",
-  maxAmount: "",
-  currency: "All",
+  country: "",
+  stateRegion: "",
+  city: "",
+  postalCode: "",
+  industry: "",
+  tier: "",
 });
 
+/* =========================================================
+   STATUS OPTIONS
+========================================================= */
+
 const STATUSES = Object.freeze([
-  { label: "Active", value: "active" },
-  { label: "Inactive", value: "inactive" },
-  { label: "Paid", value: "paid" },
-  { label: "Pending", value: "pending" },
-  { label: "Overdue", value: "overdue" },
-  { label: "Draft", value: "draft" },
-  { label: "Scheduled", value: "scheduled" },
+  {
+    label: "Active",
+    value: "active",
+  },
+  {
+    label: "Inactive",
+    value: "inactive",
+  },
+  {
+    label: "Pending",
+    value: "pending",
+  },
 ]);
 
-const BILLING_OPTIONS = Object.freeze([
-  { label: "Monthly", value: "Monthly" },
-  { label: "Quarterly", value: "Quarterly" },
-  { label: "Annual", value: "Annual" },
+/* =========================================================
+   INDUSTRY OPTIONS
+========================================================= */
+
+const INDUSTRIES = Object.freeze([
+  {
+    label: "Technology",
+    value: "Technology",
+  },
+  {
+    label: "Finance",
+    value: "Finance",
+  },
+  {
+    label: "Healthcare",
+    value: "Healthcare",
+  },
+  {
+    label: "Retail",
+    value: "Retail",
+  },
+  {
+    label: "Manufacturing",
+    value: "Manufacturing",
+  },
+  {
+    label: "Consulting",
+    value: "Consulting",
+  },
+  {
+    label: "Other",
+    value: "Other",
+  },
 ]);
+
+/* =========================================================
+   CLIENT TIER OPTIONS
+========================================================= */
+
+const CLIENT_TIERS = Object.freeze([
+  {
+    label: "Enterprise",
+    value: "Enterprise",
+  },
+  {
+    label: "Mid-Market",
+    value: "Mid-Market",
+  },
+  {
+    label: "SMB",
+    value: "SMB",
+  },
+  {
+    label: "Startup",
+    value: "Startup",
+  },
+]);
+
+/* =========================================================
+   CREATE DEFAULT FILTERS
+========================================================= */
 
 const createDefaultFilters = () => ({
   ...DEFAULT_FILTERS,
   status: [],
-  billing: [],
 });
 
-const parseAmount = (value) => {
-  if (value === "" || value === null || value === undefined) {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-};
+/* =========================================================
+   CHECKBOX GROUP
+========================================================= */
 
 const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
   title,
@@ -51,11 +116,23 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
   selected = [],
   onToggle,
 }) {
-  const selectedValues = Array.isArray(selected) ? selected : [];
+  const selectedValues = Array.isArray(selected)
+    ? selected
+    : [];
 
   return (
     <fieldset>
-      <legend className="mb-2 block text-[11.5px] font-semibold uppercase tracking-wider text-text-secondary">
+      <legend
+        className="
+          mb-2
+          block
+          text-[11.5px]
+          font-semibold
+          uppercase
+          tracking-wider
+          text-text-secondary
+        "
+      >
         {title}
       </legend>
 
@@ -63,24 +140,36 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
         {options.map(({ label, value }) => {
           const id = `filter-${title
             .toLowerCase()
-            .replace(/\s+/g, "-")}-${value.toLowerCase()}`;
+            .replace(/\s+/g, "-")}-${String(value)
+            .toLowerCase()
+            .replace(/\s+/g, "-")}`;
 
-          const checked = selectedValues.includes(value);
+          const checked =
+            selectedValues.includes(value);
 
           return (
             <label
               key={value}
               htmlFor={id}
               className={`
-                flex cursor-pointer items-center gap-2
-                rounded-lg px-3 py-1.5
-                text-[12.5px] font-medium
-                transition-colors duration-fast
-                focus-within:ring-2 focus-within:ring-primary/25
+                flex
+                cursor-pointer
+                items-center
+                gap-2
+                rounded-lg
+                border
+                px-3
+                py-1.5
+                text-[12.5px]
+                font-medium
+                transition-colors
+                duration-fast
+                focus-within:ring-2
+                focus-within:ring-primary/25
                 ${
                   checked
-                    ? "bg-primary-soft text-primary-dark"
-                    : "bg-surface-secondary text-text-secondary hover:bg-surface-hover"
+                    ? "border-primary-light bg-primary-soft text-primary-dark"
+                    : "border-transparent bg-surface-secondary text-text-secondary hover:bg-surface-hover"
                 }
               `}
             >
@@ -88,14 +177,19 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
                 id={id}
                 type="checkbox"
                 checked={checked}
-                onChange={() => onToggle(value)}
+                onChange={() =>
+                  onToggle(value)
+                }
                 className="
-                  h-4 w-4 rounded
+                  h-4
+                  w-4
+                  rounded
                   border-border
                   accent-primary
                   focus:ring-primary
                 "
               />
+
               <span>{label}</span>
             </label>
           );
@@ -105,7 +199,12 @@ const FilterCheckboxGroup = memo(function FilterCheckboxGroup({
   );
 });
 
-FilterCheckboxGroup.displayName = "FilterCheckboxGroup";
+FilterCheckboxGroup.displayName =
+  "FilterCheckboxGroup";
+
+/* =========================================================
+   FILTER DRAWER
+========================================================= */
 
 export default function FilterDrawer({
   isOpen = false,
@@ -113,30 +212,30 @@ export default function FilterDrawer({
   filters = DEFAULT_FILTERS,
   setFilters,
 }) {
-  const { format } = useCurrency();
+  /* =======================================================
+     NORMALIZED FILTER STATE
+  ======================================================= */
 
   const currentFilters = useMemo(
     () => ({
       ...DEFAULT_FILTERS,
       ...filters,
-      status: Array.isArray(filters?.status) ? filters.status : [],
-      billing: Array.isArray(filters?.billing) ? filters.billing : [],
+      status: Array.isArray(filters?.status)
+        ? filters.status
+        : [],
     }),
     [filters]
   );
 
-  const currencySymbol = useMemo(() => {
-    try {
-      const formatted = format(0);
-      return formatted?.replace(/[\d.,\s\u00A0]/g, "").trim() || "";
-    } catch {
-      return "";
-    }
-  }, [format]);
+  /* =======================================================
+     UPDATE FILTER
+  ======================================================= */
 
   const updateFilter = useCallback(
     (key, value) => {
-      if (typeof setFilters !== "function") return;
+      if (typeof setFilters !== "function") {
+        return;
+      }
 
       setFilters((previous) => ({
         ...DEFAULT_FILTERS,
@@ -147,22 +246,33 @@ export default function FilterDrawer({
     [setFilters]
   );
 
+  /* =======================================================
+     TOGGLE ARRAY FILTER
+  ======================================================= */
+
   const toggleArrayFilter = useCallback(
     (key, value) => {
-      if (typeof setFilters !== "function") return;
+      if (typeof setFilters !== "function") {
+        return;
+      }
 
       setFilters((previous) => {
-        const current = Array.isArray(previous?.[key])
+        const current = Array.isArray(
+          previous?.[key]
+        )
           ? previous[key]
           : [];
 
-        const exists = current.includes(value);
+        const exists =
+          current.includes(value);
 
         return {
           ...DEFAULT_FILTERS,
           ...previous,
           [key]: exists
-            ? current.filter((item) => item !== value)
+            ? current.filter(
+                (item) => item !== value
+              )
             : [...current, value],
         };
       });
@@ -170,57 +280,72 @@ export default function FilterDrawer({
     [setFilters]
   );
 
+  /* =======================================================
+     RESET
+  ======================================================= */
+
   const handleReset = useCallback(() => {
-    if (typeof setFilters !== "function") return;
+    if (typeof setFilters !== "function") {
+      return;
+    }
+
     setFilters(createDefaultFilters());
   }, [setFilters]);
 
-  const handleApply = useCallback(() => {
-    const fromDate = currentFilters.fromDate;
-    const toDate = currentFilters.toDate;
-    const minAmount = parseAmount(currentFilters.minAmount);
-    const maxAmount = parseAmount(currentFilters.maxAmount);
-
-    if (fromDate && toDate && fromDate > toDate) return;
-    if (minAmount !== null && maxAmount !== null && minAmount > maxAmount)
-      return;
-
-    onClose?.();
-  }, [currentFilters, onClose]);
+  /* =======================================================
+     DATE VALIDATION
+  ======================================================= */
 
   const dateValidationMessage = useMemo(() => {
     if (
       currentFilters.fromDate &&
       currentFilters.toDate &&
-      currentFilters.fromDate > currentFilters.toDate
+      currentFilters.fromDate >
+        currentFilters.toDate
     ) {
       return "The start date cannot be later than the end date.";
     }
+
     return "";
-  }, [currentFilters.fromDate, currentFilters.toDate]);
+  }, [
+    currentFilters.fromDate,
+    currentFilters.toDate,
+  ]);
 
-  const amountValidationMessage = useMemo(() => {
-    const min = parseAmount(currentFilters.minAmount);
-    const max = parseAmount(currentFilters.maxAmount);
+  /* =======================================================
+     APPLY
+  ======================================================= */
 
-    if (min !== null && max !== null && min > max) {
-      return "Minimum amount cannot be greater than maximum amount.";
+  const handleApply = useCallback(() => {
+    if (dateValidationMessage) {
+      return;
     }
-    return "";
-  }, [currentFilters.minAmount, currentFilters.maxAmount]);
+
+    onClose?.();
+  }, [
+    dateValidationMessage,
+    onClose,
+  ]);
+
+  /* =======================================================
+     FOOTER
+  ======================================================= */
 
   const footer = useMemo(
     () => (
       <div className="flex w-full items-center justify-end gap-2">
-        <Button variant="secondary" onClick={handleReset}>
+        <Button
+          variant="secondary"
+          onClick={handleReset}
+        >
           Reset
         </Button>
+
         <Button
           onClick={handleApply}
-          disabled={
-            Boolean(dateValidationMessage) ||
-            Boolean(amountValidationMessage)
-          }
+          disabled={Boolean(
+            dateValidationMessage
+          )}
         >
           Apply Filters
         </Button>
@@ -230,95 +355,257 @@ export default function FilterDrawer({
       handleReset,
       handleApply,
       dateValidationMessage,
-      amountValidationMessage,
     ]
   );
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <RightDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title="Filter"
+      title="Filter Clients"
       icon="filter_list"
       width="max-w-lg"
       footer={footer}
     >
-      <div className="space-y-5" aria-label="Filter options">
-        {/* Status */}
+      <div
+        className="space-y-6"
+        aria-label="Client filter options"
+      >
+        {/* =================================================
+            STATUS
+        ================================================= */}
+
         <FilterCheckboxGroup
           title="Status"
           options={STATUSES}
-          selected={currentFilters.status}
-          onToggle={(value) => toggleArrayFilter("status", value)}
+          selected={
+            currentFilters.status
+          }
+          onToggle={(value) =>
+            toggleArrayFilter(
+              "status",
+              value
+            )
+          }
         />
 
-        {/* Billing Frequency */}
-        <FilterCheckboxGroup
-          title="Billing Frequency"
-          options={BILLING_OPTIONS}
-          selected={currentFilters.billing}
-          onToggle={(value) => toggleArrayFilter("billing", value)}
-        />
+        {/* =================================================
+            CREATED DATE
+        ================================================= */}
 
-        {/* Date Range */}
         <div>
+          <div
+            className="
+              mb-2
+              text-[11.5px]
+              font-semibold
+              uppercase
+              tracking-wider
+              text-text-secondary
+            "
+          >
+            Created Date
+          </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormInput
               label="From"
               type="date"
-              value={currentFilters.fromDate}
-              max={currentFilters.toDate || undefined}
-              onChange={(e) => updateFilter("fromDate", e.target.value)}
-              aria-label="Filter from date"
+              value={
+                currentFilters.fromDate
+              }
+              max={
+                currentFilters.toDate ||
+                undefined
+              }
+              onChange={(e) =>
+                updateFilter(
+                  "fromDate",
+                  e.target.value
+                )
+              }
+              aria-label="Filter clients from created date"
             />
+
             <FormInput
               label="To"
               type="date"
-              value={currentFilters.toDate}
-              min={currentFilters.fromDate || undefined}
-              onChange={(e) => updateFilter("toDate", e.target.value)}
-              aria-label="Filter to date"
+              value={
+                currentFilters.toDate
+              }
+              min={
+                currentFilters.fromDate ||
+                undefined
+              }
+              onChange={(e) =>
+                updateFilter(
+                  "toDate",
+                  e.target.value
+                )
+              }
+              aria-label="Filter clients to created date"
             />
           </div>
 
           {dateValidationMessage && (
-            <p className="mt-2 text-xs font-medium text-danger" role="alert">
+            <p
+              className="
+                mt-2
+                text-xs
+                font-medium
+                text-danger
+              "
+              role="alert"
+            >
               {dateValidationMessage}
             </p>
           )}
         </div>
 
-        {/* Amount Range */}
+        {/* =================================================
+            LOCATION
+        ================================================= */}
+
         <div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormInput
-              label="Min Amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={currentFilters.minAmount}
-              placeholder={`${currencySymbol} 0`}
-              onChange={(e) => updateFilter("minAmount", e.target.value)}
-              aria-label="Minimum amount"
-            />
-            <FormInput
-              label="Max Amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={currentFilters.maxAmount}
-              placeholder={`${currencySymbol} 100000`}
-              onChange={(e) => updateFilter("maxAmount", e.target.value)}
-              aria-label="Maximum amount"
-            />
+          <div
+            className="
+              mb-3
+              text-[11.5px]
+              font-semibold
+              uppercase
+              tracking-wider
+              text-text-secondary
+            "
+          >
+            Location
           </div>
 
-          {amountValidationMessage && (
-            <p className="mt-2 text-xs font-medium text-danger" role="alert">
-              {amountValidationMessage}
-            </p>
-          )}
+          <div className="space-y-3">
+            {/* COUNTRY */}
+
+            <FormInput
+              label="Country"
+              type="text"
+              value={
+                currentFilters.country
+              }
+              placeholder="e.g. India"
+              onChange={(e) =>
+                updateFilter(
+                  "country",
+                  e.target.value
+                )
+              }
+              aria-label="Filter by country"
+            />
+
+            {/* STATE + CITY */}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormInput
+                label="State"
+                type="text"
+                value={
+                  currentFilters.stateRegion
+                }
+                placeholder="e.g. Odisha"
+                onChange={(e) =>
+                  updateFilter(
+                    "stateRegion",
+                    e.target.value
+                  )
+                }
+                aria-label="Filter by state"
+              />
+
+              <FormInput
+                label="City"
+                type="text"
+                value={
+                  currentFilters.city
+                }
+                placeholder="e.g. Bhubaneswar"
+                onChange={(e) =>
+                  updateFilter(
+                    "city",
+                    e.target.value
+                  )
+                }
+                aria-label="Filter by city"
+              />
+            </div>
+
+            {/* PINCODE */}
+
+            <FormInput
+              label="Pincode"
+              type="text"
+              value={
+                currentFilters.postalCode
+              }
+              placeholder="e.g. 751001"
+              onChange={(e) =>
+                updateFilter(
+                  "postalCode",
+                  e.target.value
+                )
+              }
+              aria-label="Filter by pincode"
+            />
+          </div>
         </div>
+
+        {/* =================================================
+            INDUSTRY
+        ================================================= */}
+
+        <FilterCheckboxGroup
+          title="Industry"
+          options={INDUSTRIES}
+          selected={
+            currentFilters.industry
+              ? [
+                  currentFilters.industry,
+                ]
+              : []
+          }
+          onToggle={(value) =>
+            updateFilter(
+              "industry",
+              currentFilters.industry ===
+                value
+                ? ""
+                : value
+            )
+          }
+        />
+
+        {/* =================================================
+            CLIENT TIER
+        ================================================= */}
+
+        <FilterCheckboxGroup
+          title="Client Tier"
+          options={CLIENT_TIERS}
+          selected={
+            currentFilters.tier
+              ? [currentFilters.tier]
+              : []
+          }
+          onToggle={(value) =>
+            updateFilter(
+              "tier",
+              currentFilters.tier ===
+                value
+                ? ""
+                : value
+            )
+          }
+        />
       </div>
     </RightDrawer>
   );
