@@ -4,81 +4,74 @@ const prisma = require("../../config/prisma");
    HELPERS
 ========================================================= */
 
-/**
- * Safely convert a value to a trimmed string.
- */
 const cleanString = (value) => {
-  if (value === undefined || value === null) {
-    return null;
-  }
-
-  return String(value).trim();
+  if (value === undefined || value === null) return null;
+  const str = String(value).trim();
+  return str === "" ? null : str;
 };
 
-/**
- * Safely normalize email.
- */
 const cleanEmail = (value) => {
   const email = cleanString(value);
-
-  if (!email) {
-    return null;
-  }
-
-  return email.toLowerCase();
+  return email ? email.toLowerCase() : null;
 };
 
-/**
- * Safely normalize array.
- */
 const cleanArray = (value) => {
-  return Array.isArray(value) ? value : [];
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((t) => String(t).trim()).filter(Boolean))];
 };
 
-/**
- * Safely normalize automation object.
- */
-const cleanAutomation = (value) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  return {
-    autoCharge: Boolean(value.autoCharge),
-    reminders: Boolean(value.reminders),
-    portalAccess: Boolean(value.portalAccess),
-    welcomeEmail: Boolean(value.welcomeEmail),
-  };
+const cleanBoolean = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  return Boolean(value);
 };
 
-/**
- * Safely normalize address.
- */
-const cleanAddress = (address) => {
-  if (!address || typeof address !== "object" || Array.isArray(address)) {
-    return {
-      billingAddress: null,
-      city: null,
-      stateRegion: null,
-      postalCode: null,
-      country: null,
-    };
-  }
-
-  return {
-    billingAddress: cleanString(address.street),
-    city: cleanString(address.city),
-    stateRegion: cleanString(address.state),
-    postalCode: cleanString(address.postalCode),
-    country: cleanString(address.country),
-  };
+const cleanDecimal = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? num : fallback;
 };
 
-/**
- * Extract company ID safely.
- */
-const getCompanyId = (req) => {
-  return req.user?.companyId || null;
+const getCompanyId = (req) => req.user?.companyId || null;
+
+/* Allowed enums (must match Prisma) */
+const VALID_PAYMENT_TERMS = ["DUE_ON_RECEIPT", "NET_15", "NET_30", "NET_60"];
+const VALID_PAYMENT_METHODS = ["ACH", "CARD", "WIRE", "CHECK"];
+const VALID_BILLING_CYCLES = ["MONTHLY", "QUARTERLY", "ANNUAL"];
+const VALID_CLIENT_STATUS = ["ACTIVE", "PENDING", "INACTIVE", "ARCHIVED"];
+
+const normalizePaymentTerms = (value) => {
+  const cleaned = cleanString(value)?.toUpperCase().replace(/\s+/g, "_");
+  if (VALID_PAYMENT_TERMS.includes(cleaned)) return cleaned;
+  // legacy support
+  if (cleaned === "NET30" || cleaned === "NET_30") return "NET_30";
+  return "NET_30";
+};
+
+const normalizePaymentMethod = (value) => {
+  const cleaned = cleanString(value)?.toUpperCase();
+  return VALID_PAYMENT_METHODS.includes(cleaned) ? cleaned : "ACH";
+};
+
+const normalizeBillingCycle = (value) => {
+  const cleaned = cleanString(value)?.toUpperCase();
+  return VALID_BILLING_CYCLES.includes(cleaned) ? cleaned : "MONTHLY";
+};
+
+const normalizeStatus = (value) => {
+  const cleaned = cleanString(value)?.toUpperCase();
+  return VALID_CLIENT_STATUS.includes(cleaned) ? cleaned : "ACTIVE";
+};
+
+const getInitials = (name) => {
+  const n = cleanString(name) || "";
+  if (!n) return null;
+  const words = n.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return words
+    .slice(0, 2)
+    .map((w) => w.charAt(0))
+    .join("")
+    .toUpperCase();
 };
 
 /* =========================================================
@@ -96,27 +89,20 @@ const getClients = async (req, res) => {
       });
     }
 
-    const clients = await prisma.client.findMany({
-      where: {
-        companyId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+   const clients = await prisma.client.findMany({
+  where: {
+    companyId,
+    status: { not: "ARCHIVED" },
+  },
+  orderBy: { createdAt: "desc" },
+});
 
     return res.status(200).json({
       success: true,
       clients,
     });
   } catch (error) {
-    console.error("========== GET CLIENTS ERROR ==========");
-    console.error("Name:", error?.name);
-    console.error("Message:", error?.message);
-    console.error("Code:", error?.code);
-    console.error("Meta:", error?.meta);
-    console.error("=======================================");
-
+    console.error("GET CLIENTS ERROR:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch clients",
@@ -149,10 +135,7 @@ const getClientById = async (req, res) => {
     }
 
     const client = await prisma.client.findFirst({
-      where: {
-        id,
-        companyId,
-      },
+      where: { id, companyId },
     });
 
     if (!client) {
@@ -167,13 +150,7 @@ const getClientById = async (req, res) => {
       client,
     });
   } catch (error) {
-    console.error("========== GET CLIENT BY ID ERROR ==========");
-    console.error("Name:", error?.name);
-    console.error("Message:", error?.message);
-    console.error("Code:", error?.code);
-    console.error("Meta:", error?.meta);
-    console.error("============================================");
-
+    console.error("GET CLIENT BY ID ERROR:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch client",
@@ -190,15 +167,6 @@ const createClient = async (req, res) => {
   try {
     const companyId = getCompanyId(req);
 
-    console.log("========== CREATE CLIENT ==========");
-    console.log("Company ID:", companyId);
-    console.log("Request body:", JSON.stringify(req.body, null, 2));
-    console.log("===================================");
-
-    /* -----------------------------------------------------
-       AUTHENTICATION
-    ----------------------------------------------------- */
-
     if (!companyId) {
       return res.status(401).json({
         success: false,
@@ -206,203 +174,140 @@ const createClient = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       VERIFY COMPANY
-    ----------------------------------------------------- */
-
+    // Verify company exists
     const company = await prisma.company.findUnique({
-      where: {
-        id: companyId,
-      },
+      where: { id: companyId },
+      select: { id: true },
     });
 
     if (!company) {
       return res.status(400).json({
         success: false,
         message: "Company not found for the authenticated user",
-        companyId,
       });
     }
 
-    /* -----------------------------------------------------
-       READ REQUEST BODY
-    ----------------------------------------------------- */
+    const body = req.body || {};
 
-    const {
-      name,
-      contactName,
-      email,
-      phone,
-      website,
-      industry,
-      tier,
-      color,
-      address,
-      taxId,
-      currency,
-      paymentTerms,
-      paymentMethod,
-      notes,
-      tags,
-      automation,
-    } = req.body || {};
+    /* ---------- Clean & normalize ---------- */
+    const name = cleanString(body.name);
+    const contactName = cleanString(body.contactName);
+    const email = cleanEmail(body.email);
+    const phone = cleanString(body.phone);
+    const website = cleanString(body.website);
+    const industry = cleanString(body.industry);
+    const tier = cleanString(body.tier) || "Enterprise";
+    const color = cleanString(body.color) || "bg-primary";
+    const taxId = cleanString(body.taxId);
+    const currency = cleanString(body.currency)?.toUpperCase() || "USD";
+    const notes = cleanString(body.notes);
+    const tags = cleanArray(body.tags);
 
-    /* -----------------------------------------------------
-       CLEAN VALUES
-    ----------------------------------------------------- */
+    // Address (flat – matches Prisma)
+    const billingAddress = cleanString(body.billingAddress);
+    const city = cleanString(body.city);
+    const stateRegion = cleanString(body.stateRegion);
+    const postalCode = cleanString(body.postalCode);
+    const country = cleanString(body.country);
 
-    const clientName = cleanString(name);
-    const clientContactName = cleanString(contactName);
-    const clientEmail = cleanEmail(email);
-    const clientPhone = cleanString(phone);
-    const clientWebsite = cleanString(website);
-    const clientIndustry = cleanString(industry);
-    const clientTier = cleanString(tier) || "Enterprise";
-    const clientColor = cleanString(color) || "bg-teal-500";
-    const clientTaxId = cleanString(taxId);
-    const clientCurrency = cleanString(currency) || "USD";
-    const clientPaymentTerms =
-      cleanString(paymentTerms) || "Net 30";
-    const clientPaymentMethod =
-      cleanString(paymentMethod) || "ACH";
-    const clientNotes = cleanString(notes);
+    // Billing
+    const mrr = cleanDecimal(body.mrr, 0);
+    const billingCycle = normalizeBillingCycle(body.billingCycle);
+    const paymentTerms = normalizePaymentTerms(body.paymentTerms);
+    const paymentMethod = normalizePaymentMethod(body.paymentMethod);
 
-    const normalizedAddress = cleanAddress(address);
+    // Automation (flat booleans – matches Prisma)
+    const autoCharge = cleanBoolean(body.autoCharge, false);
+    const reminders = cleanBoolean(body.reminders, true);
+    const portalAccess = cleanBoolean(body.portalAccess, true);
+    const welcomeEmail = cleanBoolean(body.welcomeEmail, true);
 
-    const clientTags = cleanArray(tags);
+    // Optional
+    const status = normalizeStatus(body.status);
+    const initials = cleanString(body.initials) || getInitials(name);
 
-    const clientAutomation = cleanAutomation(automation);
-
-    /* -----------------------------------------------------
-       REQUIRED VALIDATION
-    ----------------------------------------------------- */
-
-    if (!clientName) {
+    /* ---------- Validation ---------- */
+    if (!name) {
       return res.status(400).json({
         success: false,
         message: "Company name is required",
       });
     }
 
-    if (!clientEmail) {
+    if (!email) {
       return res.status(400).json({
         success: false,
         message: "Contact email is required",
       });
     }
 
-    /* -----------------------------------------------------
-       BASIC EMAIL VALIDATION
-    ----------------------------------------------------- */
-
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(clientEmail)) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
       return res.status(400).json({
         success: false,
         message: "Please enter a valid contact email",
       });
     }
 
-    /* -----------------------------------------------------
-       DUPLICATE CLIENT CHECK
-    ----------------------------------------------------- */
-
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        companyId,
-        email: clientEmail,
-      },
+    // Duplicate check (same company + email)
+    const existing = await prisma.client.findFirst({
+      where: { companyId, email },
+      select: { id: true },
     });
 
-    if (existingClient) {
+    if (existing) {
       return res.status(400).json({
         success: false,
         message: "A client with this email already exists",
-        clientId: existingClient.id,
+        clientId: existing.id,
       });
     }
 
-    /* -----------------------------------------------------
-       CREATE CLIENT DATA
-    ----------------------------------------------------- */
-
-    const clientData = {
-      companyId,
-
-      name: clientName,
-
-      contactName: clientContactName,
-
-      email: clientEmail,
-
-      phone: clientPhone,
-
-      website: clientWebsite,
-
-      industry: clientIndustry,
-
-      tier: clientTier,
-
-      color: clientColor,
-
-      billingAddress:
-        normalizedAddress.billingAddress,
-
-      city:
-        normalizedAddress.city,
-
-      stateRegion:
-        normalizedAddress.stateRegion,
-
-      postalCode:
-        normalizedAddress.postalCode,
-
-      country:
-        normalizedAddress.country,
-
-      taxId:
-        clientTaxId,
-
-      currency:
-        clientCurrency,
-
-      paymentTerms:
-        clientPaymentTerms,
-
-      paymentMethod:
-        clientPaymentMethod,
-
-      notes:
-        clientNotes,
-
-      tags:
-        clientTags,
-
-      automation:
-        clientAutomation,
-    };
-
-    console.log("========== CLIENT DATA ==========");
-    console.log(
-      JSON.stringify(clientData, null, 2)
-    );
-    console.log("================================");
-
-    /* -----------------------------------------------------
-       CREATE
-    ----------------------------------------------------- */
-
+    /* ---------- Create ---------- */
     const client = await prisma.client.create({
-      data: clientData,
-    });
+      data: {
+        companyId,
+        name,
+        contactName,
+        email,
+        phone,
+        website,
+        industry,
+        tier,
+        color,
+        initials,
 
-    console.log("========== CLIENT CREATED ==========");
-    console.log("Client ID:", client.id);
-    console.log("Client Name:", client.name);
-    console.log("Client Email:", client.email);
-    console.log("====================================");
+        // Address
+        billingAddress,
+        city,
+        stateRegion,
+        postalCode,
+        country,
+
+        // Tax & billing
+        taxId,
+        currency,
+        mrr,
+        billingCycle,
+        paymentTerms,
+        paymentMethod,
+
+        // Automation
+        autoCharge,
+        reminders,
+        portalAccess,
+        welcomeEmail,
+
+        // Extra
+        notes,
+        tags,
+        status,
+
+        // Defaults already handled by schema
+        // outstandingBalance: 0
+        // nextInvoiceDate: null
+      },
+    });
 
     return res.status(201).json({
       success: true,
@@ -410,65 +315,27 @@ const createClient = async (req, res) => {
       client,
     });
   } catch (error) {
-    console.error("========== CREATE CLIENT ERROR ==========");
-    console.error("Error name:", error?.name);
-    console.error("Error message:", error?.message);
-    console.error("Prisma code:", error?.code);
-    console.error("Prisma meta:", error?.meta);
-    console.error("Stack:", error?.stack);
-    console.error("==========================================");
-
-    /* -----------------------------------------------------
-       PRISMA VALIDATION ERROR
-    ----------------------------------------------------- */
+    console.error("CREATE CLIENT ERROR:", error);
 
     if (error?.name === "PrismaClientValidationError") {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid client data. Please check the client fields.",
+        message: "Invalid client data. Please check the fields.",
         error: error.message,
       });
     }
-
-    /* -----------------------------------------------------
-       PRISMA UNIQUE ERROR
-    ----------------------------------------------------- */
 
     if (error?.code === "P2002") {
       return res.status(400).json({
         success: false,
-        message:
-          "A client with this information already exists.",
-        error: error.message,
+        message: "A client with this information already exists.",
         meta: error.meta || null,
       });
     }
-
-    /* -----------------------------------------------------
-       OTHER PRISMA ERRORS
-    ----------------------------------------------------- */
-
-    if (error?.code) {
-      return res.status(400).json({
-        success: false,
-        message:
-          error?.message || "Unable to create client",
-        error: error.code,
-        meta: error.meta || null,
-      });
-    }
-
-    /* -----------------------------------------------------
-       GENERAL ERROR
-    ----------------------------------------------------- */
 
     return res.status(500).json({
       success: false,
-      message:
-        error?.message || "Failed to create client",
-      error:
-        error?.message || "Unknown server error",
+      message: error?.message || "Failed to create client",
     });
   }
 };
@@ -481,19 +348,6 @@ const updateClient = async (req, res) => {
   try {
     const companyId = getCompanyId(req);
     const { id } = req.params;
-
-    console.log("========== UPDATE CLIENT ==========");
-    console.log("Company ID:", companyId);
-    console.log("Client ID:", id);
-    console.log(
-      "Request body:",
-      JSON.stringify(req.body, null, 2)
-    );
-    console.log("===================================");
-
-    /* -----------------------------------------------------
-       AUTHENTICATION
-    ----------------------------------------------------- */
 
     if (!companyId) {
       return res.status(401).json({
@@ -509,17 +363,10 @@ const updateClient = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       FIND CLIENT
-    ----------------------------------------------------- */
-
-    const existingClient =
-      await prisma.client.findFirst({
-        where: {
-          id,
-          companyId,
-        },
-      });
+    // Ownership check
+    const existingClient = await prisma.client.findFirst({
+      where: { id, companyId },
+    });
 
     if (!existingClient) {
       return res.status(404).json({
@@ -528,232 +375,127 @@ const updateClient = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       READ BODY
-    ----------------------------------------------------- */
-
-    const {
-      name,
-      contactName,
-      email,
-      phone,
-      website,
-      industry,
-      tier,
-      color,
-      address,
-      taxId,
-      currency,
-      paymentTerms,
-      paymentMethod,
-      notes,
-      tags,
-      automation,
-    } = req.body || {};
-
-    /* -----------------------------------------------------
-       UPDATE DATA
-    ----------------------------------------------------- */
-
+    const body = req.body || {};
     const updateData = {};
 
-    /* Name */
-
-    if (name !== undefined) {
-      const cleanedName = cleanString(name);
-
-      if (!cleanedName) {
+    /* ---------- Basic fields ---------- */
+    if (body.name !== undefined) {
+      const name = cleanString(body.name);
+      if (!name) {
         return res.status(400).json({
           success: false,
           message: "Company name is required",
         });
       }
-
-      updateData.name = cleanedName;
+      updateData.name = name;
+      updateData.initials = cleanString(body.initials) || getInitials(name);
     }
 
-    /* Contact Name */
-
-    if (contactName !== undefined) {
-      updateData.contactName =
-        cleanString(contactName);
+    if (body.contactName !== undefined) {
+      updateData.contactName = cleanString(body.contactName);
     }
 
-    /* Email */
-
-    if (email !== undefined) {
-      const cleanedEmail = cleanEmail(email);
-
-      if (!cleanedEmail) {
+    if (body.email !== undefined) {
+      const email = cleanEmail(body.email);
+      if (!email) {
         return res.status(400).json({
           success: false,
           message: "Contact email is required",
         });
       }
-
-      const emailRegex =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (!emailRegex.test(cleanedEmail)) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
         return res.status(400).json({
           success: false,
           message: "Please enter a valid contact email",
         });
       }
 
-      /* Check another client with same email */
+      // Check duplicate email on other clients
+      const duplicate = await prisma.client.findFirst({
+        where: {
+          companyId,
+          email,
+          NOT: { id },
+        },
+        select: { id: true },
+      });
 
-      const duplicateClient =
-        await prisma.client.findFirst({
-          where: {
-            companyId,
-            email: cleanedEmail,
-            NOT: {
-              id,
-            },
-          },
-        });
-
-      if (duplicateClient) {
+      if (duplicate) {
         return res.status(400).json({
           success: false,
-          message:
-            "Another client with this email already exists",
-          clientId: duplicateClient.id,
+          message: "Another client with this email already exists",
+          clientId: duplicate.id,
         });
       }
-
-      updateData.email = cleanedEmail;
+      updateData.email = email;
     }
 
-    /* Phone */
+    if (body.phone !== undefined) updateData.phone = cleanString(body.phone);
+    if (body.website !== undefined) updateData.website = cleanString(body.website);
+    if (body.industry !== undefined) updateData.industry = cleanString(body.industry);
+    if (body.tier !== undefined) updateData.tier = cleanString(body.tier);
+    if (body.color !== undefined) updateData.color = cleanString(body.color);
+    if (body.taxId !== undefined) updateData.taxId = cleanString(body.taxId);
+    if (body.notes !== undefined) updateData.notes = cleanString(body.notes);
+    if (body.tags !== undefined) updateData.tags = cleanArray(body.tags);
 
-    if (phone !== undefined) {
-      updateData.phone =
-        cleanString(phone);
-    }
+    /* ---------- Address ---------- */
+    if (body.billingAddress !== undefined)
+      updateData.billingAddress = cleanString(body.billingAddress);
+    if (body.city !== undefined) updateData.city = cleanString(body.city);
+    if (body.stateRegion !== undefined)
+      updateData.stateRegion = cleanString(body.stateRegion);
+    if (body.postalCode !== undefined)
+      updateData.postalCode = cleanString(body.postalCode);
+    if (body.country !== undefined) updateData.country = cleanString(body.country);
 
-    /* Website */
-
-    if (website !== undefined) {
-      updateData.website =
-        cleanString(website);
-    }
-
-    /* Industry */
-
-    if (industry !== undefined) {
-      updateData.industry =
-        cleanString(industry);
-    }
-
-    /* Tier */
-
-    if (tier !== undefined) {
-      updateData.tier =
-        cleanString(tier);
-    }
-
-    /* Color */
-
-    if (color !== undefined) {
-      updateData.color =
-        cleanString(color);
-    }
-
-    /* Address */
-
-    if (address !== undefined) {
-      const normalizedAddress =
-        cleanAddress(address);
-
-      updateData.billingAddress =
-        normalizedAddress.billingAddress;
-
-      updateData.city =
-        normalizedAddress.city;
-
-      updateData.stateRegion =
-        normalizedAddress.stateRegion;
-
-      updateData.postalCode =
-        normalizedAddress.postalCode;
-
-      updateData.country =
-        normalizedAddress.country;
-    }
-
-    /* Tax ID */
-
-    if (taxId !== undefined) {
-      updateData.taxId =
-        cleanString(taxId);
-    }
-
-    /* Currency */
-
-    if (currency !== undefined) {
+    /* ---------- Billing ---------- */
+    if (body.currency !== undefined) {
       updateData.currency =
-        cleanString(currency);
+        cleanString(body.currency)?.toUpperCase() || existingClient.currency;
+    }
+    if (body.mrr !== undefined) {
+      updateData.mrr = cleanDecimal(body.mrr, existingClient.mrr);
+    }
+    if (body.billingCycle !== undefined) {
+      updateData.billingCycle = normalizeBillingCycle(body.billingCycle);
+    }
+    if (body.paymentTerms !== undefined) {
+      updateData.paymentTerms = normalizePaymentTerms(body.paymentTerms);
+    }
+    if (body.paymentMethod !== undefined) {
+      updateData.paymentMethod = normalizePaymentMethod(body.paymentMethod);
     }
 
-    /* Payment Terms */
+    /* ---------- Automation ---------- */
+    if (body.autoCharge !== undefined)
+      updateData.autoCharge = cleanBoolean(body.autoCharge);
+    if (body.reminders !== undefined)
+      updateData.reminders = cleanBoolean(body.reminders);
+    if (body.portalAccess !== undefined)
+      updateData.portalAccess = cleanBoolean(body.portalAccess);
+    if (body.welcomeEmail !== undefined)
+      updateData.welcomeEmail = cleanBoolean(body.welcomeEmail);
 
-    if (paymentTerms !== undefined) {
-      updateData.paymentTerms =
-        cleanString(paymentTerms);
+    /* ---------- Status ---------- */
+    if (body.status !== undefined) {
+      updateData.status = normalizeStatus(body.status);
     }
 
-    /* Payment Method */
-
-    if (paymentMethod !== undefined) {
-      updateData.paymentMethod =
-        cleanString(paymentMethod);
+    // Nothing to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No changes detected",
+        client: existingClient,
+      });
     }
-
-    /* Notes */
-
-    if (notes !== undefined) {
-      updateData.notes =
-        cleanString(notes);
-    }
-
-    /* Tags */
-
-    if (tags !== undefined) {
-      updateData.tags =
-        cleanArray(tags);
-    }
-
-    /* Automation */
-
-    if (automation !== undefined) {
-      updateData.automation =
-        cleanAutomation(automation);
-    }
-
-    console.log("========== UPDATE DATA ==========");
-    console.log(
-      JSON.stringify(updateData, null, 2)
-    );
-    console.log("=================================");
-
-    /* -----------------------------------------------------
-       UPDATE
-    ----------------------------------------------------- */
 
     const client = await prisma.client.update({
-      where: {
-        id,
-      },
+      where: { id },
       data: updateData,
     });
-
-    console.log("========== CLIENT UPDATED ==========");
-    console.log("Client ID:", client.id);
-    console.log("Client Name:", client.name);
-    console.log("Client Email:", client.email);
-    console.log("====================================");
 
     return res.status(200).json({
       success: true,
@@ -761,77 +503,34 @@ const updateClient = async (req, res) => {
       client,
     });
   } catch (error) {
-    console.error("========== UPDATE CLIENT ERROR ==========");
-    console.error("Error name:", error?.name);
-    console.error("Error message:", error?.message);
-    console.error("Prisma code:", error?.code);
-    console.error("Prisma meta:", error?.meta);
-    console.error("Stack:", error?.stack);
-    console.error("==========================================");
-
-    /* -----------------------------------------------------
-       CLIENT NOT FOUND
-    ----------------------------------------------------- */
+    console.error("UPDATE CLIENT ERROR:", error);
 
     if (error?.code === "P2025") {
       return res.status(404).json({
         success: false,
         message: "Client not found",
-        error: error.message,
       });
     }
-
-    /* -----------------------------------------------------
-       UNIQUE ERROR
-    ----------------------------------------------------- */
 
     if (error?.code === "P2002") {
       return res.status(400).json({
         success: false,
-        message:
-          "A client with this information already exists.",
-        error: error.message,
+        message: "A client with this information already exists.",
         meta: error.meta || null,
       });
     }
-
-    /* -----------------------------------------------------
-       PRISMA VALIDATION
-    ----------------------------------------------------- */
 
     if (error?.name === "PrismaClientValidationError") {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid client data. Please check the client fields.",
+        message: "Invalid client data. Please check the fields.",
         error: error.message,
       });
     }
 
-    /* -----------------------------------------------------
-       OTHER PRISMA ERRORS
-    ----------------------------------------------------- */
-
-    if (error?.code) {
-      return res.status(400).json({
-        success: false,
-        message:
-          error?.message || "Unable to update client",
-        error: error.code,
-        meta: error.meta || null,
-      });
-    }
-
-    /* -----------------------------------------------------
-       GENERAL ERROR
-    ----------------------------------------------------- */
-
     return res.status(500).json({
       success: false,
-      message:
-        error?.message || "Failed to update client",
-      error:
-        error?.message || "Unknown server error",
+      message: error?.message || "Failed to update client",
     });
   }
 };
@@ -859,17 +558,10 @@ const deleteClient = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       CHECK CLIENT
-    ----------------------------------------------------- */
-
-    const existingClient =
-      await prisma.client.findFirst({
-        where: {
-          id,
-          companyId,
-        },
-      });
+    const existingClient = await prisma.client.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
 
     if (!existingClient) {
       return res.status(404).json({
@@ -878,49 +570,36 @@ const deleteClient = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       DELETE
-    ----------------------------------------------------- */
-
-    await prisma.client.delete({
-      where: {
-        id,
+    // Soft delete (production way)
+    const client = await prisma.client.update({
+      where: { id },
+      data: {
+        status: "ARCHIVED",
+        archivedAt: new Date(),
       },
     });
 
     return res.status(200).json({
       success: true,
-      message: "Client deleted successfully",
+      message: "Client archived successfully",
+      client,
     });
   } catch (error) {
-    console.error("========== DELETE CLIENT ERROR ==========");
-    console.error("Name:", error?.name);
-    console.error("Message:", error?.message);
-    console.error("Code:", error?.code);
-    console.error("Meta:", error?.meta);
-    console.error("==========================================");
+    console.error("DELETE CLIENT ERROR:", error);
 
     if (error?.code === "P2025") {
       return res.status(404).json({
         success: false,
         message: "Client not found",
-        error: error.message,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message:
-        error?.message || "Failed to delete client",
-      error:
-        error?.message || "Unknown server error",
+      message: error?.message || "Failed to archive client",
     });
   }
 };
-
-/* =========================================================
-   EXPORT
-========================================================= */
 
 module.exports = {
   getClients,

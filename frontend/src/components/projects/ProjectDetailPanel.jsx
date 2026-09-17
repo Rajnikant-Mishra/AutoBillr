@@ -34,13 +34,13 @@ export default function ProjectDetailPanel({
     ? project.milestones
     : [];
 
-  const formattedDueDate = project.dueDate
-    ? new Date(project.dueDate).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "No Due Date";
+const formattedDueDate = project.endDate
+  ? new Date(project.endDate).toLocaleDateString("INR", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  : "No Due Date";
 
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border-light overflow-hidden sticky top-24">

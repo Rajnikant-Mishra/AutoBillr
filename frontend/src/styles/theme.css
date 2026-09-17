@@ -44,6 +44,11 @@
   --color-info-soft: #eef2ff;
 
 
+
+   --color-surface-muted: #f8fafc;
+  --color-primary-contrast: #ffffff;
+  --color-disabled: #cbd5e1;
+  --color-disabled-text: #94a3b8;
   /* =======================================================
      BACKGROUNDS
   ======================================================= */
@@ -448,6 +453,123 @@
   color: var(--color-text);
 }
 
+
+.data-table {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.data-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table thead {
+  background: var(--table-header-background);
+}
+
+.data-table thead tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+  padding: 12px 24px;
+  text-align: left;
+  vertical-align: middle;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--table-header-text);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table tbody {
+  background: var(--table-row-background);
+}
+
+.data-table tbody tr {
+  background: var(--table-row-background);
+  transition: background-color var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+  background: var(--table-row-hover);
+}
+
+.data-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid var(--table-border);
+}
+
+.data-table td {
+  padding: 16px 24px;
+  vertical-align: middle;
+  font-size: var(--font-size-sm);
+  color: var(--table-body-text);
+  border-bottom: 1px solid var(--table-border);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--color-surface-secondary);
+  border-top: 1px solid var(--color-border);
+}
+
+.data-table-page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.data-table-page-button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.data-table-page-button.active {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.data-table-page-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 /* =========================================================
    FUTURE DARK MODE
    ---------------------------------------------------------
