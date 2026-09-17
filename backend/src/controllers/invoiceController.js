@@ -18,14 +18,9 @@ const parseInvoiceBody = (req) => {
   return body;
 };
 
-<<<<<<< HEAD
 // =====================================================
 // HELPER: CHECK EMAIL FLAG
 // =====================================================
-=======
-
-
->>>>>>> 309ed43313509a5143468854f8cd1dbca0215f27
 const shouldEmailClient = (value) => {
   return (
     value === true ||
@@ -35,16 +30,9 @@ const shouldEmailClient = (value) => {
   );
 };
 
-<<<<<<< HEAD
 // =====================================================
 // GET ALL INVOICES
 // =====================================================
-=======
-// =======================================
-// GET ALL INVOICEs
-// ===========================================
-
->>>>>>> 309ed43313509a5143468854f8cd1dbca0215f27
 const getInvoices = async (req, res) => {
   try {
     const companyId = req.user?.companyId;
