@@ -166,20 +166,10 @@ model Client {
   country        String?
 
   // =====================================================
-  // TAX
+  // TAX / LEGAL
   // =====================================================
 
   taxId String?
-
-  // =====================================================
-  // BILLING
-  // =====================================================
-
-  currency      String         @default("USD")
-  mrr           Decimal        @default(0) @db.Decimal(15, 2)
-  billingCycle  BillingCycle   @default(MONTHLY)
-  paymentTerms  PaymentTerms   @default(NET_30)
-  paymentMethod PaymentMethod?
 
   // =====================================================
   // CLIENT STATUS
@@ -188,10 +178,9 @@ model Client {
   status ClientStatus @default(ACTIVE)
 
   // =====================================================
-  // AUTOMATION / PREFERENCES
+  // CLIENT PREFERENCES / AUTOMATION
   // =====================================================
 
-  autoCharge   Boolean @default(false)
   reminders    Boolean @default(true)
   portalAccess Boolean @default(true)
   welcomeEmail Boolean @default(true)
@@ -201,15 +190,7 @@ model Client {
   // =====================================================
 
   notes String?
-
-  tags Json?
-
-  // =====================================================
-  // BILLING / INVOICE INFORMATION
-  // =====================================================
-
-  nextInvoiceDate    DateTime?
-  outstandingBalance Decimal   @default(0) @db.Decimal(15, 2)
+  tags  Json?
 
   // =====================================================
   // AUDIT
@@ -235,8 +216,6 @@ model Client {
   @@index([companyId, status])
   @@index([companyId, email])
   @@index([companyId, name])
-  @@index([companyId, currency])
-  @@index([companyId, billingCycle])
   @@index([companyId, createdAt])
 }
 
@@ -348,36 +327,37 @@ model Payment {
   @@index([status])
 }
 
-// =====================================================
-// PROJECT
-// =====================================================
-
 model Project {
-  id          String  @id @default(cuid())
-  companyId   String
-  clientId    String
+  id        String @id @default(cuid())
+  companyId String
+  clientId  String
+
   title       String
   clientName  String?
   projectType String?
+  description String?
 
   startDate DateTime
   endDate   DateTime
 
-  description String?
-
-  budget Float
-  billed Float @default(0)
-
+  // Project-level commercial/billing details
+  budget        Decimal      @default(0) @db.Decimal(15, 2)
+  billed        Decimal      @default(0) @db.Decimal(15, 2)
+  currency      String       @default("INR")
   billingMethod String?
-  autoInvoice   Boolean @default(false)
+  billingCycle  BillingCycle @default(MONTHLY)
+  paymentTerms  PaymentTerms @default(NET_30)
+  paymentMethod PaymentMethod?
+  autoInvoice   Boolean      @default(false)
+  autoCharge    Boolean      @default(false)
 
-  color    String?
-  progress Int     @default(0)
+  progress Int    @default(0)
   status   String
   icon     String?
+  color    String?
 
   teamMembers Json?
-  members     Int   @default(0)
+  members     Int @default(0)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -389,7 +369,10 @@ model Project {
 
   @@index([companyId])
   @@index([clientId])
+  @@index([companyId, clientId])
   @@index([status])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 // =====================================================
