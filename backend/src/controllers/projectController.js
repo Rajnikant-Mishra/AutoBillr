@@ -1,8 +1,22 @@
 const prisma = require("../../config/prisma");
 
 /* =========================================================
-   HELPER – recalculate billed + progress
+   HELPERS
 ========================================================= */
+
+const toNumber = (value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const parseDateOnly = (dateString) => {
+  if (!dateString) return null;
+  // Accept "YYYY-MM-DD" from the form
+  const d = new Date(`${String(dateString).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const recalculateProjectBilling = async (projectId) => {
   const milestones = await prisma.milestone.findMany({
     where: { projectId },
@@ -121,7 +135,7 @@ const getProjectById = async (req, res) => {
 };
 
 /* =========================================================
-   CREATE PROJECT
+   CREATE PROJECT  (supports Fixed Fee / Milestone / Hourly / Retainer)
 ========================================================= */
 const createProject = async (req, res) => {
   try {
@@ -136,21 +150,52 @@ const createProject = async (req, res) => {
 
     const {
       title,
-      client,
+      client, // clientId from frontend
       clientName,
       projectType,
       startDate,
       endDate,
+      dueDate,
       description,
+      currency,
+
+      // Money
       budget,
+      billed,
+
+      // Billing
       billingMethod,
+      billingRateType,
+      billingRate,
+      billingCycle,
+      paymentMethod,
+      paymentTerms,
+
+      // Retainer / recurring
+      isRecurring,
+      recurringAmount,
+      recurringStartDate,
+      recurringEndDate,
+      nextBillingDate,
+      recurringStatus,
+
+      // Automation
       autoInvoice,
+      autoCharge,
+
+      // Display / state
       color,
+      icon,
+      progress,
+      status,
+
+      // Nested
       milestones,
       teamMembers,
+      members,
     } = req.body;
 
-    // Validation
+    /* ---------- Basics validation ---------- */
     if (!title?.trim()) {
       return res.status(400).json({
         success: false,
@@ -172,15 +217,24 @@ const createProject = async (req, res) => {
       });
     }
 
-    const projectBudget = Number(budget);
-    if (!Number.isFinite(projectBudget) || projectBudget <= 0) {
+    const start = parseDateOnly(startDate);
+    const end = parseDateOnly(endDate);
+
+    if (!start || !end) {
       return res.status(400).json({
         success: false,
-        message: "Budget must be greater than 0",
+        message: "Invalid project dates",
       });
     }
 
-    // Verify client belongs to company
+    if (end < start) {
+      return res.status(400).json({
+        success: false,
+        message: "End date cannot be before start date",
+      });
+    }
+
+    /* ---------- Client ownership ---------- */
     const existingClient = await prisma.client.findFirst({
       where: { id: client, companyId },
     });
@@ -192,67 +246,248 @@ const createProject = async (req, res) => {
       });
     }
 
-    // Validate milestones
-    const projectMilestones = Array.isArray(milestones) ? milestones : [];
-    let milestoneTotal = 0;
+    const method = billingMethod || "Fixed Fee";
+    const isRetainer = method === "Retainer";
+    const isMilestone = method === "Milestone";
+    const isHourly = method === "Hourly";
+    const isFixedFee = method === "Fixed Fee";
 
-    const normalizedMilestones = projectMilestones.map((milestone, index) => {
-      const amount = Number(milestone?.amount);
+    /* ---------- Money by billing method ---------- */
+    let projectBudget = null;
+    let projectBillingRate = null;
+    let projectRecurringAmount = null;
 
-      if (!milestone?.title?.trim()) {
-        throw new Error(`Milestone ${index + 1} title is required`);
+    if (isRetainer) {
+      projectRecurringAmount = toNumber(recurringAmount);
+      if (
+        projectRecurringAmount === null ||
+        projectRecurringAmount <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Retainer amount must be greater than 0",
+        });
       }
-      if (!milestone?.dueDate) {
-        throw new Error(`Milestone ${index + 1} due date is required`);
+
+      if (!billingCycle) {
+        return res.status(400).json({
+          success: false,
+          message: "Billing cycle is required for retainer",
+        });
       }
-      if (!Number.isFinite(amount) || amount <= 0) {
-        throw new Error(
-          `Milestone ${index + 1} amount must be greater than 0`
-        );
+
+      if (!recurringStartDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Retainer start date is required",
+        });
       }
 
-      milestoneTotal += amount;
+      const recStart = parseDateOnly(recurringStartDate);
+      if (!recStart) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid retainer start date",
+        });
+      }
 
-      return {
-        title: milestone.title.trim(),
-        dueDate: new Date(`${milestone.dueDate}T00:00:00`),
-        amount,
-        status: String(milestone?.status || "scheduled").toLowerCase(),
-      };
-    });
+      if (recStart < start) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Retainer start date cannot be before project start date",
+        });
+      }
 
-    if (milestoneTotal > projectBudget) {
-      return res.status(400).json({
-        success: false,
-        message: "Total milestone amount cannot exceed project budget",
-      });
+      if (recurringEndDate) {
+        const recEnd = parseDateOnly(recurringEndDate);
+        if (recEnd && end && recEnd > end) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Retainer end date cannot be after project end date",
+          });
+        }
+        if (recEnd && recEnd < recStart) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Retainer end date cannot be before retainer start date",
+          });
+        }
+      }
+    } else {
+      // Fixed Fee / Milestone / Hourly all require budget
+      projectBudget = toNumber(budget);
+      if (projectBudget === null || projectBudget <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Project budget / amount must be greater than 0",
+        });
+      }
     }
 
-    // Create project + milestones
+    if (isHourly) {
+      projectBillingRate = toNumber(billingRate);
+      if (
+        projectBillingRate === null ||
+        projectBillingRate <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Hourly rate must be greater than 0",
+        });
+      }
+      if (!billingCycle) {
+        return res.status(400).json({
+          success: false,
+          message: "Billing cycle is required for hourly billing",
+        });
+      }
+    }
+
+    /* ---------- Milestones (only for Milestone method) ---------- */
+    let normalizedMilestones = [];
+
+    if (isMilestone) {
+      const projectMilestones = Array.isArray(milestones)
+        ? milestones
+        : [];
+
+      if (projectMilestones.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Add at least one milestone",
+        });
+      }
+
+      let milestoneTotal = 0;
+
+      normalizedMilestones = projectMilestones.map((m, index) => {
+        const amount = toNumber(m?.amount);
+
+        if (!m?.title?.trim()) {
+          throw new Error(`Milestone ${index + 1} title is required`);
+        }
+        if (!m?.dueDate) {
+          throw new Error(
+            `Milestone ${index + 1} due date is required`
+          );
+        }
+        if (amount === null || amount <= 0) {
+          throw new Error(
+            `Milestone ${index + 1} amount must be greater than 0`
+          );
+        }
+
+        const due = parseDateOnly(m.dueDate);
+        if (!due) {
+          throw new Error(
+            `Milestone ${index + 1} has an invalid due date`
+          );
+        }
+        if (due < start || due > end) {
+          throw new Error(
+            `Milestone ${index + 1} due date must be within project dates`
+          );
+        }
+
+        milestoneTotal += amount;
+
+        return {
+          title: m.title.trim(),
+          dueDate: due,
+          amount,
+          status: String(m?.status || "scheduled").toLowerCase(),
+        };
+      });
+
+      if (milestoneTotal > projectBudget) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Total milestone amount cannot exceed project budget",
+        });
+      }
+    }
+
+    /* ---------- Build create data ---------- */
+    const createData = {
+      companyId,
+      clientId: existingClient.id,
+
+      title: title.trim(),
+      clientName:
+        (clientName && String(clientName).trim()) ||
+        existingClient.name,
+      projectType: projectType || method || "Fixed Fee",
+      description:
+        description != null ? String(description).trim() || null : null,
+
+      startDate: start,
+      endDate: end,
+      dueDate: parseDateOnly(dueDate) || end,
+
+      currency: currency || "INR",
+
+      // Money – budget is null for retainer
+      budget: projectBudget,
+      billed: toNumber(billed) ?? 0,
+
+      // Billing
+      billingMethod: method,
+      billingRateType:
+        billingRateType ||
+        (isRetainer ? "RECURRING" : "FIXED"),
+      billingRate: projectBillingRate,
+      billingCycle:
+        isHourly || isRetainer ? billingCycle || null : null,
+      paymentMethod: paymentMethod || null,
+      paymentTerms: paymentTerms || "NET_30",
+
+      // Recurring / retainer
+      isRecurring: Boolean(isRecurring) || isRetainer,
+      recurringAmount: projectRecurringAmount,
+      recurringStartDate: isRetainer
+        ? parseDateOnly(recurringStartDate)
+        : null,
+      recurringEndDate: isRetainer
+        ? parseDateOnly(recurringEndDate)
+        : null,
+      nextBillingDate: isRetainer
+        ? parseDateOnly(nextBillingDate)
+        : null,
+      recurringStatus: isRetainer
+        ? recurringStatus || "ACTIVE"
+        : null,
+
+      // Automation
+      autoInvoice:
+        autoInvoice !== undefined ? Boolean(autoInvoice) : true,
+      autoCharge: isRetainer ? Boolean(autoCharge) : false,
+
+      // Display / state
+      color: color || "bg-primary",
+      icon: icon || "folder",
+      progress: toNumber(progress) ?? 0,
+      status: status || "ACTIVE",
+
+      // Team (stored as Json of names for now)
+      teamMembers: Array.isArray(teamMembers) ? teamMembers : [],
+      members:
+        toNumber(members) ??
+        (Array.isArray(teamMembers) ? teamMembers.length : 0),
+    };
+
+    // Nested milestones only when method is Milestone
+    if (isMilestone && normalizedMilestones.length > 0) {
+      createData.milestones = {
+        create: normalizedMilestones,
+      };
+    }
+
     const project = await prisma.project.create({
-      data: {
-        companyId,
-        clientId: existingClient.id,
-        title: title.trim(),
-        clientName: clientName?.trim() || existingClient.name,
-        projectType: projectType || "Fixed Fee",
-        startDate: new Date(`${startDate}T00:00:00`),
-        endDate: new Date(`${endDate}T00:00:00`),
-        description: description?.trim() || null,
-        budget: projectBudget,
-        billed: 0,
-        billingMethod: billingMethod || "Milestone",
-        autoInvoice: Boolean(autoInvoice),
-        color: color || "bg-primary",
-        progress: 0,
-        status: "ACTIVE",
-        icon: "folder",
-        teamMembers: Array.isArray(teamMembers) ? teamMembers : [],
-        members: Array.isArray(teamMembers) ? teamMembers.length : 0,
-        milestones: {
-          create: normalizedMilestones,
-        },
-      },
+      data: createData,
       include: {
         client: {
           select: { id: true, name: true, email: true },
@@ -310,12 +545,28 @@ const updateProject = async (req, res) => {
       projectType,
       startDate,
       endDate,
+      dueDate,
       description,
+      currency,
       budget,
       billingMethod,
+      billingRateType,
+      billingRate,
+      billingCycle,
+      paymentMethod,
+      paymentTerms,
+      isRecurring,
+      recurringAmount,
+      recurringStartDate,
+      recurringEndDate,
+      nextBillingDate,
+      recurringStatus,
       autoInvoice,
+      autoCharge,
       color,
+      icon,
       teamMembers,
+      members,
       progress,
       status,
     } = req.body;
@@ -334,37 +585,77 @@ const updateProject = async (req, res) => {
       clientId = existingClient.id;
     }
 
+    const data = {
+      ...(title !== undefined && { title: String(title).trim() }),
+      ...(clientId !== undefined && { clientId }),
+      ...(clientName !== undefined && {
+        clientName: clientName ? String(clientName).trim() : null,
+      }),
+      ...(projectType !== undefined && { projectType }),
+      ...(startDate !== undefined && {
+        startDate: parseDateOnly(startDate),
+      }),
+      ...(endDate !== undefined && {
+        endDate: parseDateOnly(endDate),
+      }),
+      ...(dueDate !== undefined && {
+        dueDate: parseDateOnly(dueDate),
+      }),
+      ...(description !== undefined && {
+        description: description
+          ? String(description).trim()
+          : null,
+      }),
+      ...(currency !== undefined && { currency }),
+      ...(budget !== undefined && { budget: toNumber(budget) }),
+      ...(billingMethod !== undefined && { billingMethod }),
+      ...(billingRateType !== undefined && { billingRateType }),
+      ...(billingRate !== undefined && {
+        billingRate: toNumber(billingRate),
+      }),
+      ...(billingCycle !== undefined && { billingCycle }),
+      ...(paymentMethod !== undefined && { paymentMethod }),
+      ...(paymentTerms !== undefined && { paymentTerms }),
+      ...(isRecurring !== undefined && {
+        isRecurring: Boolean(isRecurring),
+      }),
+      ...(recurringAmount !== undefined && {
+        recurringAmount: toNumber(recurringAmount),
+      }),
+      ...(recurringStartDate !== undefined && {
+        recurringStartDate: parseDateOnly(recurringStartDate),
+      }),
+      ...(recurringEndDate !== undefined && {
+        recurringEndDate: parseDateOnly(recurringEndDate),
+      }),
+      ...(nextBillingDate !== undefined && {
+        nextBillingDate: parseDateOnly(nextBillingDate),
+      }),
+      ...(recurringStatus !== undefined && { recurringStatus }),
+      ...(autoInvoice !== undefined && {
+        autoInvoice: Boolean(autoInvoice),
+      }),
+      ...(autoCharge !== undefined && {
+        autoCharge: Boolean(autoCharge),
+      }),
+      ...(color !== undefined && { color }),
+      ...(icon !== undefined && { icon }),
+      ...(teamMembers !== undefined && {
+        teamMembers: Array.isArray(teamMembers) ? teamMembers : [],
+        members: Array.isArray(teamMembers)
+          ? teamMembers.length
+          : 0,
+      }),
+      ...(members !== undefined && { members: toNumber(members) }),
+      ...(progress !== undefined && {
+        progress: toNumber(progress) ?? 0,
+      }),
+      ...(status !== undefined && { status }),
+    };
+
     const project = await prisma.project.update({
       where: { id },
-      data: {
-        ...(title !== undefined && { title: title.trim() }),
-        ...(clientId !== undefined && { clientId }),
-        ...(clientName !== undefined && {
-          clientName: clientName?.trim() || null,
-        }),
-        ...(projectType !== undefined && { projectType }),
-        ...(startDate !== undefined && {
-          startDate: new Date(`${startDate}T00:00:00`),
-        }),
-        ...(endDate !== undefined && {
-          endDate: new Date(`${endDate}T00:00:00`),
-        }),
-        ...(description !== undefined && {
-          description: description?.trim() || null,
-        }),
-        ...(budget !== undefined && { budget: Number(budget) }),
-        ...(billingMethod !== undefined && { billingMethod }),
-        ...(autoInvoice !== undefined && {
-          autoInvoice: Boolean(autoInvoice),
-        }),
-        ...(color !== undefined && { color }),
-        ...(teamMembers !== undefined && {
-          teamMembers: Array.isArray(teamMembers) ? teamMembers : [],
-          members: Array.isArray(teamMembers) ? teamMembers.length : 0,
-        }),
-        ...(progress !== undefined && { progress: Number(progress) }),
-        ...(status !== undefined && { status }),
-      },
+      data,
       include: {
         client: {
           select: { id: true, name: true, email: true },
@@ -458,6 +749,14 @@ const createMilestone = async (req, res) => {
       });
     }
 
+    // Only Milestone projects should have milestones
+    if (project.billingMethod && project.billingMethod !== "Milestone") {
+      return res.status(400).json({
+        success: false,
+        message: "Milestones are only allowed for Milestone billing projects",
+      });
+    }
+
     const { title, amount, dueDate, status } = req.body;
 
     if (!title?.trim()) {
@@ -474,15 +773,14 @@ const createMilestone = async (req, res) => {
       });
     }
 
-    const milestoneAmount = Number(amount);
-    if (!Number.isFinite(milestoneAmount) || milestoneAmount <= 0) {
+    const milestoneAmount = toNumber(amount);
+    if (milestoneAmount === null || milestoneAmount <= 0) {
       return res.status(400).json({
         success: false,
         message: "Amount must be greater than 0",
       });
     }
 
-    // Budget check
     const existingMilestones = await prisma.milestone.findMany({
       where: { projectId },
     });
@@ -492,7 +790,8 @@ const createMilestone = async (req, res) => {
       0
     );
 
-    if (existingTotal + milestoneAmount > Number(project.budget || 0)) {
+    const budget = Number(project.budget || 0);
+    if (budget > 0 && existingTotal + milestoneAmount > budget) {
       return res.status(400).json({
         success: false,
         message: "Total milestone amount cannot exceed project budget",
@@ -504,12 +803,11 @@ const createMilestone = async (req, res) => {
         projectId,
         title: title.trim(),
         amount: milestoneAmount,
-        dueDate: new Date(`${dueDate}T00:00:00`),
+        dueDate: parseDateOnly(dueDate),
         status: String(status || "scheduled").toLowerCase(),
       },
     });
 
-    // Recalculate progress (billed only changes on paid)
     const { progress } = await recalculateProjectBilling(projectId);
 
     return res.status(201).json({
@@ -528,7 +826,7 @@ const createMilestone = async (req, res) => {
 };
 
 /* =========================================================
-   UPDATE MILESTONE  (PRODUCTION – updates billed + progress)
+   UPDATE MILESTONE
 ========================================================= */
 const updateMilestone = async (req, res) => {
   try {
@@ -567,7 +865,6 @@ const updateMilestone = async (req, res) => {
 
     const { title, amount, dueDate, status } = req.body;
 
-    // Validation
     if (title !== undefined && !title?.trim()) {
       return res.status(400).json({
         success: false,
@@ -584,8 +881,8 @@ const updateMilestone = async (req, res) => {
 
     let milestoneAmount;
     if (amount !== undefined) {
-      milestoneAmount = Number(amount);
-      if (!Number.isFinite(milestoneAmount) || milestoneAmount <= 0) {
+      milestoneAmount = toNumber(amount);
+      if (milestoneAmount === null || milestoneAmount <= 0) {
         return res.status(400).json({
           success: false,
           message: "Amount must be greater than 0",
@@ -593,16 +890,17 @@ const updateMilestone = async (req, res) => {
       }
     }
 
-    // Budget check when amount changes
     if (milestoneAmount !== undefined) {
       const otherTotal = project.milestones
         .filter((m) => m.id !== milestoneId)
         .reduce((sum, m) => sum + Number(m.amount || 0), 0);
 
-      if (otherTotal + milestoneAmount > Number(project.budget || 0)) {
+      const budget = Number(project.budget || 0);
+      if (budget > 0 && otherTotal + milestoneAmount > budget) {
         return res.status(400).json({
           success: false,
-          message: "Total milestone amount cannot exceed project budget",
+          message:
+            "Total milestone amount cannot exceed project budget",
         });
       }
     }
@@ -611,30 +909,24 @@ const updateMilestone = async (req, res) => {
     const newStatus =
       status !== undefined ? String(status).toLowerCase() : oldStatus;
 
-    // Update the milestone
     const milestone = await prisma.milestone.update({
       where: { id: milestoneId },
       data: {
         ...(title !== undefined && { title: title.trim() }),
         ...(milestoneAmount !== undefined && { amount: milestoneAmount }),
         ...(dueDate !== undefined && {
-          dueDate: new Date(`${dueDate}T00:00:00`),
+          dueDate: parseDateOnly(dueDate),
         }),
         ...(status !== undefined && { status: newStatus }),
-        // Set paidAt when becoming paid
         ...(newStatus === "paid" && oldStatus !== "paid"
           ? { paidAt: new Date() }
           : {}),
-        // Clear paidAt if moved away from paid
         ...(oldStatus === "paid" && newStatus !== "paid"
           ? { paidAt: null }
           : {}),
       },
     });
 
-    // =====================================================
-    // PRODUCTION: Recalculate project.billed + progress
-    // =====================================================
     const { billed, progress } = await recalculateProjectBilling(projectId);
 
     return res.status(200).json({
@@ -694,7 +986,6 @@ const deleteMilestone = async (req, res) => {
       where: { id: milestoneId },
     });
 
-    // Recalculate billed + progress after delete
     const { billed, progress } = await recalculateProjectBilling(projectId);
 
     return res.status(200).json({

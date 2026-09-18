@@ -25,8 +25,9 @@ model Company {
   users                User[]
   projects             Project[]
   notifications        Notification[]
-teamMembers  TeamMember[]
-  roles       Role[]
+  teamMembers          TeamMember[]
+  roles                Role[]
+
   @@index([name])
 }
 
@@ -97,7 +98,6 @@ model Subscription {
 
 // =====================================================
 // SUBSCRIPTION PAYMENT
-// Fake/Test payment for registration and subscriptions
 // =====================================================
 
 model SubscriptionPayment {
@@ -141,10 +141,6 @@ model Client {
   id        String @id @default(cuid())
   companyId String
 
-  // =====================================================
-  // BASIC INFORMATION
-  // =====================================================
-
   name        String
   contactName String?
   email       String?
@@ -155,62 +151,30 @@ model Client {
   color       String?
   initials    String?
 
-  // =====================================================
-  // ADDRESS
-  // =====================================================
-
   billingAddress String?
   city           String?
   stateRegion    String?
   postalCode     String?
   country        String?
 
-  // =====================================================
-  // TAX / LEGAL
-  // =====================================================
-
   taxId String?
 
-  // =====================================================
-  // CLIENT STATUS
-  // =====================================================
-
   status ClientStatus @default(ACTIVE)
-
-  // =====================================================
-  // CLIENT PREFERENCES / AUTOMATION
-  // =====================================================
 
   reminders    Boolean @default(true)
   portalAccess Boolean @default(true)
   welcomeEmail Boolean @default(true)
 
-  // =====================================================
-  // EXTRA INFORMATION
-  // =====================================================
-
   notes String?
   tags  Json?
-
-  // =====================================================
-  // AUDIT
-  // =====================================================
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
 
-  // =====================================================
-  // RELATIONS
-  // =====================================================
-
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoices Invoice[]
   projects Project[]
-
-  // =====================================================
-  // INDEXES
-  // =====================================================
 
   @@index([companyId])
   @@index([companyId, status])
@@ -219,10 +183,6 @@ model Client {
   @@index([companyId, createdAt])
 }
 
-// =====================================================
-// CLIENT ENUMS
-// =====================================================
-
 enum ClientStatus {
   ACTIVE
   PENDING
@@ -230,8 +190,13 @@ enum ClientStatus {
   ARCHIVED
 }
 
+// =====================================================
+// BILLING ENUMS (shared)
+// =====================================================
+
 enum BillingCycle {
   MONTHLY
+  FORTNIGHTLY
   QUARTERLY
   ANNUAL
 }
@@ -248,6 +213,16 @@ enum PaymentMethod {
   CARD
   WIRE
   CHECK
+}
+
+enum BillingRateType {
+  FIXED
+  RECURRING
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
 }
 
 // =====================================================
@@ -283,10 +258,6 @@ model Invoice {
   @@index([status])
 }
 
-// =====================================================
-// INVOICE ITEM
-// =====================================================
-
 model InvoiceItem {
   id          String @id @default(cuid())
   invoiceId   String
@@ -302,11 +273,6 @@ model InvoiceItem {
 
   @@index([invoiceId])
 }
-
-// =====================================================
-// INVOICE PAYMENT
-// Existing customer invoice payment system
-// =====================================================
 
 model Payment {
   id        String @id @default(cuid())
@@ -327,41 +293,65 @@ model Payment {
   @@index([status])
 }
 
+// =====================================================
+// PROJECT  (aligned with ProjectDrawer payload)
+// =====================================================
+
 model Project {
   id        String @id @default(cuid())
   companyId String
   clientId  String
 
+  // ---- Basics ----
   title       String
   clientName  String?
-  projectType String?
+  projectType String?   // "Fixed Fee" | "Time & Materials" | "Retainer" | "Internal"
   description String?
 
   startDate DateTime
   endDate   DateTime
+  dueDate   DateTime?   // form sends endDate as dueDate
 
-  // Project-level commercial/billing details
-  budget        Decimal      @default(0) @db.Decimal(15, 2)
-  billed        Decimal      @default(0) @db.Decimal(15, 2)
-  currency      String       @default("INR")
-  billingMethod String?
-  billingCycle  BillingCycle @default(MONTHLY)
-  paymentTerms  PaymentTerms @default(NET_30)
-  paymentMethod PaymentMethod?
-  autoInvoice   Boolean      @default(false)
-  autoCharge    Boolean      @default(false)
+  // ---- Money ----
+  // budget is used for Fixed Fee / Milestone / Hourly
+  // Retainer uses recurringAmount instead → budget is null
+  budget   Decimal? @db.Decimal(15, 2)
+  billed   Decimal  @default(0) @db.Decimal(15, 2)
+  currency String   @default("INR")
 
-  progress Int    @default(0)
-  status   String
+  // ---- Billing ----
+  billingMethod   String?          // "Fixed Fee" | "Milestone" | "Hourly" | "Retainer"
+  billingRateType BillingRateType? // FIXED | RECURRING
+  billingRate     Decimal?         @db.Decimal(15, 2) // hourly rate
+  billingCycle    BillingCycle?    // required only for Hourly / Retainer
+  paymentTerms    PaymentTerms     @default(NET_30)
+  paymentMethod   PaymentMethod?
+
+  // ---- Retainer / Recurring ----
+  isRecurring        Boolean          @default(false)
+  recurringAmount    Decimal?         @db.Decimal(15, 2)
+  recurringStartDate DateTime?
+  recurringEndDate   DateTime?
+  nextBillingDate    DateTime?        // system-calculated
+  recurringStatus    RecurringStatus?
+
+  // ---- Automation ----
+  autoInvoice Boolean @default(true)
+  autoCharge  Boolean @default(false)
+
+  // ---- Display / state ----
+  progress Int     @default(0)
+  status   String  @default("ACTIVE")
   icon     String?
   color    String?
 
+  // ---- Team (form currently sends names as Json) ----
   teamMembers Json?
-  members     Int @default(0)
+  members     Int  @default(0)
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
+  // ---- Relations ----
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   milestones Milestone[]
 
   createdAt DateTime @default(now())
@@ -373,6 +363,10 @@ model Project {
   @@index([status])
   @@index([startDate])
   @@index([endDate])
+  @@index([billingMethod])
+  @@index([isRecurring])
+  @@index([nextBillingDate])
+  @@index([recurringStatus])
 }
 
 // =====================================================
@@ -438,12 +432,9 @@ model Notification {
 
   @@index([companyId])
 }
-// =====================================================
-// CUSTOM ROLE
-// =====================================================
 
 // =====================================================
-// ROLE  (was CustomRole)
+// ROLE
 // =====================================================
 
 model Role {
@@ -458,9 +449,9 @@ model Role {
 
   @@unique([companyId, name])
   @@index([companyId])
-
-  @@map("Role")   
+  @@map("Role")
 }
+
 // =====================================================
 // TEAM MEMBER
 // =====================================================
@@ -474,9 +465,9 @@ model TeamMember {
   avatar String?
 
   role   String            @default("VIEWER")
-  status TeamMemberStatus @default(PENDING)
+  status TeamMemberStatus  @default(PENDING)
 
-  channels String[] // ["email", "whatsapp", "github", "discord"]
+  channels String[]
   whatsapp String?
   github   String?
   discord  String?
@@ -513,6 +504,7 @@ enum TeamMemberStatus {
   ACTIVE
   INACTIVE
 }
+
 // =====================================================
 // CURRENCY
 // =====================================================
@@ -531,7 +523,7 @@ model Currency {
 }
 
 // =====================================================
-// USER ROLE
+// USER ROLE / SUBSCRIPTION STATUS
 // =====================================================
 
 enum UserRole {
@@ -542,10 +534,6 @@ enum UserRole {
   FINANCE_MANAGER
   OTHER
 }
-
-// =====================================================
-// SUBSCRIPTION STATUS
-// =====================================================
 
 enum SubscriptionStatus {
   TRIALING
