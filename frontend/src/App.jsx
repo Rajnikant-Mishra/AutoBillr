@@ -4,6 +4,7 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import axios from "axios";
 
 import { Toaster } from "react-hot-toast";
 
@@ -59,6 +60,30 @@ function ProtectedLayout({ children }) {
     </ProtectedRoute>
   );
 }
+
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === "TRIAL_EXPIRED"
+    ) {
+      localStorage.clear();
+      sessionStorage.clear();
+
+      alert(
+        error.response?.data?.message ||
+          "Your trial period has ended. Please upgrade your plan to continue."
+      );
+
+      // 3. User ko login ya pricing page bhejein
+      window.location.href = "/login";
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 // ============================================================
 // APP
