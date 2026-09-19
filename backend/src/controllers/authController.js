@@ -229,11 +229,9 @@ const register = async (req, res) => {
         },
       });
 
-      // ==========================================
-      // TRIAL DURATION SETUP: Testing ke liye 1 day
-      // (Testing ke baad bas TRIAL_DAYS = 14 karna hoga)
-      // ==========================================
-      const TRIAL_DAYS = 1;
+     // Set trial period for the subscription
+     
+      const TRIAL_DAYS = 14;
       const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
       const subscription = await tx.subscription.create({
