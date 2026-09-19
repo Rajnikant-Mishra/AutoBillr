@@ -25,8 +25,9 @@ model Company {
   users                User[]
   projects             Project[]
   notifications        Notification[]
-teamMembers  TeamMember[]
-  roles       Role[]
+  teamMembers          TeamMember[]
+  roles                Role[]
+
   @@index([name])
 }
 
@@ -97,7 +98,6 @@ model Subscription {
 
 // =====================================================
 // SUBSCRIPTION PAYMENT
-// Fake/Test payment for registration and subscriptions
 // =====================================================
 
 model SubscriptionPayment {
@@ -141,10 +141,6 @@ model Client {
   id        String @id @default(cuid())
   companyId String
 
-  // =====================================================
-  // BASIC INFORMATION
-  // =====================================================
-
   name        String
   contactName String?
   email       String?
@@ -155,62 +151,30 @@ model Client {
   color       String?
   initials    String?
 
-  // =====================================================
-  // ADDRESS
-  // =====================================================
-
   billingAddress String?
   city           String?
   stateRegion    String?
   postalCode     String?
   country        String?
 
-  // =====================================================
-  // TAX / LEGAL
-  // =====================================================
-
   taxId String?
 
-  // =====================================================
-  // CLIENT STATUS
-  // =====================================================
-
   status ClientStatus @default(ACTIVE)
-
-  // =====================================================
-  // CLIENT PREFERENCES / AUTOMATION
-  // =====================================================
 
   reminders    Boolean @default(true)
   portalAccess Boolean @default(true)
   welcomeEmail Boolean @default(true)
 
-  // =====================================================
-  // EXTRA INFORMATION
-  // =====================================================
-
   notes String?
   tags  Json?
-
-  // =====================================================
-  // AUDIT
-  // =====================================================
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
 
-  // =====================================================
-  // RELATIONS
-  // =====================================================
-
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoices Invoice[]
   projects Project[]
-
-  // =====================================================
-  // INDEXES
-  // =====================================================
 
   @@index([companyId])
   @@index([companyId, status])
@@ -219,10 +183,6 @@ model Client {
   @@index([companyId, createdAt])
 }
 
-// =====================================================
-// CLIENT ENUMS
-// =====================================================
-
 enum ClientStatus {
   ACTIVE
   PENDING
@@ -230,8 +190,13 @@ enum ClientStatus {
   ARCHIVED
 }
 
+// =====================================================
+// BILLING ENUMS (shared)
+// =====================================================
+
 enum BillingCycle {
   MONTHLY
+  FORTNIGHTLY
   QUARTERLY
   ANNUAL
 }
@@ -248,6 +213,23 @@ enum PaymentMethod {
   CARD
   WIRE
   CHECK
+}
+
+enum BillingRateType {
+  FIXED
+  RECURRING
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum ProjectBillingMethod {
+  FIXED_FEE
+  MILESTONE
+  HOURLY
+  RETAINER
 }
 
 // =====================================================
@@ -283,10 +265,6 @@ model Invoice {
   @@index([status])
 }
 
-// =====================================================
-// INVOICE ITEM
-// =====================================================
-
 model InvoiceItem {
   id          String @id @default(cuid())
   invoiceId   String
@@ -302,11 +280,6 @@ model InvoiceItem {
 
   @@index([invoiceId])
 }
-
-// =====================================================
-// INVOICE PAYMENT
-// Existing customer invoice payment system
-// =====================================================
 
 model Payment {
   id        String @id @default(cuid())
@@ -327,6 +300,10 @@ model Payment {
   @@index([status])
 }
 
+// =====================================================
+// PROJECT  (aligned with ProjectDrawer payload)
+// =====================================================
+
 model Project {
   id        String @id @default(cuid())
   companyId String
@@ -339,25 +316,36 @@ model Project {
 
   startDate DateTime
   endDate   DateTime
+  dueDate   DateTime?
 
-  // Project-level commercial/billing details
-  budget        Decimal      @default(0) @db.Decimal(15, 2)
-  billed        Decimal      @default(0) @db.Decimal(15, 2)
-  currency      String       @default("INR")
-  billingMethod String?
-  billingCycle  BillingCycle @default(MONTHLY)
-  paymentTerms  PaymentTerms @default(NET_30)
-  paymentMethod PaymentMethod?
-  autoInvoice   Boolean      @default(false)
-  autoCharge    Boolean      @default(false)
+  budget   Decimal? @db.Decimal(15, 2)
+  billed   Decimal  @default(0) @db.Decimal(15, 2)
+  currency String   @default("INR")
 
-  progress Int    @default(0)
-  status   String
+  billingMethod   ProjectBillingMethod @default(FIXED_FEE)
+  billingRateType BillingRateType      @default(FIXED)
+  billingRate     Decimal?             @db.Decimal(15, 2)
+  billingCycle    BillingCycle?
+  paymentTerms    PaymentTerms         @default(NET_30)
+  paymentMethod   PaymentMethod?
+
+  isRecurring        Boolean          @default(false)
+  recurringAmount    Decimal?         @db.Decimal(15, 2)
+  recurringStartDate DateTime?
+  recurringEndDate   DateTime?
+  nextBillingDate    DateTime?
+  recurringStatus    RecurringStatus?
+
+  autoInvoice Boolean @default(true)
+  autoCharge  Boolean @default(false)
+
+  progress Int     @default(0)
+  status   String  @default("ACTIVE")
   icon     String?
   color    String?
 
   teamMembers Json?
-  members     Int @default(0)
+  members     Int   @default(0)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -369,35 +357,29 @@ model Project {
 
   @@index([companyId])
   @@index([clientId])
-  @@index([companyId, clientId])
-  @@index([status])
-  @@index([startDate])
-  @@index([endDate])
+  @@index([companyId, createdAt])
+  @@index([companyId, status])
 }
 
 // =====================================================
 // MILESTONE
 // =====================================================
-
 model Milestone {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   projectId String
-  title     String
-  dueDate   DateTime
 
-  amount Decimal @db.Decimal(15, 2)
+  title   String
+  dueDate DateTime
+  amount  Decimal   @db.Decimal(15, 2)
+  status  String    @default("scheduled")
+  paidAt  DateTime?
 
-  status String @default("scheduled")
-
-  paidAt    DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
-  @@index([status])
-  @@index([dueDate])
 }
 
 // =====================================================
@@ -438,12 +420,9 @@ model Notification {
 
   @@index([companyId])
 }
-// =====================================================
-// CUSTOM ROLE
-// =====================================================
 
 // =====================================================
-// ROLE  (was CustomRole)
+// ROLE
 // =====================================================
 
 model Role {
@@ -458,9 +437,9 @@ model Role {
 
   @@unique([companyId, name])
   @@index([companyId])
-
-  @@map("Role")   
+  @@map("Role")
 }
+
 // =====================================================
 // TEAM MEMBER
 // =====================================================
@@ -473,18 +452,18 @@ model TeamMember {
   email  String
   avatar String?
 
-  role   String            @default("VIEWER")
+  role   String           @default("VIEWER")
   status TeamMemberStatus @default(PENDING)
 
-  channels String[] // ["email", "whatsapp", "github", "discord"]
+  channels String[]
   whatsapp String?
   github   String?
   discord  String?
 
-  invitationToken   String?  @unique
+  invitationToken   String?   @unique
   invitationMessage String?
   invitedById       String?
-  invitedAt         DateTime @default(now())
+  invitedAt         DateTime  @default(now())
   acceptedAt        DateTime?
   lastActivityAt    DateTime?
 
@@ -500,19 +479,12 @@ model TeamMember {
   @@index([invitationToken])
 }
 
-enum TeamRole {
-  OWNER
-  ADMIN
-  MANAGER
-  ANALYST
-  VIEWER
-}
-
 enum TeamMemberStatus {
   PENDING
   ACTIVE
   INACTIVE
 }
+
 // =====================================================
 // CURRENCY
 // =====================================================
@@ -531,7 +503,7 @@ model Currency {
 }
 
 // =====================================================
-// USER ROLE
+// USER ROLE / SUBSCRIPTION STATUS
 // =====================================================
 
 enum UserRole {
@@ -542,10 +514,6 @@ enum UserRole {
   FINANCE_MANAGER
   OTHER
 }
-
-// =====================================================
-// SUBSCRIPTION STATUS
-// =====================================================
 
 enum SubscriptionStatus {
   TRIALING
