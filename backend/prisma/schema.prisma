@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // =====================================================
@@ -11,12 +12,20 @@ datasource db {
 // =====================================================
 
 model Company {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   companySize String?
   industry    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // Branding
+  logo           String?
+  brandColor     String?
+  showQr         Boolean @default(false)
+  showThumbnails Boolean @default(false)
+  showFooter     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   clients              Client[]
   invoices             Invoice[]
@@ -240,12 +249,13 @@ model Invoice {
   id            String @id @default(cuid())
   companyId     String
   clientId      String
-  invoiceNumber String
+  projectId     String?          // ← ADD THIS
 
-  status   String  @default("draft")
-  subtotal Decimal @default(0) @db.Decimal(12, 2)
-  tax      Decimal @default(0) @db.Decimal(12, 2)
-  total    Decimal @default(0) @db.Decimal(12, 2)
+  invoiceNumber String
+  status        String  @default("draft")
+  subtotal      Decimal @default(0) @db.Decimal(12, 2)
+  tax           Decimal @default(0) @db.Decimal(12, 2)
+  total         Decimal @default(0) @db.Decimal(12, 2)
 
   issueDate DateTime  @default(now())
   dueDate   DateTime?
@@ -253,8 +263,9 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)  // ← ADD THIS
 
   items    InvoiceItem[]
   payments Payment[]
@@ -262,6 +273,7 @@ model Invoice {
   @@unique([companyId, invoiceNumber])
   @@index([companyId])
   @@index([clientId])
+  @@index([projectId])   // ← ADD THIS
   @@index([status])
 }
 
@@ -318,6 +330,8 @@ model Project {
   endDate   DateTime
   dueDate   DateTime?
 
+
+invoices Invoice[]
   budget   Decimal? @db.Decimal(15, 2)
   billed   Decimal  @default(0) @db.Decimal(15, 2)
   currency String   @default("INR")
