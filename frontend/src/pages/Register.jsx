@@ -1377,17 +1377,15 @@ setAuthData({
                         {plan.name}
                       </div>
 
-                      <div className="text-2xl font-bold text-text">
+                     <div className="text-2xl font-bold text-text">
+  {typeof plan.price === "number"
+    ? `₹${plan.price.toLocaleString("en-IN")}`
+    : plan.price}
 
-                        {typeof plan.price === "number"
-                          ? `$${plan.price}`
-                          : plan.price}
-
-                        <span className="text-xs text-text-light font-normal ml-1">
-                          {plan.period}
-                        </span>
-
-                      </div>
+  <span className="text-xs text-text-light font-normal ml-1">
+    {plan.period}
+  </span>
+</div>
 
                       <div className="text-[11.5px] text-text-muted mt-2">
                         {plan.description}
