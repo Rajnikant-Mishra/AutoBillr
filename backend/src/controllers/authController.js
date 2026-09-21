@@ -58,7 +58,6 @@ const redirectToGoogle = (req, res) => {
     redirect_uri: REDIRECT_URI,
     response_type: "code",
     scope: "openid email profile",
-    prompt: "select_account",
   });
 
   return res.redirect(`${rootUrl}?${params.toString()}`);
@@ -230,12 +229,17 @@ const register = async (req, res) => {
         },
       });
 
+     // Set trial period for the subscription
+     
+      const TRIAL_DAYS = 14;
+      const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
       const subscription = await tx.subscription.create({
         data: {
           companyId: company.id,
           planId: plan.id,
           status: "TRIALING",
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          trialEndsAt: trialEndsAt,
         },
         include: { plan: true },
       });
@@ -455,7 +459,7 @@ const verifyResetOtp = async (req, res) => {
 };
 
 // =====================================================
-// 7. RESET PASSWORD
+// 7. RESET PASSWORD (WITH PREVIOUS PASSWORD CHECK)
 // =====================================================
 const resetPassword = async (req, res) => {
   try {
@@ -473,6 +477,25 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Password must be at least 12 characters long",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this email address",
+      });
+    }
+
+    const isSameAsPrevious = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSameAsPrevious) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot use your previous password. Please choose a different password.",
       });
     }
 
