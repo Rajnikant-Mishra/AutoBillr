@@ -35,7 +35,9 @@ export default function ProjectDetailPanel({
     : [];
 
 const formattedDueDate = project.endDate
-  ? new Date(project.endDate).toLocaleDateString("INR", {
+  ? new Date(
+      project.endDate
+    ).toLocaleDateString("en-IN", {
       month: "short",
       day: "numeric",
       year: "numeric",

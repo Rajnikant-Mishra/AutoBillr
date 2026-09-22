@@ -2,7 +2,7 @@ const prisma = require("../../config/prisma");
 const { sendInvoiceEmail, sendReminderEmail } = require("../services/emailService");
 
 // =====================================================
-// HELPER: PARSE INVOICE REQUEST BODY
+// HELPERS
 // =====================================================
 const parseInvoiceBody = (req) => {
   let body = req.body || {};
@@ -18,9 +18,6 @@ const parseInvoiceBody = (req) => {
   return body;
 };
 
-// =====================================================
-// HELPER: CHECK EMAIL FLAG
-// =====================================================
 const shouldEmailClient = (value) => {
   return (
     value === true ||
@@ -53,12 +50,12 @@ const getInvoices = async (req, res) => {
             name: true,
             email: true,
             projects: {
-              select: {
-                id: true,
-                title: true,
-              },
+              select: { id: true, title: true },
             },
           },
+        },
+        project: {                          // ← added
+          select: { id: true, title: true },
         },
         items: true,
       },
@@ -106,6 +103,7 @@ const getInvoiceById = async (req, res) => {
         client: {
           include: { projects: true },
         },
+        project: true,                      // ← already correct
         items: true,
       },
     });
@@ -149,6 +147,7 @@ const createInvoice = async (req, res) => {
     const {
       invoiceNumber,
       client,
+      project,                              // ← added
       invoiceDate,
       dueDate,
       items,
@@ -185,6 +184,27 @@ const createInvoice = async (req, res) => {
       });
     }
 
+    // Validate project (optional)
+    let projectId = null;
+    if (project) {
+      const existingProject = await prisma.project.findFirst({
+        where: {
+          id: project,
+          companyId,
+          clientId: existingClient.id,
+        },
+        select: { id: true },
+      });
+
+      if (!existingProject) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found or does not belong to this client",
+        });
+      }
+      projectId = existingProject.id;
+    }
+
     const invoiceItems = Array.isArray(items)
       ? items.map((item) => {
           const quantity = Number(item?.qty ?? item?.quantity ?? 1);
@@ -205,6 +225,7 @@ const createInvoice = async (req, res) => {
       data: {
         companyId,
         clientId: existingClient.id,
+        projectId,                          // ← now saved
         invoiceNumber:
           invoiceNumber ||
           `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
@@ -225,12 +246,12 @@ const createInvoice = async (req, res) => {
             name: true,
             email: true,
             projects: {
-              select: {
-                id: true,
-                title: true,
-              },
+              select: { id: true, title: true },
             },
           },
+        },
+        project: {                          // ← return it
+          select: { id: true, title: true },
         },
         items: true,
       },
@@ -310,6 +331,7 @@ const updateInvoice = async (req, res) => {
     const {
       invoiceNumber,
       client,
+      project,                              // ← added
       invoiceDate,
       dueDate,
       items,
@@ -329,11 +351,42 @@ const updateInvoice = async (req, res) => {
     if (subtotal !== undefined) updateData.subtotal = Number(subtotal) || 0;
     if (tax !== undefined) updateData.tax = Number(tax) || 0;
     if (total !== undefined) updateData.total = Number(total) || 0;
+
     if (invoiceDate !== undefined) {
-      updateData.issueDate = invoiceDate ? new Date(invoiceDate) : existing.issueDate;
+      updateData.issueDate = invoiceDate
+        ? new Date(invoiceDate)
+        : existing.issueDate;
     }
+
     if (dueDate !== undefined) {
       updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    }
+
+    // Handle project
+    if (project !== undefined) {
+      if (project === null || project === "") {
+        updateData.projectId = null;
+      } else {
+        const clientIdToCheck = client || existing.clientId;
+
+        const existingProject = await prisma.project.findFirst({
+          where: {
+            id: project,
+            companyId,
+            clientId: clientIdToCheck,
+          },
+          select: { id: true },
+        });
+
+        if (!existingProject) {
+          return res.status(404).json({
+            success: false,
+            message: "Project not found or does not belong to this client",
+          });
+        }
+
+        updateData.projectId = existingProject.id;
+      }
     }
 
     if (Array.isArray(items)) {
@@ -365,12 +418,12 @@ const updateInvoice = async (req, res) => {
             name: true,
             email: true,
             projects: {
-              select: {
-                id: true,
-                title: true,
-              },
+              select: { id: true, title: true },
             },
           },
+        },
+        project: {                          // ← return it
+          select: { id: true, title: true },
         },
         items: true,
       },
@@ -535,7 +588,7 @@ const sendReminder = async (req, res) => {
 };
 
 // =====================================================
-// SEND INVOICE (NEW - THIS WAS MISSING)
+// SEND INVOICE
 // =====================================================
 const sendInvoice = async (req, res) => {
   try {
@@ -577,27 +630,49 @@ const sendInvoice = async (req, res) => {
       });
     }
 
-    if (!invoice.client?.email) {
+    const clientEmail =
+      (req.body?.clientEmail && String(req.body.clientEmail).trim()) ||
+      invoice.client?.email;
+
+    if (!clientEmail) {
       return res.status(400).json({
         success: false,
         message: "Client does not have an email address",
       });
     }
 
-    const pdfBuffer = req.file?.buffer || null;
+    const pdfBuffer = req.file?.buffer;
+
+    if (!pdfBuffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Invoice PDF is required",
+      });
+    }
 
     try {
       await sendInvoiceEmail({
-        email: invoice.client.email,
-        clientName: invoice.client.name,
+        email: clientEmail,
+        clientName: invoice.client?.name || "Client",
         invoiceNumber: invoice.invoiceNumber,
         total: invoice.total,
         pdfBuffer,
       });
 
+      const newStatus =
+        invoice.status === "draft" || invoice.status === "pending"
+          ? "sent"
+          : invoice.status;
+
+      await prisma.invoice.update({
+        where: { id },
+        data: { status: newStatus },
+      });
+
       return res.status(200).json({
         success: true,
-        message: `Invoice successfully sent to ${invoice.client.email}`,
+        message: `Invoice successfully sent to ${clientEmail}`,
+        status: newStatus,
       });
     } catch (emailErr) {
       console.error("SEND INVOICE EMAIL ERROR:", emailErr);
@@ -625,5 +700,5 @@ module.exports = {
   updateInvoice,
   deleteInvoice,
   sendReminder,
-  sendInvoice, // ← IMPORTANT
+  sendInvoice,
 };

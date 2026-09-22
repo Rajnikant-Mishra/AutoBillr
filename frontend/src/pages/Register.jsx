@@ -949,6 +949,7 @@ export default function Register() {
                         {plan.name}
                       </div>
 
+<<<<<<< HEAD
                       {/* INDIAN RUPEE (₹) DISPLAY */}
                       <div className="text-2xl font-bold text-text">
                         {typeof plan.price === "number"
@@ -959,6 +960,17 @@ export default function Register() {
                           {plan.period}
                         </span>
                       </div>
+=======
+                     <div className="text-2xl font-bold text-text">
+  {typeof plan.price === "number"
+    ? `₹${plan.price.toLocaleString("en-IN")}`
+    : plan.price}
+
+  <span className="text-xs text-text-light font-normal ml-1">
+    {plan.period}
+  </span>
+</div>
+>>>>>>> c8b15f07a71e8cccda57a366aad57a74df84df60
 
                       <div className="text-[11.5px] text-text-muted mt-2">
                         {plan.description}
