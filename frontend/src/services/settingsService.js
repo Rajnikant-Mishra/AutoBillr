@@ -46,6 +46,22 @@ async function request(
   return data;
 }
 
+// ==========================================
+// 1. BUSINESS & PROFILE SETTINGS (NEW)
+// ==========================================
+
+export async function getBusinessProfile() {
+  return request("/settings/business");
+}
+
+export async function updateBusinessProfile(businessData) {
+  return request("/settings/business", {
+    method: "PUT",
+    body: JSON.stringify(businessData),
+  });
+}
+
+
 export async function getBranding() {
   return request("/settings/branding");
 }

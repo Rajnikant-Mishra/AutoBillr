@@ -9,180 +9,229 @@ import {
   toggleImportantAPI,
 } from "../services/notificationService";
 
-export const useNotificationStore = create((set) => ({
+export const useNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
+  loading: false,
 
-  // Fetch Notifications
+  // 1. Fetch Notifications (Sirf GET karega, clean replace)
   fetchNotifications: async () => {
     try {
+      set({ loading: true });
       const res = await getNotificationsAPI();
-      const rawList = res.data?.notifications || res.data?.data?.notifications || [];
+      const rawList =
+        res.data?.notifications || res.data?.data?.notifications || res.data || [];
 
-      const formatted = rawList.map((n) => ({
-        ...n,
-        _id: n.id || n._id,
-        id: n.id || n._id,
-        isImportant: Boolean(n.isImportant),
-      }));
+      const formatted = Array.isArray(rawList)
+        ? rawList.map((n) => ({
+            ...n,
+            _id: String(n.id || n._id),
+            id: String(n.id || n._id),
+            isImportant: Boolean(n.isImportant),
+            isRead: Boolean(n.isRead),
+          }))
+        : [];
+
+      // Deduplication check
+      const uniqueMap = new Map();
+      formatted.forEach((n) => {
+        if (n._id) uniqueMap.set(n._id, n);
+      });
+      const uniqueList = Array.from(uniqueMap.values());
 
       set({
-        notifications: formatted,
-        unreadCount: res.data?.unreadCount || formatted.filter((n) => !n.isRead).length,
+        notifications: uniqueList,
+        unreadCount: uniqueList.filter((n) => !n.isRead).length,
       });
     } catch (error) {
       console.error("Fetch Notifications Error:", error);
+    } finally {
+      set({ loading: false });
     }
   },
 
-  // Add Notification
+  // 2. Add Notification (Crash-proof & logs caller to console)
   addNotification: async (data) => {
+    if (!data) return;
+
+    // Console me check karo kaun call kar raha hai reload par
+    console.warn("⚠️ Notification trigger detected from:", data);
+
+    const tempId = String(data.id || data._id || `notif-${Date.now()}`);
+    const normalized = {
+      ...data,
+      id: tempId,
+      _id: tempId,
+      createdAt: data.createdAt || new Date().toISOString(),
+      isRead: Boolean(data.isRead),
+      isImportant: Boolean(data.isImportant),
+    };
+
+    const currentList = get().notifications;
+    const exists = currentList.some(
+      (n) =>
+        n._id === normalized._id ||
+        (n.title === normalized.title && n.description === normalized.description)
+    );
+    if (exists) return;
+
+    // Instant local UI update
+    const updatedList = [normalized, ...currentList];
+    set({
+      notifications: updatedList,
+      unreadCount: updatedList.filter((n) => !n.isRead).length,
+    });
+
     try {
-      const res = await createNotificationAPI(data);
-      const notification = res.data?.notification || res.data?.data || {
-        ...data,
-        id: Date.now().toString(),
-        _id: Date.now().toString(),
-        createdAt: new Date(),
-        isRead: false,
-      };
-
-      const normalized = {
-        ...notification,
-        id: notification.id || notification._id,
-        _id: notification._id || notification.id,
-        clientName: data.clientName,
-        projectName: data.projectName,
-        projectBudget: data.projectBudget,
-        isImportant: Boolean(notification.isImportant),
-      };
-
-      set((state) => ({
-        notifications: [normalized, ...state.notifications],
-        unreadCount: state.unreadCount + 1,
-      }));
+      if (typeof createNotificationAPI === "function") {
+        const res = await createNotificationAPI(data);
+        const saved = res?.data?.notification || res?.data?.data;
+        if (saved) {
+          const savedId = String(saved.id || saved._id);
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n._id === tempId ? { ...n, ...saved, _id: savedId, id: savedId } : n
+            ),
+          }));
+        }
+      }
     } catch (error) {
-      console.error("Add Notification Error:", error);
+      console.error("Add Notification API Error:", error);
     }
   },
 
-  // Mark Single Read
+  // 3. Mark Single Read (Instant UI)
   markAsRead: async (id) => {
-    try {
-      const targetId = String(id);
-      await markNotificationReadAPI(targetId);
+    const targetId = String(id);
+    const prev = get().notifications;
 
-      set((state) => ({
-        notifications: state.notifications.map((n) =>
-          (n.id === targetId || n._id === targetId)
-            ? { ...n, isRead: true }
-            : n
-        ),
-        unreadCount: Math.max(0, state.unreadCount - 1),
-      }));
+    const nextNotifications = prev.map((n) =>
+      n.id === targetId || n._id === targetId ? { ...n, isRead: true } : n
+    );
+
+    set({
+      notifications: nextNotifications,
+      unreadCount: nextNotifications.filter((n) => !n.isRead).length,
+    });
+
+    try {
+      if (typeof markNotificationReadAPI === "function") {
+        await markNotificationReadAPI(targetId);
+      }
     } catch (error) {
       console.error("Mark Read Error:", error);
     }
   },
 
-  // Toggle Read / Unread
-  toggleRead: (id) => {
+  // 4. Toggle Read / Unread (Instant UI)
+  toggleRead: async (id) => {
     const targetId = String(id);
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
-        (n.id === targetId || n._id === targetId)
-          ? { ...n, isRead: !n.isRead }
-          : n
-      ),
-    }));
+    const prev = get().notifications;
+
+    const nextNotifications = prev.map((n) =>
+      n.id === targetId || n._id === targetId ? { ...n, isRead: !n.isRead } : n
+    );
+
+    set({
+      notifications: nextNotifications,
+      unreadCount: nextNotifications.filter((n) => !n.isRead).length,
+    });
+
+    try {
+      const target = nextNotifications.find(
+        (n) => n.id === targetId || n._id === targetId
+      );
+      if (target?.isRead && typeof markNotificationReadAPI === "function") {
+        await markNotificationReadAPI(targetId);
+      }
+    } catch (error) {
+      console.error("Toggle Read Error:", error);
+    }
   },
 
-  // Mark All Read
+  // 5. Mark All Read (Instant UI)
   markAllAsRead: async () => {
-    try {
-      await markAllReadAPI();
+    const prev = get().notifications;
 
-      set((state) => ({
-        notifications: state.notifications.map((n) => ({
-          ...n,
-          isRead: true,
-        })),
-        unreadCount: 0,
-      }));
+    set({
+      notifications: prev.map((n) => ({ ...n, isRead: true })),
+      unreadCount: 0,
+    });
+
+    try {
+      if (typeof markAllReadAPI === "function") {
+        await markAllReadAPI();
+      }
     } catch (error) {
       console.error("Mark All Read Error:", error);
     }
   },
 
-  // Mark All Unread
+  // 6. Mark All Unread (Instant UI)
   markAllAsUnread: () => {
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({
-        ...n,
-        isRead: false,
-      })),
-      unreadCount: state.notifications.length,
-    }));
+    const prev = get().notifications;
+    set({
+      notifications: prev.map((n) => ({ ...n, isRead: false })),
+      unreadCount: prev.length,
+    });
   },
 
-  // Toggle Important (Database + UI sync)
+  // 7. Toggle Important (Instant UI)
   toggleImportant: async (id) => {
     const targetId = String(id);
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === targetId || n._id === targetId
+          ? { ...n, isImportant: !n.isImportant }
+          : n
+      ),
+    }));
+
     try {
       if (typeof toggleImportantAPI === "function") {
         await toggleImportantAPI(targetId);
       }
     } catch (error) {
-      console.error("Toggle Important API Error:", error);
+      console.error("Toggle Important Error:", error);
     }
-
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
-        (n.id === targetId || n._id === targetId)
-          ? { ...n, isImportant: !n.isImportant }
-          : n
-      ),
-    }));
   },
 
-  // Remove Single Notification (Database + UI sync)
+  // 8. Remove Single Notification (Instant UI)
   removeNotification: async (id) => {
     const targetId = String(id);
+    const prev = get().notifications;
+
+    const nextNotifications = prev.filter(
+      (n) => n.id !== targetId && n._id !== targetId
+    );
+
+    set({
+      notifications: nextNotifications,
+      unreadCount: nextNotifications.filter((n) => !n.isRead).length,
+    });
 
     try {
       if (typeof deleteNotificationAPI === "function") {
         await deleteNotificationAPI(targetId);
       }
-
-      set((state) => {
-        const itemToRemove = state.notifications.find(
-          (n) => n.id === targetId || n._id === targetId
-        );
-        const wasUnread = itemToRemove && !itemToRemove.isRead;
-
-        return {
-          notifications: state.notifications.filter(
-            (n) => n.id !== targetId && n._id !== targetId
-          ),
-          unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
-        };
-      });
     } catch (error) {
       console.error("Remove Notification Error:", error);
     }
   },
 
-  // Clear All Notifications
+  // 9. Clear All (Instant UI)
   clearAll: async () => {
-    try {
-      await clearNotificationsAPI();
+    set({
+      notifications: [],
+      unreadCount: 0,
+    });
 
-      set({
-        notifications: [],
-        unreadCount: 0,
-      });
+    try {
+      if (typeof clearNotificationsAPI === "function") {
+        await clearNotificationsAPI();
+      }
     } catch (error) {
-      console.error("Clear All Notifications Error:", error);
+      console.error("Clear All Error:", error);
     }
   },
 }));
