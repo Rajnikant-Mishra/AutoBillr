@@ -1,0 +1,415 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id                   String                @id @default(cuid())
+  name                 String
+  companySize          String?
+  industry             String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  brandColor           String?
+  logo                 String?
+  showFooter           Boolean               @default(false)
+  showQr               Boolean               @default(false)
+  showThumbnails       Boolean               @default(false)
+  clients              Client[]
+  invoices             Invoice[]
+  notifications        Notification[]
+  projects             Project[]
+  roles                Role[]
+  subscriptions        Subscription[]
+  subscriptionPayments SubscriptionPayment[]
+  teamMembers          TeamMember[]
+  users                User[]
+
+  @@index([name])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(OWNER)
+  companyId    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  avatar       String?
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model Plan {
+  id                   String                @id
+  name                 String
+  monthlyPrice         Decimal?              @db.Decimal(10, 2)
+  yearlyPrice          Decimal?              @db.Decimal(10, 2)
+  currency             String                @default("INR")
+  description          String?
+  trialDays            Int                   @default(14)
+  invoiceLimit         Int?
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  subscriptions        Subscription[]
+  subscriptionPayments SubscriptionPayment[]
+}
+
+model Subscription {
+  id                 String                @id @default(cuid())
+  companyId          String
+  planId             String
+  status             SubscriptionStatus    @default(TRIALING)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan               Plan                  @relation(fields: [planId], references: [id])
+  payments           SubscriptionPayment[]
+
+  @@index([companyId])
+  @@index([planId])
+  @@index([status])
+}
+
+model SubscriptionPayment {
+  id             String       @id @default(cuid())
+  companyId      String
+  subscriptionId String
+  planId         String
+  amount         Decimal      @db.Decimal(10, 2)
+  currency       String       @default("USD")
+  status         String       @default("PAID")
+  paymentMethod  String       @default("TEST_CARD")
+  transactionId  String       @unique
+  cardLast4      String?
+  cardBrand      String?
+  isTest         Boolean      @default(true)
+  paidAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan           Plan         @relation(fields: [planId], references: [id])
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([subscriptionId])
+  @@index([planId])
+  @@index([status])
+}
+
+model Client {
+  id             String       @id @default(cuid())
+  companyId      String
+  name           String
+  email          String?
+  phone          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  billingAddress String?
+  city           String?
+  color          String?
+  contactName    String?
+  country        String?
+  industry       String?
+  initials       String?
+  notes          String?
+  postalCode     String?
+  stateRegion    String?
+  tags           Json?
+  taxId          String?
+  tier           String?
+  website        String?
+  archivedAt     DateTime?
+  portalAccess   Boolean      @default(true)
+  reminders      Boolean      @default(true)
+  welcomeEmail   Boolean      @default(true)
+  status         ClientStatus @default(ACTIVE)
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices       Invoice[]
+  projects       Project[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, email])
+  @@index([companyId, name])
+  @@index([companyId, createdAt])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  companyId     String
+  clientId      String
+  invoiceNumber String
+  status        String        @default("draft")
+  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @default(0) @db.Decimal(12, 2)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  projectId     String?
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project       Project?      @relation(fields: [projectId], references: [id])
+  items         InvoiceItem[]
+  payments      Payment[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(12, 2)
+  unitPrice   Decimal  @default(0) @db.Decimal(12, 2)
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  amount        Decimal   @db.Decimal(12, 2)
+  currency      String    @default("USD")
+  status        String    @default("pending")
+  paymentMethod String?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status])
+}
+
+model Project {
+  id                 String               @id @default(cuid())
+  companyId          String
+  clientId           String
+  title              String
+  clientName         String?
+  projectType        String?
+  startDate          DateTime
+  endDate            DateTime
+  description        String?
+  budget             Decimal?             @db.Decimal(15, 2)
+  billed             Decimal              @default(0) @db.Decimal(15, 2)
+  autoInvoice        Boolean              @default(true)
+  color              String?
+  progress           Int                  @default(0)
+  status             String               @default("ACTIVE")
+  icon               String?
+  teamMembers        Json?
+  members            Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  autoCharge         Boolean              @default(false)
+  billingCycle       BillingCycle?
+  currency           String               @default("INR")
+  paymentMethod      PaymentMethod?
+  paymentTerms       PaymentTerms         @default(NET_30)
+  billingRate        Decimal?             @db.Decimal(15, 2)
+  billingRateType    BillingRateType      @default(FIXED)
+  dueDate            DateTime?
+  isRecurring        Boolean              @default(false)
+  nextBillingDate    DateTime?
+  recurringAmount    Decimal?             @db.Decimal(15, 2)
+  recurringEndDate   DateTime?
+  recurringStartDate DateTime?
+  recurringStatus    RecurringStatus?
+  billingMethod      ProjectBillingMethod @default(FIXED_FEE)
+  invoices           Invoice[]
+  milestones         Milestone[]
+  client             Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([companyId, createdAt])
+  @@index([companyId, status])
+}
+
+model Milestone {
+  id        String    @id @default(cuid())
+  projectId String
+  title     String
+  dueDate   DateTime
+  amount    Decimal   @db.Decimal(15, 2)
+  status    String    @default("scheduled")
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  token     String   @unique
+  verified  Boolean  @default(false)
+
+  @@index([email])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  companyId   String
+  title       String
+  message     String
+  type        String   @default("GENERAL")
+  isRead      Boolean  @default(false)
+  isImportant Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("Role")
+}
+
+model TeamMember {
+  id                String           @id @default(cuid())
+  companyId         String
+  name              String
+  email             String
+  avatar            String?
+  status            TeamMemberStatus @default(PENDING)
+  channels          String[]
+  whatsapp          String?
+  github            String?
+  discord           String?
+  invitationToken   String?          @unique
+  invitationMessage String?
+  invitedById       String?
+  invitedAt         DateTime         @default(now())
+  acceptedAt        DateTime?
+  lastActivityAt    DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  role              String           @default("VIEWER")
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, role])
+  @@index([invitationToken])
+}
+
+model Currency {
+  code          String  @id
+  name          String
+  symbol        String
+  locale        String? @default("en-US")
+  decimalDigits Int     @default(2)
+  active        Boolean @default(true)
+  sortOrder     Int     @default(0)
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+enum ClientStatus {
+  ACTIVE
+  PENDING
+  INACTIVE
+  ARCHIVED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  FORTNIGHTLY
+}
+
+enum PaymentTerms {
+  DUE_ON_RECEIPT
+  NET_15
+  NET_30
+  NET_60
+}
+
+enum PaymentMethod {
+  ACH
+  CARD
+  WIRE
+  CHECK
+}
+
+enum BillingRateType {
+  FIXED
+  RECURRING
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum ProjectBillingMethod {
+  FIXED_FEE
+  MILESTONE
+  HOURLY
+  RETAINER
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum UserRole {
+  OWNER
+  CFO
+  CONTROLLER
+  FINANCE_MANAGER
+  OTHER
+  SUPER_ADMIN
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
