@@ -209,7 +209,7 @@ export default function DataTable({
   return (
     <div
       className={[
-        "data-table",
+        "data-table isolate",
         className,
       ]
         .filter(Boolean)

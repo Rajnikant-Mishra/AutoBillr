@@ -52,7 +52,9 @@ const getAutomationOverview = async (req, res) => {
 
     // Sirf aapki company ke real clients fetch honge
     const clients = await prisma.client.findMany({
-      where: { companyId },
+      where: { companyId,
+        status: { not: "ARCHIVED" },
+       },
       include: {
         projects: {
           select: { id: true, title: true },
