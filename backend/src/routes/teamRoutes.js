@@ -1,33 +1,31 @@
 const express = require("express");
 const router = express.Router();
+
 const teamController = require("../controllers/teamController");
+const authMiddleware = require("../middleware/authMiddleware");
+const requirePermission = require("../middleware/requirePermission");
+const { PERMISSIONS } = require("../constants/permissions");
 
 /*
 |--------------------------------------------------------------------------
-| TEMPORARY AUTH / COMPANY MIDDLEWARE
-|--------------------------------------------------------------------------
-| Later replace this with your real JWT middleware.
+| PUBLIC ROUTES (no auth)
 |--------------------------------------------------------------------------
 */
-const protect = (req, res, next) => {
-  next();
-};
 
-const requireCompany = (req, res, next) => {
-  /*
-   * TEMPORARY COMPANY
-   * This MUST match the Company that exists in PostgreSQL.
-   */
-  req.companyId = "cmtv6r6z30000v0vfcly55d5w";
+// Accept invitation – public, must be before /:id routes
+router.post(
+  "/accept-invitation",
+  teamController.acceptTeamInvitation
+);
 
-  req.user = {
-    id: null,
-  };
+/*
+|--------------------------------------------------------------------------
+| PROTECTED ROUTES
+|--------------------------------------------------------------------------
+*/
 
-  console.log("TEAM COMPANY ID:", req.companyId);
-
-  next();
-};
+// Apply real auth to everything below
+router.use(authMiddleware);
 
 /*
 |--------------------------------------------------------------------------
@@ -35,96 +33,61 @@ const requireCompany = (req, res, next) => {
 |--------------------------------------------------------------------------
 */
 
-/*
-|--------------------------------------------------------------------------
-| GET TEAM MEMBERS
-| GET /api/v1/team
-|--------------------------------------------------------------------------
-*/
+// GET /api/v1/team
 router.get(
   "/",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_VIEW),
   teamController.getTeamMembers
 );
 
-/*
-|--------------------------------------------------------------------------
-| GET TEAM STATS
-| GET /api/v1/team/stats
-|--------------------------------------------------------------------------
-*/
+// GET /api/v1/team/stats
 router.get(
   "/stats",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_VIEW),
   teamController.getTeamStats
 );
 
-/*
-|--------------------------------------------------------------------------
-| LIST CUSTOM ROLES
-| GET /api/v1/team/roles
-|--------------------------------------------------------------------------
-*/
+// GET /api/v1/team/me  ← current user + role + permissions
+router.get("/me", (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      user: {
+        userId: req.user.userId,
+        companyId: req.user.companyId,
+      },
+      role: req.user.role,
+      permissions: req.user.permissions || [],
+    },
+  });
+});
+
+// GET /api/v1/team/roles
 router.get(
   "/roles",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.listCustomRoles
 );
 
-/*
-|--------------------------------------------------------------------------
-| CREATE CUSTOM ROLE
-| POST /api/v1/team/roles
-|--------------------------------------------------------------------------
-*/
+// POST /api/v1/team/roles
 router.post(
   "/roles",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.createCustomRole
 );
 
-/*
-|--------------------------------------------------------------------------
-| DELETE CUSTOM ROLE
-| DELETE /api/v1/team/roles/:id
-|--------------------------------------------------------------------------
-*/
+// DELETE /api/v1/team/roles/:id
 router.delete(
   "/roles/:id",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.deleteCustomRole
 );
 
-/*
-|--------------------------------------------------------------------------
-| INVITE TEAM MEMBER
-| POST /api/v1/team/invite
-|--------------------------------------------------------------------------
-*/
+// POST /api/v1/team/invite
 router.post(
   "/invite",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_INVITE),
   teamController.inviteTeamMember
-);
-
-/*
-|--------------------------------------------------------------------------
-| ACCEPT INVITATION
-| POST /api/v1/team/accept-invitation
-|--------------------------------------------------------------------------
-| Public route – no auth / company middleware
-| Must be BEFORE any /:id routes
-|--------------------------------------------------------------------------
-*/
-router.post(
-  "/accept-invitation",
-  teamController.acceptTeamInvitation
 );
 
 /*
@@ -133,29 +96,17 @@ router.post(
 |--------------------------------------------------------------------------
 */
 
-/*
-|--------------------------------------------------------------------------
-| UPDATE ROLE
-| PATCH /api/v1/team/:id/role
-|--------------------------------------------------------------------------
-*/
+// PATCH /api/v1/team/:id/role
 router.patch(
   "/:id/role",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
   teamController.updateTeamMemberRole
 );
 
-/*
-|--------------------------------------------------------------------------
-| DELETE MEMBER
-| DELETE /api/v1/team/:id
-|--------------------------------------------------------------------------
-*/
+// DELETE /api/v1/team/:id
 router.delete(
   "/:id",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_REMOVE_MEMBER),
   teamController.deleteTeamMember
 );
 

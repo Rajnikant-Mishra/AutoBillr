@@ -292,16 +292,18 @@ model Notification {
 
 model Role {
   id          String   @id @default(cuid())
-  companyId   String
   name        String
   description String?
+  companyId   String
+  permissions String[] // array of permission keys e.g. ["invoices:view", "clients:create"]
+  isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
   @@index([companyId])
-  @@map("Role")
 }
 
 model TeamMember {
@@ -323,9 +325,13 @@ model TeamMember {
   lastActivityAt    DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+       
   role              String           @default("VIEWER")
   company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  temporaryPassword     String?      
+  temporaryPasswordHash String?  
+  
   @@unique([companyId, email])
   @@index([companyId])
   @@index([companyId, status])
@@ -398,12 +404,11 @@ enum TeamMemberStatus {
 }
 
 enum UserRole {
-  OWNER
-  CFO
-  CONTROLLER
-  FINANCE_MANAGER
-  OTHER
-  SUPER_ADMIN
+ OWNER
+  ADMIN
+  MANAGER
+  ANALYST
+  VIEWER
 }
 
 enum SubscriptionStatus {

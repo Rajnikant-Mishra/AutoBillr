@@ -1,14 +1,22 @@
+// 
+
+
+
+
 const express = require("express");
 const router = express.Router();
+
 const { getAnalyticsData } = require("../controllers/analyticsController");
+const authMiddleware = require("../middleware/authMiddleware");
+const requirePermission = require("../middleware/requirePermission");
+const { PERMISSIONS } = require("../constants/permissions");
 
-let authMiddleware;
-try {
-  authMiddleware = require("../middlewares/authMiddleware");
-} catch (e) {
-  authMiddleware = (req, res, next) => next();
-}
+router.use(authMiddleware);
 
-router.get("/overview", authMiddleware, getAnalyticsData);
+router.get(
+  "/overview",
+  requirePermission(PERMISSIONS.ANALYTICS_VIEW),
+  getAnalyticsData
+);
 
 module.exports = router;

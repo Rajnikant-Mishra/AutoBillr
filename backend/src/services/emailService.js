@@ -663,12 +663,172 @@ AutoBillr
 
   return info;
 };
+const sendWelcomeCredentialsEmail = async ({
+  to,
+  name,
+  userId,                 // usually the email
+  temporaryPassword,      // null/undefined when user already existed
+  companyName,
+  role,
+}) => {
+  if (!to) {
+    throw new Error("Welcome email recipient is required.");
+  }
 
+  const from =
+    process.env.MAIL_FROM ||
+    `AutoBillr <${process.env.MAIL_USER}>`;
+
+  const safeName = String(name || "there");
+  const safeCompany = String(companyName || "AutoBillr");
+  const safeRole = String(role || "Viewer");
+  const loginUrl = `${(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "")}/login`;
+  const forgotUrl = `${(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "")}/forgot-password`;
+
+  const hasTempPassword = Boolean(temporaryPassword);
+
+  const text = hasTempPassword
+    ? `
+Hello ${safeName},
+
+Your invitation to join ${safeCompany} on AutoBillr has been accepted.
+Your account is now active.
+
+User ID: ${userId || to}
+Role: ${safeRole}
+
+Temporary password: ${temporaryPassword}
+
+Please log in and change this password immediately.
+
+Login: ${loginUrl}
+
+If you did not expect this email, contact your AutoBillr administrator.
+
+Regards,
+AutoBillr Team
+`
+    : `
+Hello ${safeName},
+
+Your invitation to join ${safeCompany} on AutoBillr has been successfully accepted.
+Your AutoBillr account is now ready.
+
+User ID: ${userId || to}
+Role: ${safeRole}
+
+Your account is now active. Since you already had an AutoBillr account, your existing password remains unchanged.
+
+Login: ${loginUrl}
+
+Need to change or reset your password? Use the Forgot Password option:
+${forgotUrl}
+
+If you did not expect this account or believe this email was sent to you by mistake, please contact your AutoBillr administrator.
+
+Regards,
+AutoBillr Team
+`;
+
+  const html = hasTempPassword
+    ? `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Your AutoBillr Account is Ready</title></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:40px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+    <div style="padding:28px;background:#0f9d94;color:#ffffff;">
+      <h1 style="margin:0;font-size:24px;">AutoBillr</h1>
+    </div>
+    <div style="padding:32px;">
+      <h2 style="margin-top:0;color:#0f172a;">Your account is ready</h2>
+      <p style="color:#475569;line-height:1.7;">Hello ${escapeHtml(safeName)},</p>
+      <p style="color:#475569;line-height:1.7;">
+        Your invitation to join <strong>${escapeHtml(safeCompany)}</strong> has been accepted.
+        Your AutoBillr account is now active.
+      </p>
+      <div style="margin:24px 0;padding:16px;background:#f8fafc;border-radius:10px;">
+        <p style="margin:4px 0;"><strong>User ID:</strong> ${escapeHtml(userId || to)}</p>
+        <p style="margin:4px 0;"><strong>Role:</strong> ${escapeHtml(safeRole)}</p>
+        <p style="margin:4px 0;"><strong>Temporary password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${escapeHtml(temporaryPassword)}</code></p>
+      </div>
+      <p style="color:#475569;line-height:1.7;">Please log in and change this password immediately.</p>
+      <div style="margin:30px 0;text-align:center;">
+        <a href="${loginUrl}" style="display:inline-block;padding:14px 28px;background:#0f9d94;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">
+          Login to AutoBillr
+        </a>
+      </div>
+      <p style="font-size:13px;color:#94a3b8;">
+        If you did not expect this email, contact your AutoBillr administrator.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+`
+    : `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Your AutoBillr Account is Ready</title></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:40px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+    <div style="padding:28px;background:#0f9d94;color:#ffffff;">
+      <h1 style="margin:0;font-size:24px;">AutoBillr</h1>
+    </div>
+    <div style="padding:32px;">
+      <h2 style="margin-top:0;color:#0f172a;">Welcome to AutoBillr</h2>
+      <p style="color:#475569;line-height:1.7;">Hello ${escapeHtml(safeName)},</p>
+      <p style="color:#475569;line-height:1.7;">
+        Your invitation to join <strong>${escapeHtml(safeCompany)}</strong> has been successfully accepted.
+        Your AutoBillr account is now ready.
+      </p>
+      <div style="margin:24px 0;padding:16px;background:#f8fafc;border-radius:10px;">
+        <p style="margin:4px 0;"><strong>User ID:</strong> ${escapeHtml(userId || to)}</p>
+        <p style="margin:4px 0;"><strong>Role:</strong> ${escapeHtml(safeRole)}</p>
+      </div>
+      <p style="color:#475569;line-height:1.7;">
+        Your account is now active. Since you already had an AutoBillr account, your existing password remains unchanged.
+      </p>
+      <div style="margin:30px 0;text-align:center;">
+        <a href="${loginUrl}" style="display:inline-block;padding:14px 28px;background:#0f9d94;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">
+          Login to AutoBillr
+        </a>
+      </div>
+      <p style="font-size:13px;color:#94a3b8;">
+        Need to change or reset your password?
+        <a href="${forgotUrl}" style="color:#0f9d94;">Forgot Password</a>
+      </p>
+      <p style="font-size:13px;color:#94a3b8;">
+        If you did not expect this account or believe this email was sent to you by mistake, please contact your AutoBillr administrator.
+      </p>
+      <p style="margin-top:24px;color:#475569;">
+        Regards,<br><strong>AutoBillr Team</strong>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+  const info = await transporter.sendMail({
+    from,
+    to,
+    subject: hasTempPassword
+      ? `Your AutoBillr account is ready – temporary password inside`
+      : `Your AutoBillr account is ready`,
+    text,
+    html,
+  });
+
+  console.log("WELCOME CREDENTIALS EMAIL SENT:", info.messageId);
+  return info;
+};
 module.exports = {
    sendVerificationEmail,
   sendInvoiceEmail,
   sendReminderEmail,
   sendTeamInvitationEmail,
+  sendWelcomeCredentialsEmail,
 };
 
 
