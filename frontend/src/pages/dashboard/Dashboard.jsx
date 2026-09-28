@@ -2,6 +2,7 @@ import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Button from "../../components/ui/Button";
+import { exportToExcel } from "../../utils/exportToExcel";
 import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import SectionHeader from "../../components/ui/SectionHeader";
@@ -153,25 +154,22 @@ export default function Dashboard() {
   };
 
   const openClientDetail = useCallback((clientTarget, rawClientName = "") => {
-    let clientPayload = {};
-
-    if (clientTarget && typeof clientTarget === "object") {
-      clientPayload = {
-        ...clientTarget,
-        name: clientTarget.name || rawClientName || "Client Details",
-        email: clientTarget.email || "No Email Provided",
-        company: clientTarget.company || clientTarget.companyName || "—",
-        phone: clientTarget.phone || "—",
-      };
-    } else {
-      clientPayload = {
-        id: typeof clientTarget === "string" ? clientTarget : undefined,
-        name: rawClientName || "Client Details",
-        email: "No Email Provided",
-        company: "—",
-        phone: "—",
-      };
-    }
+    const clientPayload =
+      clientTarget && typeof clientTarget === "object"
+        ? {
+            ...clientTarget,
+            name: clientTarget.name || rawClientName || "Client Details",
+            email: clientTarget.email || "No Email Provided",
+            company: clientTarget.company || clientTarget.companyName || "—",
+            phone: clientTarget.phone || "—",
+          }
+        : {
+            id: typeof clientTarget === "string" ? clientTarget : undefined,
+            name: rawClientName || "Client Details",
+            email: "No Email Provided",
+            company: "—",
+            phone: "—",
+          };
 
     setSelectedClient(clientPayload);
     setClientDetailDrawer(true);
@@ -222,6 +220,7 @@ export default function Dashboard() {
       console.error("Failed to refetch dashboard:", error);
     }
   }, []);
+
 
   // ==================== INITIAL FETCH ====================
   useEffect(() => {
@@ -519,6 +518,49 @@ export default function Dashboard() {
     ],
     [format, navigate, openClientDetail]
   );
+  // ==================== EXPORT REPORT ====================
+  const handleExportReport = () => {
+    const list = dashboardData?.recentInvoices || [];
+
+    if (!list.length) {
+      toast.error("Download karne ke liye koi invoice nahi mili!");
+      return;
+    }
+
+    // Excel ke rows aur columns format karo
+    const excelRows = list.map((inv) => {
+      const clientName =
+        inv.clientName ||
+        inv.client?.name ||
+        (typeof inv.client === "string" ? inv.client : "") ||
+        "Unknown Client";
+
+      const raw = inv.date || inv.invoiceDate || inv.issueDate || inv.createdAt;
+      const d = raw ? new Date(raw) : null;
+      const formattedDate =
+        d && !isNaN(d.getTime())
+          ? d.toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+              year: "numeric",
+            })
+          : "—";
+
+      return {
+        "Invoice ID": `#${inv.invoiceNumber || inv.number || "—"}`,
+        "Client Name": clientName,
+        "Date Issued": formattedDate,
+        "Amount": inv.amount || inv.total || 0,
+        "Status": String(inv.status || "draft").toUpperCase(),
+      };
+    });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportToExcel(excelRows, `AutoBillr_Invoices_Report_${dateStr}.xlsx`);
+    toast.success("Excel report download ho gayi!");
+  };  
+
+
 
   if (loading) {
     return (
@@ -546,6 +588,7 @@ export default function Dashboard() {
         primaryAction={{
           label: "Export Report",
           icon: "download",
+          onClick: handleExportReport,
         }}
       />
 
