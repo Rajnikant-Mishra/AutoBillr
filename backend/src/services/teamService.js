@@ -1,747 +1,21 @@
-// // backend/services/teamService.js
-
-// const prisma = require("../../config/prisma");
-// const crypto = require("crypto");
-
-// const {
-//   sendTeamInvitationEmail,
-// } = require("./emailService");
-
-// /* =========================================================
-//    SYSTEM ROLES
-// ========================================================= */
-
-// const SYSTEM_ROLES = {
-//   Owner: "OWNER",
-//   Admin: "ADMIN",
-//   Manager: "MANAGER",
-//   Analyst: "ANALYST",
-//   Viewer: "VIEWER",
-// };
-
-// /* =========================================================
-//    HELPERS
-// ========================================================= */
-
-// function toFrontend(member) {
-//   const roleName = member.role || "VIEWER";
-
-//   const displayRole =
-//     roleName === "OWNER"
-//       ? "Owner"
-//       : roleName === "ADMIN"
-//       ? "Admin"
-//       : roleName === "MANAGER"
-//       ? "Manager"
-//       : roleName === "ANALYST"
-//       ? "Analyst"
-//       : roleName === "VIEWER"
-//       ? "Viewer"
-//       : roleName;
-
-//   return {
-//     id: member.id,
-//     name: member.name,
-//     email: member.email,
-//     avatar: member.avatar,
-//     role: displayRole,
-//     status: member.status.toLowerCase(),
-//     lastActivityAt:
-//       member.lastActivityAt?.toISOString() || null,
-//     channels: member.channels || ["email"],
-//     whatsapp: member.whatsapp,
-//     github: member.github,
-//     discord: member.discord,
-//   };
-// }
-
-// /* =========================================================
-//    RESOLVE ROLE
-// ========================================================= */
-
-// async function resolveRole(companyId, roleName) {
-//   if (!roleName) {
-//     return "VIEWER";
-//   }
-
-//   /* -------------------------------------------------------
-//      SYSTEM ROLE
-//   ------------------------------------------------------- */
-
-//   if (SYSTEM_ROLES[roleName]) {
-//     return SYSTEM_ROLES[roleName];
-//   }
-
-//   /* -------------------------------------------------------
-//      CUSTOM ROLE
-//   ------------------------------------------------------- */
-
-//   const custom = await prisma.role.findFirst({
-//     where: {
-//       companyId,
-//       name: {
-//         equals: roleName,
-//         mode: "insensitive",
-//       },
-//     },
-//   });
-
-//   if (custom) {
-//     return custom.name;
-//   }
-
-//   throw new Error("Invalid role");
-// }
-
-// /* =========================================================
-//    LIST TEAM MEMBERS
-// ========================================================= */
-
-// async function listMembers(companyId) {
-//   const members = await prisma.teamMember.findMany({
-//     where: {
-//       companyId,
-//     },
-//     orderBy: [
-//       {
-//         status: "asc",
-//       },
-//       {
-//         name: "asc",
-//       },
-//     ],
-//   });
-
-//   return members.map(toFrontend);
-// }
-
-// /* =========================================================
-//    INVITE TEAM MEMBER
-// ========================================================= */
-
-// async function inviteMember(
-//   companyId,
-//   invitedById,
-//   payload
-// ) {
-//   /* -------------------------------------------------------
-//      VALIDATE PAYLOAD
-//   ------------------------------------------------------- */
-
-//   if (!payload) {
-//     throw new Error("Invitation data is required.");
-//   }
-
-//   const email = String(payload.email || "")
-//     .trim()
-//     .toLowerCase();
-
-//   const name = String(payload.name || "").trim();
-
-//   if (!name) {
-//     throw new Error("Member name is required.");
-//   }
-
-//   if (!email) {
-//     throw new Error("Member email is required.");
-//   }
-
-//   const emailRegex =
-//     /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-//   if (!emailRegex.test(email)) {
-//     throw new Error("Invalid email address.");
-//   }
-
-//   /* -------------------------------------------------------
-//      RESOLVE ROLE
-//   ------------------------------------------------------- */
-
-//   const role = await resolveRole(
-//     companyId,
-//     payload.role
-//   );
-
-//   /* -------------------------------------------------------
-//      CHECK EXISTING MEMBER
-//   ------------------------------------------------------- */
-
-//   const existing =
-//     await prisma.teamMember.findUnique({
-//       where: {
-//         companyId_email: {
-//           companyId,
-//           email,
-//         },
-//       },
-//     });
-
-//   if (
-//     existing &&
-//     existing.status !== "INACTIVE"
-//   ) {
-//     throw new Error(
-//       "A member with this email already exists."
-//     );
-//   }
-
-//   /* -------------------------------------------------------
-//      GENERATE SECURE INVITATION TOKEN
-//   ------------------------------------------------------- */
-
-//   const invitationToken =
-//     crypto.randomBytes(48).toString("hex");
-
-//   /* -------------------------------------------------------
-//      INVITATION URL
-//   ------------------------------------------------------- */
-
-//   const frontendUrl = (
-//     process.env.FRONTEND_URL ||
-//     "http://localhost:5173"
-//   ).replace(/\/$/, "");
-
-//   const invitationUrl =
-//     `${frontendUrl}/accept-invitation` +
-//     `?token=${encodeURIComponent(
-//       invitationToken
-//     )}`;
-
-//   /* -------------------------------------------------------
-//      CHANNELS
-
-//      Email is always included because the actual
-//      invitation is currently sent through SMTP.
-//   ------------------------------------------------------- */
-
-//   const channels = [
-//     ...new Set([
-//       "email",
-//       ...(Array.isArray(payload.channels)
-//         ? payload.channels
-//         : []),
-//     ]),
-//   ];
-
-//   /* -------------------------------------------------------
-//      CREATE / UPDATE PENDING MEMBER
-//   ------------------------------------------------------- */
-
-//   const member =
-//     await prisma.teamMember.upsert({
-//       where: {
-//         companyId_email: {
-//           companyId,
-//           email,
-//         },
-//       },
-
-//       /* ===================================================
-//          CREATE
-//       =================================================== */
-
-//       create: {
-//         companyId,
-//         name,
-//         email,
-//         avatar: payload.avatar || null,
-
-//         role,
-
-//         status: "PENDING",
-
-//         channels,
-
-//         whatsapp:
-//           payload.recipients?.whatsapp ||
-//           null,
-
-//         github:
-//           payload.recipients?.github ||
-//           null,
-
-//         discord:
-//           payload.recipients?.discord ||
-//           null,
-
-//         invitationToken,
-
-//         invitationMessage:
-//           payload.message || null,
-
-//         invitedById,
-
-//         lastActivityAt: new Date(),
-//       },
-
-//       /* ===================================================
-//          UPDATE / RESEND INVITATION
-//       =================================================== */
-
-//       update: {
-//         name,
-
-//         avatar:
-//           payload.avatar || null,
-
-//         role,
-
-//         status: "PENDING",
-
-//         channels,
-
-//         whatsapp:
-//           payload.recipients?.whatsapp ||
-//           null,
-
-//         github:
-//           payload.recipients?.github ||
-//           null,
-
-//         discord:
-//           payload.recipients?.discord ||
-//           null,
-
-//         invitationToken,
-
-//         invitationMessage:
-//           payload.message || null,
-
-//         invitedById,
-
-//         lastActivityAt: new Date(),
-
-//         acceptedAt: null,
-//       },
-//     });
-
-//   /* -------------------------------------------------------
-//      GET COMPANY
-//   ------------------------------------------------------- */
-
-//   const company =
-//     await prisma.company.findUnique({
-//       where: {
-//         id: companyId,
-//       },
-
-//       select: {
-//         id: true,
-//         name: true,
-//       },
-//     });
-
-//   if (!company) {
-//     throw new Error(
-//       "Company associated with this invitation was not found."
-//     );
-//   }
-
-//   /* -------------------------------------------------------
-//      SEND INVITATION EMAIL
-     
-//      THIS IS THE IMPORTANT PART.
-
-//      `to: email` means the email entered in the
-//      Member Invitation Drawer receives the email.
-//   ------------------------------------------------------- */
-
-//   console.log(
-//     "========================================"
-//   );
-
-//   console.log(
-//     "TEAM INVITATION RECIPIENT:",
-//     email
-//   );
-
-//   console.log(
-//     "TEAM INVITATION ROLE:",
-//     role
-//   );
-
-//   console.log(
-//     "TEAM INVITATION COMPANY:",
-//     company.name
-//   );
-
-//   console.log(
-//     "TEAM INVITATION URL:",
-//     invitationUrl
-//   );
-
-//   console.log(
-//     "========================================"
-//   );
-
-//   await sendTeamInvitationEmail({
-//     to: email,
-
-//     memberName: name,
-
-//     companyName: company.name,
-
-//     role,
-
-//     invitationUrl,
-
-//     message:
-//       payload.message || null,
-//   });
-
-//   /* -------------------------------------------------------
-//      RETURN MEMBER
-//   ------------------------------------------------------- */
-
-//   return toFrontend(member);
-// }
-
-// /* =========================================================
-//    ACCEPT TEAM INVITATION
-// ========================================================= */
-
-// async function acceptInvitation(token) {
-//   if (!token) {
-//     throw new Error("Invitation token is required.");
-//   }
-
-//   const member = await prisma.teamMember.findFirst({
-//     where: { invitationToken: token },
-//   });
-
-//   if (!member) {
-//     throw new Error("Invalid or expired invitation.");
-//   }
-
-//   if (member.status === "ACTIVE") {
-//     // already accepted
-//     return toFrontend(member);
-//   }
-
-//   const updated = await prisma.teamMember.update({
-//     where: { id: member.id },
-//     data: {
-//       status: "ACTIVE",
-//       acceptedAt: new Date(),
-//       lastActivityAt: new Date(),
-//       invitationToken: null, // clear token so it can't be reused
-//     },
-//   });
-
-//   return toFrontend(updated);
-// }
-// /* =========================================================
-//    UPDATE ROLE
-// ========================================================= */
-
-// async function updateRole(
-//   companyId,
-//   memberId,
-//   newRole
-// ) {
-//   const role = await resolveRole(
-//     companyId,
-//     newRole
-//   );
-
-//   const existing =
-//     await prisma.teamMember.findFirst({
-//       where: {
-//         id: memberId,
-//         companyId,
-//       },
-//     });
-
-//   if (!existing) {
-//     throw new Error(
-//       "Team member not found"
-//     );
-//   }
-
-//   const member =
-//     await prisma.teamMember.update({
-//       where: {
-//         id: memberId,
-//       },
-
-//       data: {
-//         role,
-//         lastActivityAt: new Date(),
-//       },
-//     });
-
-//   return toFrontend(member);
-// }
-
-// /* =========================================================
-//    REMOVE MEMBER
-// ========================================================= */
-
-// async function removeMember(
-//   companyId,
-//   memberId
-// ) {
-//   const existing =
-//     await prisma.teamMember.findFirst({
-//       where: {
-//         id: memberId,
-//         companyId,
-//       },
-//     });
-
-//   if (!existing) {
-//     throw new Error(
-//       "Team member not found"
-//     );
-//   }
-
-//   await prisma.teamMember.delete({
-//     where: {
-//       id: memberId,
-//     },
-//   });
-// }
-
-// /* =========================================================
-//    TEAM STATS
-// ========================================================= */
-
-// async function getStats(companyId) {
-//   const [
-//     total,
-//     active,
-//     pending,
-//   ] = await Promise.all([
-//     prisma.teamMember.count({
-//       where: {
-//         companyId,
-//       },
-//     }),
-
-//     prisma.teamMember.count({
-//       where: {
-//         companyId,
-//         status: "ACTIVE",
-//       },
-//     }),
-
-//     prisma.teamMember.count({
-//       where: {
-//         companyId,
-//         status: "PENDING",
-//       },
-//     }),
-//   ]);
-
-//   return {
-//     total,
-//     active,
-//     pending,
-//   };
-// }
-
-// /* =========================================================
-//    CUSTOM ROLES
-// ========================================================= */
-
-// async function listCustomRoles(companyId) {
-//   const roles =
-//     await prisma.role.findMany({
-//       where: {
-//         companyId,
-//       },
-
-//       orderBy: {
-//         name: "asc",
-//       },
-//     });
-
-//   return roles.map((role) => ({
-//     id: role.id,
-//     name: role.name,
-//     description:
-//       role.description ||
-//       "Custom workspace role.",
-//     createdAt: role.createdAt,
-//   }));
-// }
-
-// /* =========================================================
-//    CREATE CUSTOM ROLE
-// ========================================================= */
-
-// async function createCustomRole(
-//   companyId,
-//   payload
-// ) {
-//   const name = (
-//     payload.name || ""
-//   ).trim();
-
-//   const description = (
-//     payload.description || ""
-//   ).trim();
-
-//   if (!name) {
-//     throw new Error(
-//       "Role name is required."
-//     );
-//   }
-
-//   if (name.length < 2) {
-//     throw new Error(
-//       "Role name must contain at least 2 characters."
-//     );
-//   }
-
-//   if (name.length > 50) {
-//     throw new Error(
-//       "Role name cannot exceed 50 characters."
-//     );
-//   }
-
-//   const defaultRoles = [
-//     "Owner",
-//     "Admin",
-//     "Manager",
-//     "Analyst",
-//     "Viewer",
-//   ];
-
-//   if (
-//     defaultRoles.some(
-//       (role) =>
-//         role.toLowerCase() ===
-//         name.toLowerCase()
-//     )
-//   ) {
-//     throw new Error(
-//       "A role with this name already exists."
-//     );
-//   }
-
-//   const existing =
-//     await prisma.role.findFirst({
-//       where: {
-//         companyId,
-
-//         name: {
-//           equals: name,
-//           mode: "insensitive",
-//         },
-//       },
-//     });
-
-//   if (existing) {
-//     throw new Error(
-//       "A role with this name already exists."
-//     );
-//   }
-
-//   const role =
-//     await prisma.role.create({
-//       data: {
-//         companyId,
-//         name,
-//         description:
-//           description ||
-//           "Custom workspace role.",
-//       },
-//     });
-
-//   return {
-//     id: role.id,
-//     name: role.name,
-//     description: role.description,
-//     createdAt: role.createdAt,
-//   };
-// }
-
-// /* =========================================================
-//    DELETE CUSTOM ROLE
-// ========================================================= */
-
-// async function deleteCustomRole(
-//   companyId,
-//   roleId
-// ) {
-//   const existing =
-//     await prisma.role.findFirst({
-//       where: {
-//         id: roleId,
-//         companyId,
-//       },
-//     });
-
-//   if (!existing) {
-//     throw new Error(
-//       "Custom role not found."
-//     );
-//   }
-
-//   await prisma.role.delete({
-//     where: {
-//       id: roleId,
-//     },
-//   });
-// }
-
-// /* =========================================================
-//    EXPORTS
-// ========================================================= */
-
-// module.exports = {
-//   listMembers,
-//   inviteMember,
-//   acceptInvitation,
-//   updateRole,
-//   removeMember,
-//   getStats,
-//   listCustomRoles,
-//   createCustomRole,
-//   deleteCustomRole,
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// backend/services/teamService.js
-
 const prisma = require("../../config/prisma");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const { generateRandomPassword } = require("../utils/generatePassword");
+
 const {
-  sendTeamInvitationEmail,  sendWelcomeCredentialsEmail,
+  generateRandomPassword,
+} = require("../utils/generatePassword");
+
+const {
+  sendTeamInvitationEmail,
+  sendWelcomeCredentialsEmail,
 } = require("./emailService");
 
-
-/* =========================================================
-   SYSTEM ROLES
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| SYSTEM ROLES
+|--------------------------------------------------------------------------
+*/
 
 const SYSTEM_ROLES = {
   Owner: "OWNER",
@@ -751,63 +25,106 @@ const SYSTEM_ROLES = {
   Viewer: "VIEWER",
 };
 
-/* =========================================================
-   HELPERS
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
 
+/*
+ * Convert database TeamMember into the format expected by frontend.
+ *
+ * IMPORTANT:
+ * roleId and extraPermissions MUST be returned.
+ */
 function toFrontend(member) {
   const roleName = member.role || "VIEWER";
 
+  const normalizedRole = String(roleName)
+    .trim()
+    .toUpperCase();
+
   const displayRole =
-    roleName === "OWNER"
+    normalizedRole === "OWNER"
       ? "Owner"
-      : roleName === "ADMIN"
+      : normalizedRole === "ADMIN"
       ? "Admin"
-      : roleName === "MANAGER"
+      : normalizedRole === "MANAGER"
       ? "Manager"
-      : roleName === "ANALYST"
+      : normalizedRole === "ANALYST"
       ? "Analyst"
-      : roleName === "VIEWER"
+      : normalizedRole === "VIEWER"
       ? "Viewer"
       : roleName;
 
   return {
     id: member.id,
+
     name: member.name,
+
     email: member.email,
+
     avatar: member.avatar,
+
+    /*
+     * Frontend display role.
+     */
     role: displayRole,
-    status: member.status.toLowerCase(),
+
+    /*
+     * IMPORTANT:
+     * Database Role ID.
+     */
+    roleId: member.roleId || null,
+
+    /*
+     * Member-specific permissions.
+     */
+    extraPermissions: Array.isArray(member.extraPermissions)
+      ? member.extraPermissions
+      : [],
+
+    status: member.status
+      ? member.status.toLowerCase()
+      : "pending",
+
     lastActivityAt:
       member.lastActivityAt?.toISOString() || null,
-    channels: member.channels || ["email"],
-    whatsapp: member.whatsapp,
-    github: member.github,
-    discord: member.discord,
+
+    channels:
+      Array.isArray(member.channels)
+        ? member.channels
+        : ["email"],
+
+    whatsapp: member.whatsapp || null,
+
+    github: member.github || null,
+
+    discord: member.discord || null,
   };
 }
 
-/* =========================================================
-   VALIDATE COMPANY
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| VALIDATE COMPANY
+|--------------------------------------------------------------------------
+*/
 
 async function validateCompany(companyId) {
   if (!companyId) {
-    throw new Error(
-      "Company ID is required."
-    );
+    throw new Error("Company ID is required.");
   }
 
-  const company =
-    await prisma.company.findUnique({
-      where: {
-        id: companyId,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+  const company = await prisma.company.findUnique({
+    where: {
+      id: companyId,
+    },
+
+    select: {
+      id: true,
+      name: true,
+    },
+  });
 
   if (!company) {
     console.error(
@@ -823,60 +140,196 @@ async function validateCompany(companyId) {
   return company;
 }
 
-/* =========================================================
-   RESOLVE ROLE
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| ENSURE SYSTEM ROLES
+|--------------------------------------------------------------------------
+|
+| Makes sure system roles exist in the database.
+|
+| IMPORTANT:
+| Existing permissions are NOT overwritten.
+|--------------------------------------------------------------------------
+*/
 
-async function resolveRole(companyId, roleName) {
-  if (!roleName) {
-    return "VIEWER";
-  }
+async function ensureSystemRoles(companyId) {
+  const {
+    DEFAULT_ROLE_PERMISSIONS,
+  } = require("../constants/permissions");
 
-  /*
-   * SYSTEM ROLE
-   */
+  const roles = [
+    {
+      name: "Owner",
+      description: "Full access to the company",
+      permissions:
+        DEFAULT_ROLE_PERMISSIONS.Owner || [],
+    },
 
-  if (SYSTEM_ROLES[roleName]) {
-    return SYSTEM_ROLES[roleName];
-  }
+    {
+      name: "Admin",
+      description: "Administrative access",
+      permissions:
+        DEFAULT_ROLE_PERMISSIONS.Admin || [],
+    },
 
-  /*
-   * Also allow frontend to send uppercase
-   * system role values.
-   */
+    {
+      name: "Manager",
+      description: "Management access",
+      permissions:
+        DEFAULT_ROLE_PERMISSIONS.Manager || [],
+    },
 
-  const normalizedRole = String(roleName)
-    .trim()
-    .toUpperCase();
+    {
+      name: "Analyst",
+      description: "Analytics and read access",
+      permissions:
+        DEFAULT_ROLE_PERMISSIONS.Analyst || [],
+    },
 
-  const systemRoleValues = [
-    "OWNER",
-    "ADMIN",
-    "MANAGER",
-    "ANALYST",
-    "VIEWER",
+    {
+      name: "Viewer",
+      description: "Read-only access",
+      permissions:
+        DEFAULT_ROLE_PERMISSIONS.Viewer || [],
+    },
   ];
 
-  if (systemRoleValues.includes(normalizedRole)) {
-    return normalizedRole;
+  const databaseRoles = [];
+
+  for (const role of roles) {
+    const databaseRole =
+      await prisma.role.upsert({
+        where: {
+          companyId_name: {
+            companyId,
+            name: role.name,
+          },
+        },
+
+        /*
+         * DO NOT overwrite customized permissions.
+         */
+        update: {},
+
+        create: {
+          companyId,
+          name: role.name,
+          description: role.description,
+          permissions: role.permissions,
+          isSystem: true,
+        },
+      });
+
+    databaseRoles.push(databaseRole);
+  }
+
+  return databaseRoles;
+}
+
+/*
+|--------------------------------------------------------------------------
+| RESOLVE DATABASE ROLE
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| This function returns the actual Role database record.
+|
+| We no longer only return "ANALYST".
+| We return:
+|
+| {
+|   id: "...",
+|   name: "Analyst",
+|   permissions: [...]
+| }
+|--------------------------------------------------------------------------
+*/
+
+async function resolveDatabaseRole(
+  companyId,
+  roleName
+) {
+  await validateCompany(companyId);
+
+  /*
+   * Make sure standard roles exist.
+   */
+  await ensureSystemRoles(companyId);
+
+  if (!roleName) {
+    roleName = "Viewer";
+  }
+
+  const requestedRole = String(roleName).trim();
+
+  /*
+   * First try exact/case-insensitive database role.
+   */
+  const databaseRole =
+    await prisma.role.findFirst({
+      where: {
+        companyId,
+
+        name: {
+          equals: requestedRole,
+          mode: "insensitive",
+        },
+      },
+
+      select: {
+        id: true,
+        companyId: true,
+        name: true,
+        description: true,
+        permissions: true,
+        isSystem: true,
+      },
+    });
+
+  if (databaseRole) {
+    return databaseRole;
   }
 
   /*
-   * CUSTOM ROLE
+   * Support uppercase system values:
+   *
+   * ANALYST -> Analyst
+   * OWNER   -> Owner
    */
+  const normalized =
+    requestedRole.toUpperCase();
 
-  const custom = await prisma.role.findFirst({
-    where: {
-      companyId,
-      name: {
-        equals: String(roleName).trim(),
-        mode: "insensitive",
-      },
-    },
-  });
+  const systemRoleName =
+    Object.keys(SYSTEM_ROLES).find(
+      (name) =>
+        SYSTEM_ROLES[name] === normalized
+    );
 
-  if (custom) {
-    return custom.name;
+  if (systemRoleName) {
+    const systemRole =
+      await prisma.role.findFirst({
+        where: {
+          companyId,
+
+          name: {
+            equals: systemRoleName,
+            mode: "insensitive",
+          },
+        },
+
+        select: {
+          id: true,
+          companyId: true,
+          name: true,
+          description: true,
+          permissions: true,
+          isSystem: true,
+        },
+      });
+
+    if (systemRole) {
+      return systemRole;
+    }
   }
 
   throw new Error(
@@ -884,15 +337,53 @@ async function resolveRole(companyId, roleName) {
   );
 }
 
-/* =========================================================
-   LIST TEAM MEMBERS
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| RESOLVE ROLE
+|--------------------------------------------------------------------------
+|
+| Backward-compatible helper.
+|
+| Returns the role value used by TeamMember.role.
+|--------------------------------------------------------------------------
+*/
+
+async function resolveRole(
+  companyId,
+  roleName
+) {
+  const role =
+    await resolveDatabaseRole(
+      companyId,
+      roleName
+    );
+
+  /*
+   * Existing TeamMember.role values are
+   * uppercase for system roles.
+   */
+  if (role.isSystem) {
+    const systemValue =
+      SYSTEM_ROLES[role.name];
+
+    if (systemValue) {
+      return systemValue;
+    }
+  }
+
+  /*
+   * Custom roles use their actual database name.
+   */
+  return role.name;
+}
+
+/*
+|--------------------------------------------------------------------------
+| LIST TEAM MEMBERS
+|--------------------------------------------------------------------------
+*/
 
 async function listMembers(companyId) {
-  /*
-   * Make sure the company exists before
-   * querying team members.
-   */
   await validateCompany(companyId);
 
   const members =
@@ -900,36 +391,103 @@ async function listMembers(companyId) {
       where: {
         companyId,
       },
+
       orderBy: [
         {
           status: "asc",
         },
+
         {
           name: "asc",
         },
       ],
+
+      select: {
+        id: true,
+        companyId: true,
+
+        name: true,
+        email: true,
+
+        avatar: true,
+
+        status: true,
+
+        channels: true,
+
+        whatsapp: true,
+        github: true,
+        discord: true,
+
+        role: true,
+        roleId: true,
+
+        /*
+         * IMPORTANT:
+         * Return member-level permissions.
+         */
+        extraPermissions: true,
+
+        invitationToken: true,
+        invitationMessage: true,
+
+        invitedById: true,
+        invitedAt: true,
+        acceptedAt: true,
+
+        lastActivityAt: true,
+
+        createdAt: true,
+        updatedAt: true,
+
+        /*
+         * Return the actual Role too.
+         */
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
     });
 
-  return members.map(toFrontend);
+  return members.map((member) => ({
+    ...toFrontend(member),
+
+    /*
+     * Useful for Team Permissions UI.
+     */
+    roleRef: member.roleRef
+      ? {
+          id: member.roleRef.id,
+          name: member.roleRef.name,
+          permissions:
+            Array.isArray(
+              member.roleRef.permissions
+            )
+              ? member.roleRef.permissions
+              : [],
+          isSystem:
+            Boolean(member.roleRef.isSystem),
+        }
+      : null,
+  }));
 }
 
-/* =========================================================
-   INVITE TEAM MEMBER
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| INVITE TEAM MEMBER
+|--------------------------------------------------------------------------
+*/
 
 async function inviteMember(
   companyId,
   invitedById,
   payload
 ) {
-  /* -------------------------------------------------------
-     VALIDATE COMPANY FIRST
-
-     THIS FIXES:
-
-     TeamMember_companyId_fkey
-  ------------------------------------------------------- */
-
   const company =
     await validateCompany(companyId);
 
@@ -943,25 +501,22 @@ async function inviteMember(
     company.name
   );
 
-  /* -------------------------------------------------------
-     VALIDATE INVITING USER
-  ------------------------------------------------------- */
-
+  /*
+   * Validate inviting user.
+   */
   if (!invitedById) {
     throw new Error(
       "Authenticated user is required."
     );
   }
 
-  /*
-   * Make sure the user belongs to this company.
-   */
   const invitedBy =
     await prisma.user.findFirst({
       where: {
         id: invitedById,
         companyId,
       },
+
       select: {
         id: true,
         companyId: true,
@@ -974,16 +529,15 @@ async function inviteMember(
     );
   }
 
-  /* -------------------------------------------------------
-     VALIDATE PAYLOAD
-  ------------------------------------------------------- */
-
   if (!payload) {
     throw new Error(
       "Invitation data is required."
     );
   }
 
+  /*
+   * Normalize email.
+   */
   const email = String(
     payload.email || ""
   )
@@ -1015,19 +569,31 @@ async function inviteMember(
     );
   }
 
-  /* -------------------------------------------------------
-     RESOLVE ROLE
-  ------------------------------------------------------- */
+  /*
+   * Resolve actual database Role.
+   *
+   * THIS IS IMPORTANT.
+   */
+  const databaseRole =
+    await resolveDatabaseRole(
+      companyId,
+      payload.role
+    );
 
-  const role = await resolveRole(
-    companyId,
-    payload.role
-  );
+  /*
+   * TeamMember.role remains compatible with
+   * the existing application.
+   */
+  const role =
+    databaseRole.isSystem
+      ? SYSTEM_ROLES[
+          databaseRole.name
+        ]
+      : databaseRole.name;
 
-  /* -------------------------------------------------------
-     CHECK EXISTING MEMBER
-  ------------------------------------------------------- */
-
+  /*
+   * Existing member.
+   */
   const existing =
     await prisma.teamMember.findUnique({
       where: {
@@ -1047,19 +613,17 @@ async function inviteMember(
     );
   }
 
-  /* -------------------------------------------------------
-     GENERATE SECURE INVITATION TOKEN
-  ------------------------------------------------------- */
-
+  /*
+   * Invitation token.
+   */
   const invitationToken =
     crypto
       .randomBytes(48)
       .toString("hex");
 
-  /* -------------------------------------------------------
-     INVITATION URL
-  ------------------------------------------------------- */
-
+  /*
+   * Invitation URL.
+   */
   const frontendUrl = (
     process.env.FRONTEND_URL ||
     "http://localhost:5173"
@@ -1071,36 +635,46 @@ async function inviteMember(
       invitationToken
     )}`;
 
-  /* -------------------------------------------------------
-     CHANNELS
-  ------------------------------------------------------- */
-
+  /*
+   * Channels.
+   */
   const channels = [
     ...new Set([
       "email",
-      ...(Array.isArray(payload.channels)
+
+      ...(Array.isArray(
+        payload.channels
+      )
         ? payload.channels
         : []),
     ]),
   ];
 
-  /* -------------------------------------------------------
-     RECIPIENT CHANNEL DATA
-  ------------------------------------------------------- */
-
+  /*
+   * Recipient data.
+   */
   const recipients =
     payload.recipients &&
-    typeof payload.recipients === "object"
+    typeof payload.recipients ===
+      "object"
       ? payload.recipients
       : {};
 
-  /* -------------------------------------------------------
-     CREATE / UPDATE PENDING MEMBER
+  /*
+   * Temporary password.
+   */
+  const temporaryPassword =
+    generateRandomPassword(12);
 
-     COMPANY HAS ALREADY BEEN VALIDATED ABOVE.
-  ------------------------------------------------------- */
-const temporaryPassword = generateRandomPassword(12);
-  const temporaryPasswordHash = await bcrypt.hash(temporaryPassword, 12);
+  const temporaryPasswordHash =
+    await bcrypt.hash(
+      temporaryPassword,
+      12
+    );
+
+  /*
+   * CREATE / UPDATE TEAM MEMBER
+   */
   const member =
     await prisma.teamMember.upsert({
       where: {
@@ -1110,18 +684,34 @@ const temporaryPassword = generateRandomPassword(12);
         },
       },
 
-      /* ===================================================
-         CREATE
-      =================================================== */
-
+      /*
+       * CREATE
+       */
       create: {
         companyId,
+
         name,
         email,
+
         avatar:
           payload.avatar || null,
 
+        /*
+         * Existing role field.
+         */
         role,
+
+        /*
+         * IMPORTANT:
+         * Save actual database Role ID.
+         */
+        roleId: databaseRole.id,
+
+        /*
+         * New members start with no
+         * member-specific permissions.
+         */
+        extraPermissions: [],
 
         status: "PENDING",
 
@@ -1146,13 +736,13 @@ const temporaryPassword = generateRandomPassword(12);
         invitedAt: new Date(),
 
         lastActivityAt: new Date(),
+
         temporaryPasswordHash,
       },
 
-      /* ===================================================
-         UPDATE / RESEND INVITATION
-      =================================================== */
-
+      /*
+       * UPDATE / RESEND
+       */
       update: {
         name,
 
@@ -1160,6 +750,13 @@ const temporaryPassword = generateRandomPassword(12);
           payload.avatar || null,
 
         role,
+
+        /*
+         * IMPORTANT:
+         * Update roleId when invitation is resent
+         * with a different role.
+         */
+        roleId: databaseRole.id,
 
         status: "PENDING",
 
@@ -1186,14 +783,25 @@ const temporaryPassword = generateRandomPassword(12);
         lastActivityAt: new Date(),
 
         acceptedAt: null,
+
         temporaryPasswordHash,
+      },
+
+      include: {
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
       },
     });
 
-  /* -------------------------------------------------------
-     SEND INVITATION EMAIL
-  ------------------------------------------------------- */
-
+  /*
+   * Send invitation.
+   */
   console.log(
     "========================================"
   );
@@ -1206,6 +814,11 @@ const temporaryPassword = generateRandomPassword(12);
   console.log(
     "TEAM INVITATION ROLE:",
     role
+  );
+
+  console.log(
+    "TEAM INVITATION ROLE ID:",
+    databaseRole.id
   );
 
   console.log(
@@ -1237,97 +850,238 @@ const temporaryPassword = generateRandomPassword(12);
       payload.message || null,
   });
 
-  /* -------------------------------------------------------
-     RETURN MEMBER
-  ------------------------------------------------------- */
+  return {
+    ...toFrontend(member),
 
-  return toFrontend(member);
+    roleRef: member.roleRef
+      ? {
+          id: member.roleRef.id,
+          name: member.roleRef.name,
+          permissions:
+            Array.isArray(
+              member.roleRef.permissions
+            )
+              ? member.roleRef.permissions
+              : [],
+          isSystem:
+            Boolean(member.roleRef.isSystem),
+        }
+      : null,
+  };
 }
 
-/* =========================================================
-   ACCEPT TEAM INVITATION
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| ACCEPT TEAM INVITATION
+|--------------------------------------------------------------------------
+*/
 
 async function acceptInvitation(token) {
   if (!token) {
-    throw new Error("Invitation token is required.");
+    throw new Error(
+      "Invitation token is required."
+    );
   }
 
-  const member = await prisma.teamMember.findFirst({
-    where: { invitationToken: token },
-    include: { company: true },
-  });
+  const member =
+    await prisma.teamMember.findFirst({
+      where: {
+        invitationToken: token,
+      },
+
+      include: {
+        company: true,
+
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
+    });
 
   if (!member) {
-    throw new Error("Invalid or expired invitation.");
+    throw new Error(
+      "Invalid or expired invitation."
+    );
   }
 
-  // Already accepted → idempotent
+  /*
+   * Already accepted.
+   */
   if (member.status === "ACTIVE") {
-    return toFrontend(member);
+    return {
+      ...toFrontend(member),
+
+      roleRef: member.roleRef
+        ? {
+            id: member.roleRef.id,
+            name: member.roleRef.name,
+            permissions:
+              Array.isArray(
+                member.roleRef.permissions
+              )
+                ? member.roleRef.permissions
+                : [],
+            isSystem:
+              Boolean(
+                member.roleRef.isSystem
+              ),
+          }
+        : null,
+    };
   }
 
-  // Name always comes from the invitation (TeamMember)
-  const nameParts = String(member.name || "User").trim().split(/\s+/);
-  const firstName = nameParts[0] || "User";
-  const lastName = nameParts.slice(1).join(" ") || "";
+  /*
+   * Name.
+   */
+  const nameParts = String(
+    member.name || "User"
+  )
+    .trim()
+    .split(/\s+/);
 
-  const invitationRole = member.role || "VIEWER";
+  const firstName =
+    nameParts[0] || "User";
 
-  // 1. Generate temporary password
-  const temporaryPassword = generateRandomPassword(16);
-  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+  const lastName =
+    nameParts.slice(1).join(" ") || "";
 
-  // 2. Create or update User
-  let user = await prisma.user.findUnique({
-    where: { email: member.email },
-  });
+  /*
+   * Existing TeamMember role.
+   */
+const invitationRole =
+  member.role || "VIEWER";
 
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: member.email,
-        firstName,                 // from TeamMember.name
-        lastName,                  // from TeamMember.name
-        passwordHash,
-        role: invitationRole,
-        companyId: member.companyId,
-      },
-    });
-  } else {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash,
-        role: invitationRole,
-        companyId: member.companyId,
-        firstName,                 // always overwrite with invitation name
-        lastName,                  // always overwrite with invitation name
-      },
-    });
-  }
+const normalizedInvitationRole =
+  String(invitationRole)
+    .trim()
+    .toUpperCase();
 
-  // 3. Activate TeamMember + store temporary password
-  const updated = await prisma.teamMember.update({
-    where: { id: member.id },
-    data: {
-      status: "ACTIVE",
-      acceptedAt: new Date(),
-      lastActivityAt: new Date(),
-      invitationToken: null,
-      temporaryPassword,           // plain text (temporary)
-      temporaryPasswordHash: passwordHash,
+const userRole =
+  ["OWNER", "ADMIN", "MANAGER", "ANALYST", "VIEWER"]
+    .includes(normalizedInvitationRole)
+    ? normalizedInvitationRole
+    : "VIEWER";
+
+const temporaryPassword =
+  generateRandomPassword(16);
+
+const passwordHash =
+  await bcrypt.hash(
+    temporaryPassword,
+    12
+  );
+
+let user =
+  await prisma.user.findUnique({
+    where: {
+      email: member.email,
     },
   });
 
-  // 4. Send email after saving
+if (!user) {
+  user = await prisma.user.create({
+    data: {
+      email: member.email,
+      firstName,
+      lastName,
+      passwordHash,
+      role: userRole,
+      companyId: member.companyId,
+    },
+  });
+} else {
+  user = await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      passwordHash,
+      role: userRole,
+      companyId: member.companyId,
+      firstName,
+      lastName,
+    },
+  });
+}
+
+  /*
+   * Activate TeamMember.
+   *
+   * IMPORTANT:
+   * roleId is preserved.
+   * extraPermissions are preserved.
+   */
+  const updated =
+    await prisma.teamMember.update({
+      where: {
+        id: member.id,
+      },
+
+      data: {
+        status: "ACTIVE",
+
+        acceptedAt: new Date(),
+
+        lastActivityAt: new Date(),
+
+        invitationToken: null,
+
+        temporaryPassword,
+
+        temporaryPasswordHash:
+          passwordHash,
+
+        /*
+         * Keep the database role relationship.
+         */
+        roleId:
+          member.roleId || null,
+
+        /*
+         * Keep member-specific permissions.
+         */
+        extraPermissions:
+          Array.isArray(
+            member.extraPermissions
+          )
+            ? member.extraPermissions
+            : [],
+      },
+
+      include: {
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
+    });
+
+  /*
+   * Send credentials.
+   */
   try {
     await sendWelcomeCredentialsEmail({
       to: member.email,
+
       name: member.name,
+
       userId: member.email,
+
       temporaryPassword,
-      companyName: member.company?.name || "AutoBillr",
+
+      companyName:
+        member.company?.name ||
+        "AutoBillr",
+
       role: invitationRole,
     });
   } catch (emailErr) {
@@ -1337,12 +1091,47 @@ async function acceptInvitation(token) {
     );
   }
 
-  return toFrontend(updated);
+  return {
+    ...toFrontend(updated),
+
+    roleRef: updated.roleRef
+      ? {
+          id: updated.roleRef.id,
+          name: updated.roleRef.name,
+          permissions:
+            Array.isArray(
+              updated.roleRef.permissions
+            )
+              ? updated.roleRef.permissions
+              : [],
+          isSystem:
+            Boolean(
+              updated.roleRef.isSystem
+            ),
+        }
+      : null,
+  };
 }
 
-/* =========================================================
-   UPDATE ROLE
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| UPDATE ROLE
+|--------------------------------------------------------------------------
+|
+| This is VERY IMPORTANT.
+|
+| Before:
+|
+| TeamMember.role = "ANALYST"
+| TeamMember.roleId = NULL
+|
+| Now:
+|
+| TeamMember.role = "ANALYST"
+| TeamMember.roleId = actual Role.id
+|
+|--------------------------------------------------------------------------
+*/
 
 async function updateRole(
   companyId,
@@ -1351,11 +1140,29 @@ async function updateRole(
 ) {
   await validateCompany(companyId);
 
-  const role = await resolveRole(
-    companyId,
-    newRole
-  );
+  /*
+   * Find actual database Role.
+   */
+  const databaseRole =
+    await resolveDatabaseRole(
+      companyId,
+      newRole
+    );
 
+  /*
+   * Convert system role to existing
+   * TeamMember.role format.
+   */
+  const role =
+    databaseRole.isSystem
+      ? SYSTEM_ROLES[
+          databaseRole.name
+        ]
+      : databaseRole.name;
+
+  /*
+   * Make sure member belongs to company.
+   */
   const existing =
     await prisma.teamMember.findFirst({
       where: {
@@ -1370,6 +1177,11 @@ async function updateRole(
     );
   }
 
+  /*
+   * Update BOTH role and roleId.
+   *
+   * Do NOT modify extraPermissions.
+   */
   const member =
     await prisma.teamMember.update({
       where: {
@@ -1378,16 +1190,145 @@ async function updateRole(
 
       data: {
         role,
-        lastActivityAt: new Date(),
+
+        roleId:
+          databaseRole.id,
+
+        lastActivityAt:
+          new Date(),
+      },
+
+      include: {
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
       },
     });
 
-  return toFrontend(member);
+  return {
+    ...toFrontend(member),
+
+    roleRef: member.roleRef
+      ? {
+          id: member.roleRef.id,
+          name: member.roleRef.name,
+          permissions:
+            Array.isArray(
+              member.roleRef.permissions
+            )
+              ? member.roleRef.permissions
+              : [],
+          isSystem:
+            Boolean(member.roleRef.isSystem),
+        }
+      : null,
+  };
 }
 
-/* =========================================================
-   REMOVE MEMBER
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| UPDATE MEMBER EXTRA PERMISSIONS
+|--------------------------------------------------------------------------
+|
+| Although the controller currently performs this update,
+| keeping the service function here makes the architecture cleaner.
+|--------------------------------------------------------------------------
+*/
+
+async function updateMemberExtraPermissions(
+  companyId,
+  memberId,
+  extraPermissions
+) {
+  await validateCompany(companyId);
+
+  if (!Array.isArray(extraPermissions)) {
+    throw new Error(
+      "extraPermissions must be an array."
+    );
+  }
+
+  const uniquePermissions = [
+    ...new Set(
+      extraPermissions
+        .filter(Boolean)
+        .map((permission) =>
+          String(permission).trim()
+        )
+        .filter(Boolean)
+    ),
+  ];
+
+  const existing =
+    await prisma.teamMember.findFirst({
+      where: {
+        id: memberId,
+        companyId,
+      },
+    });
+
+  if (!existing) {
+    throw new Error(
+      "Team member not found."
+    );
+  }
+
+  const member =
+    await prisma.teamMember.update({
+      where: {
+        id: memberId,
+      },
+
+      data: {
+        extraPermissions:
+          uniquePermissions,
+
+        lastActivityAt:
+          new Date(),
+      },
+
+      include: {
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
+    });
+
+  return {
+    ...toFrontend(member),
+
+    roleRef: member.roleRef
+      ? {
+          id: member.roleRef.id,
+          name: member.roleRef.name,
+          permissions:
+            Array.isArray(
+              member.roleRef.permissions
+            )
+              ? member.roleRef.permissions
+              : [],
+          isSystem:
+            Boolean(member.roleRef.isSystem),
+        }
+      : null,
+  };
+}
+
+/*
+|--------------------------------------------------------------------------
+| REMOVE MEMBER
+|--------------------------------------------------------------------------
+*/
 
 async function removeMember(
   companyId,
@@ -1416,9 +1357,11 @@ async function removeMember(
   });
 }
 
-/* =========================================================
-   TEAM STATS
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| TEAM STATS
+|--------------------------------------------------------------------------
+*/
 
 async function getStats(companyId) {
   await validateCompany(companyId);
@@ -1456,12 +1399,21 @@ async function getStats(companyId) {
   };
 }
 
-/* =========================================================
-   CUSTOM ROLES
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| LIST ROLES
+|--------------------------------------------------------------------------
+*/
 
-async function listCustomRoles(companyId) {
+async function listCustomRoles(
+  companyId
+) {
   await validateCompany(companyId);
+
+  /*
+   * Make sure system roles exist.
+   */
+  await ensureSystemRoles(companyId);
 
   const roles =
     await prisma.role.findMany({
@@ -1469,24 +1421,46 @@ async function listCustomRoles(companyId) {
         companyId,
       },
 
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: [
+        {
+          isSystem: "desc",
+        },
+
+        {
+          name: "asc",
+        },
+      ],
     });
 
   return roles.map((role) => ({
     id: role.id,
+
     name: role.name,
+
     description:
       role.description ||
       "Custom workspace role.",
-    createdAt: role.createdAt,
+
+    permissions:
+      Array.isArray(
+        role.permissions
+      )
+        ? role.permissions
+        : [],
+
+    isSystem:
+      Boolean(role.isSystem),
+
+    createdAt:
+      role.createdAt,
   }));
 }
 
-/* =========================================================
-   CREATE CUSTOM ROLE
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| CREATE CUSTOM ROLE
+|--------------------------------------------------------------------------
+*/
 
 async function createCustomRole(
   companyId,
@@ -1558,28 +1532,54 @@ async function createCustomRole(
     );
   }
 
+  /*
+   * Custom roles start with no permissions.
+   * They can then be configured in Team Permissions.
+   */
   const role =
     await prisma.role.create({
       data: {
         companyId,
+
         name,
+
         description:
           description ||
           "Custom workspace role.",
+
+        permissions: [],
+
+        isSystem: false,
       },
     });
 
   return {
     id: role.id,
+
     name: role.name,
+
     description: role.description,
-    createdAt: role.createdAt,
+
+    permissions:
+      Array.isArray(
+        role.permissions
+      )
+        ? role.permissions
+        : [],
+
+    isSystem:
+      Boolean(role.isSystem),
+
+    createdAt:
+      role.createdAt,
   };
 }
 
-/* =========================================================
-   DELETE CUSTOM ROLE
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| DELETE CUSTOM ROLE
+|--------------------------------------------------------------------------
+*/
 
 async function deleteCustomRole(
   companyId,
@@ -1601,6 +1601,32 @@ async function deleteCustomRole(
     );
   }
 
+  /*
+   * Never delete system roles.
+   */
+  if (existing.isSystem) {
+    throw new Error(
+      "System roles cannot be deleted."
+    );
+  }
+
+  /*
+   * Check whether any members use this role.
+   */
+  const membersUsingRole =
+    await prisma.teamMember.count({
+      where: {
+        companyId,
+        roleId,
+      },
+    });
+
+  if (membersUsingRole > 0) {
+    throw new Error(
+      "This role is assigned to team members. Reassign those members before deleting the role."
+    );
+  }
+
   await prisma.role.delete({
     where: {
       id: roleId,
@@ -1608,19 +1634,36 @@ async function deleteCustomRole(
   });
 }
 
-/* =========================================================
-   EXPORTS
-========================================================= */
+/*
+|--------------------------------------------------------------------------
+| EXPORTS
+|--------------------------------------------------------------------------
+*/
 
 module.exports = {
   listMembers,
-  inviteMember,
-  acceptInvitation,
-  updateRole,
-  removeMember,
-  getStats,
-  listCustomRoles,
-  createCustomRole,
-  deleteCustomRole,
-};
 
+  inviteMember,
+
+  acceptInvitation,
+
+  updateRole,
+
+  updateMemberExtraPermissions,
+
+  removeMember,
+
+  getStats,
+
+  listCustomRoles,
+
+  createCustomRole,
+
+  deleteCustomRole,
+
+  resolveRole,
+
+  resolveDatabaseRole,
+
+  ensureSystemRoles,
+};

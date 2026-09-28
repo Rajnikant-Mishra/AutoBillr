@@ -428,7 +428,7 @@ const navigation = [
         to: "/app/pricing",
         label: "Pricing",
         icon: "loyalty",
-        permission: null, // always visible
+        permission: "billing:view",
       },
     ],
   },

@@ -51,13 +51,20 @@ router.get(
 router.get("/me", (req, res) => {
   res.json({
     success: true,
+    role: req.user.role,
+    roleId: req.user.roleId || null,
+    permissions: req.user.permissions || [],
+    extraPermissions: req.user.extraPermissions || [],
     data: {
+      role: req.user.role,
+      roleId: req.user.roleId || null,
+      permissions: req.user.permissions || [],
+      extraPermissions: req.user.extraPermissions || [],
       user: {
         userId: req.user.userId,
         companyId: req.user.companyId,
+        email: req.user.email,
       },
-      role: req.user.role,
-      permissions: req.user.permissions || [],
     },
   });
 });
@@ -95,6 +102,17 @@ router.post(
 | DYNAMIC ROUTES (must come AFTER static routes)
 |--------------------------------------------------------------------------
 */
+router.patch(
+  "/roles/:id",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.updateRolePermissions
+);
+
+router.patch(
+  "/:id/permissions",
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
+  teamController.updateTeamMemberPermissions
+);
 
 // PATCH /api/v1/team/:id/role
 router.patch(

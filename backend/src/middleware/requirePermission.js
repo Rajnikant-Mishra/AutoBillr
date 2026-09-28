@@ -1,15 +1,21 @@
 const requirePermission = (permission) => {
   return (req, res, next) => {
-    const user = req.user; // set by your auth middleware
+    const user = req.user;
 
     if (!user) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
 
     const permissions = user.permissions || [];
 
     // Owner can have "*" or all permissions
-    if (permissions.includes("*") || permissions.includes(permission)) {
+    if (
+      permissions.includes("*") ||
+      permissions.includes(permission)
+    ) {
       return next();
     }
 

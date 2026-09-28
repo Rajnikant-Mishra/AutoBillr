@@ -291,16 +291,18 @@ model Notification {
 }
 
 model Role {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
   description String?
   companyId   String
-  permissions String[] // array of permission keys e.g. ["invoices:view", "clients:create"]
-  isSystem    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  permissions String[]
+  isSystem    Boolean      @default(false)
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  teamMembers TeamMember[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -313,27 +315,40 @@ model TeamMember {
   email             String
   avatar            String?
   status            TeamMemberStatus @default(PENDING)
+
   channels          String[]
   whatsapp          String?
   github            String?
   discord           String?
+
   invitationToken   String?          @unique
   invitationMessage String?
   invitedById       String?
   invitedAt         DateTime         @default(now())
   acceptedAt        DateTime?
   lastActivityAt    DateTime?
+
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
-       
+
   role              String           @default("VIEWER")
+  roleId            String?
+  extraPermissions  String[]         @default([])
+
   company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  temporaryPassword     String?      
-  temporaryPasswordHash String?  
-  
+  roleRef           Role?            @relation(
+    fields: [roleId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  temporaryPassword     String?
+  temporaryPasswordHash String?
+
   @@unique([companyId, email])
   @@index([companyId])
+  @@index([roleId])
   @@index([companyId, status])
   @@index([companyId, role])
   @@index([invitationToken])
@@ -404,7 +419,7 @@ enum TeamMemberStatus {
 }
 
 enum UserRole {
- OWNER
+  OWNER
   ADMIN
   MANAGER
   ANALYST

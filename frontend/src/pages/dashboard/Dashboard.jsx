@@ -9,6 +9,8 @@ import DataTable from "../../components/ui/DataTable";
 import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
 import ClientFormDrawer from "../../components/clients/ClientFormDrawer";
 import { useCurrencyStore } from "../../store/currencyStore";
+import { usePermissions } from "../../hooks/usePermissions"; // adjust path
+import NoAccess from "../../components/NoAccess";           // adjust path
 import {
   BarChart,
   Bar,
@@ -46,7 +48,18 @@ const getAuthToken = () => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { formatAmount, selectedCurrency } = useCurrencyStore();
+  const { can, role } = usePermissions();
 
+  // No usable page access → show professional empty state
+  const hasAnyPageAccess =
+    can("dashboard:view") ||
+    can("invoices:view") ||
+    can("clients:view") ||
+    can("projects:view") ||
+    can("analytics:view") ||
+    can("automation:view") ||
+    can("team:view") ||
+    can("settings:view");
   const format = useCallback(
     (val) => {
       if (typeof formatAmount === "function") {
@@ -223,11 +236,17 @@ export default function Dashboard() {
     }
   }, []);
 
-  // ==================== INITIAL FETCH ====================
+    // ==================== INITIAL FETCH ====================
   useEffect(() => {
     let isMounted = true;
 
     const fetchDashboard = async () => {
+      // No permission → do not call API → no toaster
+      if (!can("dashboard:view")) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
         const token = getAuthToken();
 
@@ -238,6 +257,12 @@ export default function Dashboard() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
+
+        // 403 = permission denied → silent, no toast
+        if (response.status === 403) {
+          if (isMounted) setLoading(false);
+          return;
+        }
 
         const text = await response.text();
         let result = {};
@@ -264,8 +289,15 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("DASHBOARD ERROR:", error);
-        if (isMounted) {
-          toast.error(error.message || "Failed to fetch dashboard");
+        const msg = String(error?.message || "");
+        // Never toast permission errors
+        if (
+          isMounted &&
+          !msg.toLowerCase().includes("permission") &&
+          !msg.toLowerCase().includes("access denied") &&
+          !msg.toLowerCase().includes("forbidden")
+        ) {
+          toast.error(msg || "Failed to fetch dashboard");
         }
       } finally {
         if (isMounted) {
@@ -279,7 +311,7 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [can]);
 
   useEffect(() => {
     const handleClientUpdated = () => refetchDashboard();
@@ -520,13 +552,25 @@ export default function Dashboard() {
     [format, navigate, openClientDetail]
   );
 
-  if (loading) {
+    if (loading) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
+
+  // Analyst (or any role) with no permissions → contact owner message
+  if (!hasAnyPageAccess) {
+    return <NoAccess role={role} />;
+  }
+
+  // Optional: if they don't even have dashboard:view, still show NoAccess
+  if (!can("dashboard:view")) {
+    return <NoAccess role={role} />;
+  }
+
+
 
   return (
     <main className="flex-1 pt-2 pb-12 w-full px-0">
