@@ -9,8 +9,9 @@ import DataTable from "../../components/ui/DataTable";
 import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
 import ClientFormDrawer from "../../components/clients/ClientFormDrawer";
 import { useCurrencyStore } from "../../store/currencyStore";
-import { usePermissions } from "../../hooks/usePermissions"; // adjust path
-import NoAccess from "../../components/NoAccess";           // adjust path
+import { exportDashboardPDF } from "../../utils/reportExport";
+import { usePermissions } from "../../hooks/usePermissions"; 
+import NoAccess from "../../components/NoAccess";           
 import {
   BarChart,
   Bar,
@@ -575,23 +576,32 @@ export default function Dashboard() {
   return (
     <main className="flex-1 pt-2 pb-12 w-full px-0">
       {/* Header */}
-      <SectionHeader
-        title="Revenue Overview"
-        description={`You have ${
-          dashboardData?.stats?.totalInvoices || 0
-        } invoices and ${
-          dashboardData?.stats?.totalClients || 0
-        } clients in your system.`}
-        secondaryAction={{
-          label: "Last 30 Days",
-          icon: "calendar_today",
-          variant: "secondary",
-        }}
-        primaryAction={{
-          label: "Export Report",
-          icon: "download",
-        }}
-      />
+      {/* Header */}
+<SectionHeader
+  title="Revenue Overview"
+  description={`You have ${
+    dashboardData?.stats?.totalInvoices || 0
+  } invoices and ${
+    dashboardData?.stats?.totalClients || 0
+  } clients in your system.`}
+  secondaryAction={{
+    label: "Last 30 Days",
+    icon: "calendar_today",
+    variant: "secondary",
+  }}
+  primaryAction={{
+    label: "Export Report",
+    icon: "download",
+    onClick: () => {
+      exportDashboardPDF({
+        stats: dashboardData?.stats || {},
+        recentInvoices: dashboardData?.recentInvoices || [],
+        currencySymbol: selectedCurrency?.symbol || "₹",
+      });
+      toast.success("Dashboard report downloaded!");
+    },
+  }}
+/>
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">

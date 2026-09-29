@@ -1,22 +1,34 @@
 import { useCurrencyStore } from "../store/currencyStore";
 
 export default function useCurrency() {
-  const selectedCurrency = useCurrencyStore(
-    (state) => state.selectedCurrency
-  );
+  const {
+    selectedCurrency,
+    formatAmount,
+    convertAmount,
+    setCurrency,
+    currencies,
+    rates,
+  } = useCurrencyStore();
 
-  const format = (amount = 0) => {
-    const converted =
-      Number(amount) * (selectedCurrency?.rate || 1);
-
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: selectedCurrency?.code || "USD",
-    }).format(converted);
+  const format = (amount = 0, fromCurrency = "INR") => {
+    if (formatAmount) {
+      return formatAmount(amount, fromCurrency);
+    }
+    const sym = selectedCurrency?.symbol || "₹";
+    return `${sym}${Number(amount).toLocaleString()}`;
   };
 
   return {
-    selectedCurrency,
+    currencySymbol: selectedCurrency?.symbol || "₹",
+    currencyCode: selectedCurrency?.code || "INR",
+    formatCurrency: format,
+
     format,
+    formatAmount: format,
+    selectedCurrency,
+    convertAmount,
+    setCurrency,
+    currencies,
+    rates,
   };
 }

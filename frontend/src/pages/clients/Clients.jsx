@@ -28,20 +28,14 @@ import {
 } from "../../services/clientService";
 
 /* =========================================================
-   PAGINATION
+   PAGINATION CONFIG
 ========================================================= */
 
-const DEFAULT_PAGE_SIZE = 9;
-
-const PAGE_SIZES = [
-  5,
-  10,
-  30,
-  50,
-];
+const DEFAULT_PAGE_SIZE = 5; // Fixed: By default 5 clients per page
+const PAGE_SIZES = [5, 10, 20, 50];
 
 /* =========================================================
-   FILTERS
+   FILTERS & SORT
 ========================================================= */
 
 const EMPTY_FILTERS = {
@@ -50,55 +44,19 @@ const EMPTY_FILTERS = {
   toDate: "",
 };
 
-/* =========================================================
-   SORT
-========================================================= */
-
 const DEFAULT_SORT = {
   field: "",
   direction: "asc",
 };
 
-/* =========================================================
-   SORT COLUMNS
-========================================================= */
-
 const SORT_COLUMNS = [
-  {
-    id: "name",
-    label: "Client Name",
-    type: "string",
-  },
-  {
-    id: "country",
-    label: "Country",
-    type: "string",
-  },
-  {
-    id: "stateRegion",
-    label: "State",
-    type: "string",
-  },
-  {
-    id: "city",
-    label: "City",
-    type: "string",
-  },
-  {
-    id: "postalCode",
-    label: "Pincode",
-    type: "string",
-  },
-  {
-    id: "phone",
-    label: "Phone Number",
-    type: "string",
-  },
-  {
-    id: "status",
-    label: "Status",
-    type: "string",
-  },
+  { id: "name", label: "Client Name", type: "string" },
+  { id: "country", label: "Country", type: "string" },
+  { id: "stateRegion", label: "State", type: "string" },
+  { id: "city", label: "City", type: "string" },
+  { id: "postalCode", label: "Pincode", type: "string" },
+  { id: "phone", label: "Phone Number", type: "string" },
+  { id: "status", label: "Status", type: "string" },
 ];
 
 const columnHelper = createColumnHelper();
@@ -179,167 +137,71 @@ const getClientInitials = (client) =>
     .toUpperCase() ||
   "CL";
 
-/* =========================================================
-   STATUS BADGE
-========================================================= */
-
 const getStatusBadge = (status) => {
   switch (normalize(status)) {
     case "active":
-      return [
-        "bg-[var(--color-primary-soft)]",
-        "text-[var(--color-primary-dark)]",
-      ].join(" ");
-
+      return "bg-[var(--color-primary-soft)] text-[var(--color-primary-dark)]";
     case "pending":
-      return [
-        "bg-[var(--color-warning-soft)]",
-        "text-[var(--color-warning-hover)]",
-      ].join(" ");
-
+      return "bg-[var(--color-warning-soft)] text-[var(--color-warning-hover)]";
     case "inactive":
-      return [
-        "bg-[var(--color-surface-secondary)]",
-        "text-[var(--color-text-muted)]",
-      ].join(" ");
-
     case "archived":
-      return [
-        "bg-[var(--color-surface-secondary)]",
-        "text-[var(--color-text-light)]",
-      ].join(" ");
-
+      return "bg-[var(--color-surface-secondary)] text-[var(--color-text-muted)]";
     default:
-      return [
-        "bg-[var(--color-surface-secondary)]",
-        "text-[var(--color-text-muted)]",
-      ].join(" ");
+      return "bg-[var(--color-surface-secondary)] text-[var(--color-text-muted)]";
   }
 };
-
-/* =========================================================
-   DATE HELPERS
-========================================================= */
 
 const parseDate = (value) => {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   const date = new Date(value);
-
-  return Number.isNaN(date.getTime())
-    ? null
-    : date;
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const parseDateBoundary = (
-  value,
-  endOfDay = false
-) => {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(
-    `${value}T${
-      endOfDay
-        ? "23:59:59.999"
-        : "00:00:00"
-    }`
-  );
-
-  return Number.isNaN(date.getTime())
-    ? null
-    : date;
+const parseDateBoundary = (value, endOfDay = false) => {
+  if (!value) return null;
+  const date = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}`);
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
-/* =========================================================
-   SORT COMPARISON
-========================================================= */
-
-const compareValues = (
-  a,
-  b,
-  type,
-  direction
-) => {
-  const multiplier =
-    direction === "desc"
-      ? -1
-      : 1;
+const compareValues = (a, b, type, direction) => {
+  const multiplier = direction === "desc" ? -1 : 1;
 
   if (type === "date") {
-    const aTime =
-      parseDate(a)?.getTime() ?? 0;
-
-    const bTime =
-      parseDate(b)?.getTime() ?? 0;
-
-    return (
-      (aTime - bTime) *
-      multiplier
-    );
+    const aTime = parseDate(a)?.getTime() ?? 0;
+    const bTime = parseDate(b)?.getTime() ?? 0;
+    return (aTime - bTime) * multiplier;
   }
 
   return (
-    String(a ?? "").localeCompare(
-      String(b ?? ""),
-      undefined,
-      {
-        sensitivity: "base",
-        numeric: true,
-      }
-    ) * multiplier
+    String(a ?? "").localeCompare(String(b ?? ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }) * multiplier
   );
 };
 
 /* =========================================================
-   COMPONENT
+   MAIN CLIENTS COMPONENT
 ========================================================= */
 
 export default function Clients() {
-  /* =======================================================
-     CLIENT STATE
-  ======================================================= */
-
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  /* =======================================================
-     SELECTED / EDITING CLIENT STATE
-  ======================================================= */
-
   const [selectedClient, setSelectedClient] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
-
-  /* =======================================================
-     DRAWERS
-  ======================================================= */
 
   const [formDrawerOpen, setFormDrawerOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [sortDrawerOpen, setSortDrawerOpen] = useState(false);
   const [clientDetailDrawerOpen, setClientDetailDrawerOpen] = useState(false);
 
-  /* =======================================================
-     SEARCH / FILTER / SORT
-  ======================================================= */
-
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sortConfig, setSortConfig] = useState(DEFAULT_SORT);
-
-  /* =======================================================
-     VIEW
-  ======================================================= */
-
   const [view, setView] = useState("list");
 
-  /* =======================================================
-     PAGINATION
-  ======================================================= */
-
+  // Controlled Pagination State
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
@@ -352,13 +214,11 @@ export default function Clients() {
   const loadClients = useCallback(async () => {
     try {
       const response = await getClients();
-
-      const clientList =
-        Array.isArray(response?.clients)
-          ? response.clients
-          : Array.isArray(response?.data?.clients)
-          ? response.data.clients
-          : [];
+      const clientList = Array.isArray(response?.clients)
+        ? response.clients
+        : Array.isArray(response?.data?.clients)
+        ? response.data.clients
+        : [];
 
       setClients(clientList);
     } catch (error) {
@@ -370,12 +230,7 @@ export default function Clients() {
     }
   }, []);
 
-  /* =========================================================
-     INITIAL LOAD + CLIENT UPDATE EVENT
-  ========================================================= */
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadClients();
 
     const handleClientUpdated = () => {
@@ -384,14 +239,13 @@ export default function Clients() {
     };
 
     window.addEventListener("client-updated", handleClientUpdated);
-
     return () => {
       window.removeEventListener("client-updated", handleClientUpdated);
     };
   }, [loadClients]);
 
   /* =========================================================
-     CREATE CLIENT
+     DRAWER & ACTION HANDLERS
   ========================================================= */
 
   const openCreate = useCallback(() => {
@@ -399,53 +253,28 @@ export default function Clients() {
     setFormDrawerOpen(true);
   }, []);
 
-  /* =========================================================
-     EDIT CLIENT
-  ========================================================= */
-
   const openEdit = useCallback((client) => {
-    if (!client) {
-      return;
-    }
-
+    if (!client) return;
     setEditingClient(client);
     setFormDrawerOpen(true);
     setClientDetailDrawerOpen(false);
   }, []);
 
-  /* =========================================================
-     VIEW CLIENT
-  ========================================================= */
-
   const handleRowClick = useCallback((client) => {
-    if (!client) {
-      return;
-    }
-
+    if (!client) return;
     setSelectedClient(client);
     setClientDetailDrawerOpen(true);
   }, []);
 
-  /* =========================================================
-     DIRECT DELETE (NO POPUP - ONLY BOTTOM NOTIFICATION)
-  ========================================================= */
-
   const handleDeleteClient = useCallback(async (client) => {
     if (!client) return;
-
     const clientId = getClientId(client);
     if (!clientId) return;
-
     const clientName = client?.name || "Client";
 
     try {
-      // 1. Direct API call
       await deleteClient(clientId);
-
-      // 2. Niche notification show hogi jisme client ka naam hoga
       showSuccessToast(`Client "${clientName}" deleted successfully!`);
-
-      // 3. UI list se remove ho jayega
       setClients((prev) => prev.filter((c) => getClientId(c) !== clientId));
     } catch (error) {
       console.error("Delete client failed:", error);
@@ -455,67 +284,31 @@ export default function Clients() {
     }
   }, []);
 
-  /* =========================================================
-     FORM CLOSE
-  ========================================================= */
-
   const handleFormClose = useCallback(() => {
     setFormDrawerOpen(false);
     setEditingClient(null);
   }, []);
 
-  /* =========================================================
-     SEARCH
-  ========================================================= */
-
   const handleSearchChange = useCallback((event) => {
     setSearch(event.target.value);
-    setPagination((previous) =>
-      previous.pageIndex === 0 ? previous : { ...previous, pageIndex: 0 }
-    );
+    setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
   }, []);
 
-  /* =========================================================
-     FILTER
-  ========================================================= */
-
-  const handleFilterOpen = useCallback(() => {
-    setFilterDrawerOpen(true);
-  }, []);
-
-  const handleFilterClose = useCallback(() => {
-    setFilterDrawerOpen(false);
-  }, []);
+  const handleFilterOpen = useCallback(() => setFilterDrawerOpen(true), []);
+  const handleFilterClose = useCallback(() => setFilterDrawerOpen(false), []);
 
   const handleFilterChange = useCallback((nextFilters) => {
     setFilters(nextFilters);
-    setPagination((previous) =>
-      previous.pageIndex === 0 ? previous : { ...previous, pageIndex: 0 }
-    );
+    setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
   }, []);
 
-  /* =========================================================
-     SORT
-  ========================================================= */
-
-  const handleSortOpen = useCallback(() => {
-    setSortDrawerOpen(true);
-  }, []);
-
-  const handleSortClose = useCallback(() => {
-    setSortDrawerOpen(false);
-  }, []);
+  const handleSortOpen = useCallback(() => setSortDrawerOpen(true), []);
+  const handleSortClose = useCallback(() => setSortDrawerOpen(false), []);
 
   const handleSortChange = useCallback((nextSort) => {
     setSortConfig(nextSort);
-    setPagination((previous) =>
-      previous.pageIndex === 0 ? previous : { ...previous, pageIndex: 0 }
-    );
+    setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
   }, []);
-
-  /* =========================================================
-     DETAIL DRAWER
-  ========================================================= */
 
   const handleDetailClose = useCallback(() => {
     setClientDetailDrawerOpen(false);
@@ -523,27 +316,15 @@ export default function Clients() {
   }, []);
 
   /* =========================================================
-     VIEW CHANGE
-  ========================================================= */
-
-  const handleViewChange = useCallback((nextView) => {
-    setView(nextView);
-  }, []);
-
-  /* =========================================================
-     PROCESSED DATA
+     PROCESSED DATA (SEARCH + FILTER + SORT)
   ========================================================= */
 
   const processedData = useMemo(() => {
     const searchTerm = normalize(search);
 
     const filtered = clients.filter((client) => {
-      /* Hide archived clients */
-      if (normalize(client?.status) === "archived") {
-        return false;
-      }
+      if (normalize(client?.status) === "archived") return false;
 
-      /* SEARCH */
       if (searchTerm) {
         const searchableText = [
           client?.name,
@@ -558,12 +339,9 @@ export default function Clients() {
           .map(normalize)
           .join(" ");
 
-        if (!searchableText.includes(searchTerm)) {
-          return false;
-        }
+        if (!searchableText.includes(searchTerm)) return false;
       }
 
-      /* STATUS FILTER */
       const normalizedClientStatus = normalize(client?.status);
       const normalizedFilterStatus = filters.status.map(normalize);
 
@@ -571,38 +349,26 @@ export default function Clients() {
         filters.status.length === 0 ||
         normalizedFilterStatus.includes(normalizedClientStatus);
 
-      if (!matchesStatus) {
-        return false;
-      }
+      if (!matchesStatus) return false;
 
-      /* CREATED DATE FILTER */
       const clientDate = parseDate(client?.createdAt);
-
       if (filters.fromDate) {
         const fromDate = parseDateBoundary(filters.fromDate);
-        if (!clientDate || !fromDate || clientDate < fromDate) {
-          return false;
-        }
+        if (!clientDate || !fromDate || clientDate < fromDate) return false;
       }
 
       if (filters.toDate) {
         const toDate = parseDateBoundary(filters.toDate, true);
-        if (!clientDate || !toDate || clientDate > toDate) {
-          return false;
-        }
+        if (!clientDate || !toDate || clientDate > toDate) return false;
       }
 
       return true;
     });
 
-    /* SORT */
-    if (!sortConfig.field) {
-      return filtered;
-    }
+    if (!sortConfig.field) return filtered;
 
     const sortType =
-      SORT_COLUMNS.find((column) => column.id === sortConfig.field)?.type ||
-      "string";
+      SORT_COLUMNS.find((col) => col.id === sortConfig.field)?.type || "string";
 
     return [...filtered].sort((a, b) =>
       compareValues(
@@ -615,7 +381,7 @@ export default function Clients() {
   }, [clients, filters, search, sortConfig]);
 
   /* =========================================================
-     PAGINATION CALCULATION (SAFE BOUNDS DURING RENDER)
+     PAGINATION CALCULATION (SAFE BOUNDS)
   ========================================================= */
 
   const totalPages = Math.max(
@@ -642,15 +408,15 @@ export default function Clients() {
 
   const stats = useMemo(() => {
     const totalClients = clients.filter(
-      (client) => normalize(client?.status) !== "archived"
+      (c) => normalize(c?.status) !== "archived"
     ).length;
 
     const activeClientsList = clients.filter(
-      (client) => normalize(client?.status) === "active"
+      (c) => normalize(c?.status) === "active"
     ).length;
 
     const pendingClients = clients.filter(
-      (client) => normalize(client?.status) === "pending"
+      (c) => normalize(c?.status) === "pending"
     ).length;
 
     const retentionRate =
@@ -690,7 +456,7 @@ export default function Clients() {
   }, [clients]);
 
   /* =========================================================
-     CARD VIEW PAGINATION SLICE
+     GRID CARD VIEW SLICE
   ========================================================= */
 
   const startIndex = safePageIndex * pagination.pageSize;
@@ -702,28 +468,25 @@ export default function Clients() {
   );
 
   const handlePageSizeChange = useCallback((event) => {
-    const pageSize = Number(event.target.value);
-
-    if (!PAGE_SIZES.includes(pageSize)) {
-      return;
-    }
+    const nextSize = Number(event.target.value);
+    if (!PAGE_SIZES.includes(nextSize)) return;
 
     setPagination({
       pageIndex: 0,
-      pageSize,
+      pageSize: nextSize,
     });
   }, []);
 
   const goToPreviousPage = useCallback(() => {
-    setPagination((previous) => ({
-      ...previous,
+    setPagination((prev) => ({
+      ...prev,
       pageIndex: Math.max(safePageIndex - 1, 0),
     }));
   }, [safePageIndex]);
 
   const goToNextPage = useCallback(() => {
-    setPagination((previous) => ({
-      ...previous,
+    setPagination((prev) => ({
+      ...prev,
       pageIndex: Math.min(safePageIndex + 1, totalPages - 1),
     }));
   }, [safePageIndex, totalPages]);
@@ -739,18 +502,15 @@ export default function Clients() {
         header: "Client Name",
         cell: ({ row, getValue }) => {
           const client = row.original;
-
           return (
             <div className="flex min-w-[220px] items-center gap-3">
               <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary)]">
                 {getClientInitials(client)}
               </div>
-
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-[var(--color-text)]">
                   {getValue() || "Unnamed Client"}
                 </div>
-
                 {client?.email && (
                   <div className="truncate text-xs text-[var(--color-text-muted)]">
                     {client.email}
@@ -817,7 +577,6 @@ export default function Clients() {
         header: "Status",
         cell: ({ getValue }) => {
           const status = getValue();
-
           return (
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusBadge(
@@ -835,13 +594,11 @@ export default function Clients() {
         header: "Action",
         cell: ({ row }) => {
           const client = row.original;
-
           return (
             <div
               className="flex items-center gap-1 whitespace-nowrap"
-              onClick={(event) => event.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* VIEW */}
               <button
                 type="button"
                 className={actionButtonClass}
@@ -854,7 +611,6 @@ export default function Clients() {
                 </span>
               </button>
 
-              {/* EDIT */}
               <button
                 type="button"
                 className={actionButtonClass}
@@ -867,7 +623,6 @@ export default function Clients() {
                 </span>
               </button>
 
-              {/* DELETE */}
               <button
                 type="button"
                 className={deleteButtonClass}
@@ -887,19 +642,11 @@ export default function Clients() {
     [handleRowClick, openEdit, handleDeleteClient]
   );
 
-  /* =========================================================
-     ACTIVE CLIENTS COUNT
-  ========================================================= */
-
   const activeClients = useMemo(
     () =>
       clients.filter((client) => normalize(client?.status) === "active").length,
     [clients]
   );
-
-  /* =========================================================
-     RENDER
-  ========================================================= */
 
   return (
     <main className="mx-auto flex w-full max-w-[1600px] flex-1 bg-[var(--color-background)] pt-2 pb-12">
@@ -930,19 +677,16 @@ export default function Clients() {
         {/* SEARCH / FILTER / SORT / VIEW */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            {/* SEARCH */}
             <div className="relative">
               <label htmlFor="client-search" className="sr-only">
                 Search clients
               </label>
-
               <span
                 aria-hidden="true"
                 className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--color-text-light)]"
               >
                 search
               </span>
-
               <input
                 id="client-search"
                 type="search"
@@ -954,7 +698,6 @@ export default function Clients() {
               />
             </div>
 
-            {/* FILTER */}
             <button
               type="button"
               onClick={handleFilterOpen}
@@ -967,7 +710,6 @@ export default function Clients() {
               Filter
             </button>
 
-            {/* SORT */}
             <button
               type="button"
               onClick={handleSortOpen}
@@ -981,12 +723,11 @@ export default function Clients() {
             </button>
           </div>
 
-          {/* VIEW */}
+          {/* VIEW SWITCHER */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--color-text-muted)]">
               View:
             </span>
-
             <div
               className="flex rounded-[var(--radius-lg)] bg-[var(--color-surface-secondary)] p-1"
               role="group"
@@ -994,7 +735,7 @@ export default function Clients() {
             >
               <button
                 type="button"
-                onClick={() => handleViewChange("list")}
+                onClick={() => setView("list")}
                 aria-label="List view"
                 aria-pressed={view === "list"}
                 className={`rounded-[var(--radius-md)] p-1.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[rgba(15,157,148,0.15)] ${
@@ -1010,7 +751,7 @@ export default function Clients() {
 
               <button
                 type="button"
-                onClick={() => handleViewChange("grid")}
+                onClick={() => setView("grid")}
                 aria-label="Grid view"
                 aria-pressed={view === "grid"}
                 className={`rounded-[var(--radius-md)] p-1.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[rgba(15,157,148,0.15)] ${
@@ -1032,6 +773,7 @@ export default function Clients() {
           <DataTable
             data={processedData}
             columns={columns}
+            loading={isLoading}
             pagination={safePagination}
             setPagination={setPagination}
             emptyMessage={
@@ -1042,12 +784,11 @@ export default function Clients() {
           />
         ) : (
           <>
-            {/* GRID LOADING */}
+            {/* GRID VIEW */}
             {isLoading ? (
               <div
                 className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center shadow-[var(--shadow-sm)]"
                 role="status"
-                aria-live="polite"
               >
                 <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-text-light)]">
                   progress_activity
@@ -1061,10 +802,7 @@ export default function Clients() {
                 className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center shadow-[var(--shadow-sm)]"
                 role="status"
               >
-                <div
-                  aria-hidden="true"
-                  className="mb-2 text-[var(--color-text-light)]"
-                >
+                <div aria-hidden="true" className="mb-2 text-[var(--color-text-light)]">
                   <span className="material-symbols-outlined text-4xl">
                     group_off
                   </span>
@@ -1108,7 +846,6 @@ export default function Clients() {
                 </p>
 
                 <div className="flex items-center gap-3">
-                  {/* PAGE SIZE */}
                   <label htmlFor="client-page-size" className="sr-only">
                     Clients per page
                   </label>
@@ -1125,7 +862,6 @@ export default function Clients() {
                     ))}
                   </select>
 
-                  {/* PAGINATION BUTTONS */}
                   <div
                     className="flex items-center rounded-[var(--radius-xl)] bg-[var(--color-surface-secondary)] p-1"
                     aria-label="Pagination"
@@ -1167,14 +903,13 @@ export default function Clients() {
           </>
         )}
 
-        {/* CLIENT FORM DRAWER */}
+        {/* DRAWERS */}
         <ClientDrawer
           isOpen={formDrawerOpen}
           onClose={handleFormClose}
           client={editingClient}
         />
 
-        {/* FILTER DRAWER */}
         <FilterDrawer
           isOpen={filterDrawerOpen}
           onClose={handleFilterClose}
@@ -1182,7 +917,6 @@ export default function Clients() {
           setFilters={handleFilterChange}
         />
 
-        {/* SORT DRAWER */}
         <SortDrawer
           isOpen={sortDrawerOpen}
           onClose={handleSortClose}
@@ -1191,7 +925,6 @@ export default function Clients() {
           setSortConfig={handleSortChange}
         />
 
-        {/* CLIENT DETAIL DRAWER */}
         <ClientDetailDrawer
           isOpen={clientDetailDrawerOpen}
           onClose={handleDetailClose}
