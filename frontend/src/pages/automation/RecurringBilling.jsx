@@ -27,7 +27,7 @@ export default function RecurringBilling() {
   const fetchOverview = useCallback(async () => {
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch(`${import.meta.env.VITE_API_URL}`||"http://localhost:5000/api/v1/automation/overview", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/automation/overview`||"http://localhost:5000/api/v1/automation/overview", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

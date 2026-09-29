@@ -386,7 +386,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}`||"http://localhost:5000/api/v1/auth/forgot-password", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/forgot-password`||"http://localhost:5000/api/v1/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: modalEmail.trim().toLowerCase() }),
@@ -417,7 +417,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/verify-reset-otp", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-reset-otp`||"http://localhost:5000/api/v1/auth/verify-reset-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -454,7 +454,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/reset-password", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/reset-password`||"http://localhost:5000/api/v1/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -633,7 +633,7 @@ function Stat({ value, label }) {
 
 function SocialLogin() {
   const handleGoogleClick = () => {
-    window.location.href = import.meta.env.VITE_API_URL ||"http://localhost:5000/api/v1/auth/google";
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/google` ||"http://localhost:5000/api/v1/auth/google";
   };
 
   return (
