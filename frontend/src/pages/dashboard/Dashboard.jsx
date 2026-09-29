@@ -2,7 +2,6 @@ import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Button from "../../components/ui/Button";
-import { exportToExcel } from "../../utils/exportToExcel";
 import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import SectionHeader from "../../components/ui/SectionHeader";
@@ -10,6 +9,8 @@ import DataTable from "../../components/ui/DataTable";
 import ClientDetailDrawer from "../../components/clients/ClientDetailDrawer";
 import ClientFormDrawer from "../../components/clients/ClientFormDrawer";
 import { useCurrencyStore } from "../../store/currencyStore";
+import { usePermissions } from "../../hooks/usePermissions"; // adjust path
+import NoAccess from "../../components/NoAccess";           // adjust path
 import {
   BarChart,
   Bar,
@@ -47,7 +48,18 @@ const getAuthToken = () => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { formatAmount, selectedCurrency } = useCurrencyStore();
+  const { can, role } = usePermissions();
 
+  // No usable page access → show professional empty state
+  const hasAnyPageAccess =
+    can("dashboard:view") ||
+    can("invoices:view") ||
+    can("clients:view") ||
+    can("projects:view") ||
+    can("analytics:view") ||
+    can("automation:view") ||
+    can("team:view") ||
+    can("settings:view");
   const format = useCallback(
     (val) => {
       if (typeof formatAmount === "function") {
@@ -154,22 +166,25 @@ export default function Dashboard() {
   };
 
   const openClientDetail = useCallback((clientTarget, rawClientName = "") => {
-    const clientPayload =
-      clientTarget && typeof clientTarget === "object"
-        ? {
-            ...clientTarget,
-            name: clientTarget.name || rawClientName || "Client Details",
-            email: clientTarget.email || "No Email Provided",
-            company: clientTarget.company || clientTarget.companyName || "—",
-            phone: clientTarget.phone || "—",
-          }
-        : {
-            id: typeof clientTarget === "string" ? clientTarget : undefined,
-            name: rawClientName || "Client Details",
-            email: "No Email Provided",
-            company: "—",
-            phone: "—",
-          };
+    let clientPayload = {};
+
+    if (clientTarget && typeof clientTarget === "object") {
+      clientPayload = {
+        ...clientTarget,
+        name: clientTarget.name || rawClientName || "Client Details",
+        email: clientTarget.email || "No Email Provided",
+        company: clientTarget.company || clientTarget.companyName || "—",
+        phone: clientTarget.phone || "—",
+      };
+    } else {
+      clientPayload = {
+        id: typeof clientTarget === "string" ? clientTarget : undefined,
+        name: rawClientName || "Client Details",
+        email: "No Email Provided",
+        company: "—",
+        phone: "—",
+      };
+    }
 
     setSelectedClient(clientPayload);
     setClientDetailDrawer(true);
@@ -221,12 +236,17 @@ export default function Dashboard() {
     }
   }, []);
 
-
-  // ==================== INITIAL FETCH ====================
+    // ==================== INITIAL FETCH ====================
   useEffect(() => {
     let isMounted = true;
 
     const fetchDashboard = async () => {
+      // No permission → do not call API → no toaster
+      if (!can("dashboard:view")) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
         const token = getAuthToken();
 
@@ -237,6 +257,12 @@ export default function Dashboard() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
+
+        // 403 = permission denied → silent, no toast
+        if (response.status === 403) {
+          if (isMounted) setLoading(false);
+          return;
+        }
 
         const text = await response.text();
         let result = {};
@@ -263,8 +289,15 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("DASHBOARD ERROR:", error);
-        if (isMounted) {
-          toast.error(error.message || "Failed to fetch dashboard");
+        const msg = String(error?.message || "");
+        // Never toast permission errors
+        if (
+          isMounted &&
+          !msg.toLowerCase().includes("permission") &&
+          !msg.toLowerCase().includes("access denied") &&
+          !msg.toLowerCase().includes("forbidden")
+        ) {
+          toast.error(msg || "Failed to fetch dashboard");
         }
       } finally {
         if (isMounted) {
@@ -278,7 +311,7 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [can]);
 
   useEffect(() => {
     const handleClientUpdated = () => refetchDashboard();
@@ -518,57 +551,26 @@ export default function Dashboard() {
     ],
     [format, navigate, openClientDetail]
   );
-  // ==================== EXPORT REPORT ====================
-  const handleExportReport = () => {
-    const list = dashboardData?.recentInvoices || [];
 
-    if (!list.length) {
-      toast.error("Download karne ke liye koi invoice nahi mili!");
-      return;
-    }
-
-    // Excel ke rows aur columns format karo
-    const excelRows = list.map((inv) => {
-      const clientName =
-        inv.clientName ||
-        inv.client?.name ||
-        (typeof inv.client === "string" ? inv.client : "") ||
-        "Unknown Client";
-
-      const raw = inv.date || inv.invoiceDate || inv.issueDate || inv.createdAt;
-      const d = raw ? new Date(raw) : null;
-      const formattedDate =
-        d && !isNaN(d.getTime())
-          ? d.toLocaleDateString("en-US", {
-              month: "short",
-              day: "2-digit",
-              year: "numeric",
-            })
-          : "—";
-
-      return {
-        "Invoice ID": `#${inv.invoiceNumber || inv.number || "—"}`,
-        "Client Name": clientName,
-        "Date Issued": formattedDate,
-        "Amount": inv.amount || inv.total || 0,
-        "Status": String(inv.status || "draft").toUpperCase(),
-      };
-    });
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    exportToExcel(excelRows, `AutoBillr_Invoices_Report_${dateStr}.xlsx`);
-    toast.success("Excel report download ho gayi!");
-  };  
-
-
-
-  if (loading) {
+    if (loading) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
+
+  // Analyst (or any role) with no permissions → contact owner message
+  if (!hasAnyPageAccess) {
+    return <NoAccess role={role} />;
+  }
+
+  // Optional: if they don't even have dashboard:view, still show NoAccess
+  if (!can("dashboard:view")) {
+    return <NoAccess role={role} />;
+  }
+
+
 
   return (
     <main className="flex-1 pt-2 pb-12 w-full px-0">
@@ -588,7 +590,6 @@ export default function Dashboard() {
         primaryAction={{
           label: "Export Report",
           icon: "download",
-          onClick: handleExportReport,
         }}
       />
 

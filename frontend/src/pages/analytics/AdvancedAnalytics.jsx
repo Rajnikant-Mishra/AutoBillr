@@ -4,8 +4,6 @@ import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import useCurrency from "../../hooks/useCurrency";
-import { exportToExcel } from "../../utils/exportToExcel";
-import toast from "react-hot-toast";
 
 export default function Analytics() {
   const { formatCurrency, currencySymbol = "₹" } = useCurrency?.() || {};
@@ -153,79 +151,6 @@ export default function Analytics() {
           .toUpperCase()
           .slice(0, 2)
       : "CL";
-   // ==================== EXPORT ANALYTICS REPORT ====================
-  const handleExportReport = () => {
-    const rows = [];
-
-    // 1. KPI Overview Data
-    rows.push({
-      "Report Category": "KPI Summary",
-      "Metric / Client": "Total Invoiced",
-      "Amount / Value": stats.totalInvoiced || 0,
-      "Additional Info": `${stats.totalInvoicesCount || 0} Invoices`,
-    });
-    rows.push({
-      "Report Category": "KPI Summary",
-      "Metric / Client": "Total Collected",
-      "Amount / Value": stats.totalCollected || 0,
-      "Additional Info": `Collection Rate: ${stats.collectionRate || 0}%`,
-    });
-    rows.push({
-      "Report Category": "KPI Summary",
-      "Metric / Client": "Pending Dues",
-      "Amount / Value": stats.totalPending || 0,
-      "Additional Info": `Overdue: ${stats.totalOverdue || 0}`,
-    });
-    rows.push({
-      "Report Category": "KPI Summary",
-      "Metric / Client": "Monthly Recurring (MRR)",
-      "Amount / Value": stats.totalMRR || 0,
-      "Additional Info": `${stats.totalClientsCount || 0} Active Clients`,
-    });
-
-    // 2. Aging Dues Data
-    rows.push({
-      "Report Category": "Aging Dues",
-      "Metric / Client": "Current (0-30 Days)",
-      "Amount / Value": agingReport.current || 0,
-      "Additional Info": getAgingPercent(agingReport.current),
-    });
-    rows.push({
-      "Report Category": "Aging Dues",
-      "Metric / Client": "Overdue (30-60 Days)",
-      "Amount / Value": agingReport.thirtyToSixty || 0,
-      "Additional Info": getAgingPercent(agingReport.thirtyToSixty),
-    });
-    rows.push({
-      "Report Category": "Aging Dues",
-      "Metric / Client": "Overdue (60+ Days)",
-      "Amount / Value": agingReport.sixtyPlus || 0,
-      "Additional Info": getAgingPercent(agingReport.sixtyPlus),
-    });
-
-    // 3. Client Breakdown Data
-    if (revenueByClient && revenueByClient.length > 0) {
-      revenueByClient.forEach((c) => {
-        rows.push({
-          "Report Category": "Client Revenue Breakdown",
-          "Metric / Client": c.name,
-          "Amount / Value": c.amount || 0,
-          "Additional Info": `Revenue Share: ${c.percentage}%`,
-        });
-      });
-    }
-
-    if (rows.length === 0) {
-      toast.error("Download karne ke liye koi data nahi mila!");
-      return;
-    }
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    exportToExcel(rows, `AutoBillr_Analytics_Report_${dateStr}.xlsx`);
-    toast.success("Analytics report download ho gayi!");
-  };
-     
-
 
   return (
     <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
@@ -244,7 +169,7 @@ export default function Analytics() {
             label: "Export Report",
             variant: "primary",
             icon: "download",
-            onClick: handleExportReport,
+            onClick: () => {},
           }}
         />
 
