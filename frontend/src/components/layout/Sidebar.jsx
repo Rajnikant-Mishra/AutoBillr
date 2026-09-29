@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import { getAuthToken, clearAuth } from "../../utils/auth";
+import { usePermissions } from "../../hooks/usePermissions";
 
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
@@ -10,40 +11,100 @@ const navigation = [
   {
     section: "Workspace",
     items: [
-      { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
-      { to: "/invoices", label: "Invoices", icon: "receipt_long", count: true },
-      { to: "/composer", label: "Composer", icon: "edit_note" },
-      { to: "/clients", label: "Clients", icon: "group" },
-      { to: "/projects", label: "Projects", icon: "assignment" },
+      {
+        to: "/dashboard",
+        label: "Dashboard",
+        icon: "dashboard",
+        permission: "dashboard:view",
+      },
+      {
+        to: "/invoices",
+        label: "Invoices",
+        icon: "receipt_long",
+        count: true,
+        permission: "invoices:view",
+      },
+      {
+        to: "/composer",
+        label: "Composer",
+        icon: "edit_note",
+        permission: "invoices:create",
+      },
+      {
+        to: "/clients",
+        label: "Clients",
+        icon: "group",
+        permission: "clients:view",
+      },
+      {
+        to: "/projects",
+        label: "Projects",
+        icon: "assignment",
+        permission: "projects:view",
+      },
     ],
   },
   {
     section: "Intelligence",
     items: [
-      { to: "/analytics", label: "Analytics", icon: "bar_chart" },
+      {
+        to: "/analytics",
+        label: "Analytics",
+        icon: "bar_chart",
+        permission: "analytics:view",
+      },
       {
         to: "/automation",
         label: "Automation",
         icon: "auto_awesome",
         badge: "AI",
+        permission: "automation:view",
       },
     ],
   },
   {
     section: "Administration",
     items: [
-      { to: "/settings", label: "Settings", icon: "settings" },
-      { to: "/team", label: "Team & Permissions", icon: "admin_panel_settings" },
-      { to: "/clientportal", label: "Client Portal", icon: "share" },
-      { to: "/app/pricing", label: "Pricing", icon: "loyalty" },
+      {
+        to: "/settings",
+        label: "Settings",
+        icon: "settings",
+        permission: "settings:view",
+      },
+      {
+        to: "/team",
+        label: "Team & Permissions",
+        icon: "admin_panel_settings",
+        permission: "team:view",
+      },
+      {
+        to: "/clientportal",
+        label: "Client Portal",
+        icon: "share",
+        permission: "settings:view",
+      },
+      {
+        to: "/app/pricing",
+        label: "Pricing",
+        icon: "loyalty",
+        permission: "billing:view",
+      },
     ],
   },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
 
-  const [invoiceCount, setInvoiceCount] = useState(0);
+  // Keep a ref to 'can' so it doesn't trigger effect re-runs on every render
+  const canRef = useRef(can);
+  useEffect(() => {
+    canRef.current = can;
+  }, [can]);
+
+  // Start with null so we know whether initial load has happened
+  const [invoiceCount, setInvoiceCount] = useState(null);
   const [invoiceCountLoading, setInvoiceCountLoading] = useState(false);
 
   // Branding
@@ -63,11 +124,9 @@ export default function Sidebar() {
       setLogoUrl(logo);
       setBrandColor(color);
 
-      // Keep CSS variable in sync
       document.documentElement.style.setProperty("--color-primary", color);
     };
 
-    // Run once on mount
     syncBranding();
 
     window.addEventListener("storage", syncBranding);
@@ -79,7 +138,12 @@ export default function Sidebar() {
     };
   }, []);
 
-  const fetchInvoiceCount = useCallback(async () => {
+  const fetchInvoiceCount = useCallback(async (isInitial = false) => {
+    if (canRef.current && !canRef.current("invoices:view")) {
+      setInvoiceCount(0);
+      return;
+    }
+
     const token = getAuthToken();
 
     if (!token) {
@@ -88,7 +152,10 @@ export default function Sidebar() {
     }
 
     try {
-      setInvoiceCountLoading(true);
+      // ONLY trigger loading dots if we don't already have a count in memory
+      if (isInitial && invoiceCount === null) {
+        setInvoiceCountLoading(true);
+      }
 
       const response = await axios.get(`${API_URL}/invoices`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -117,15 +184,41 @@ export default function Sidebar() {
         navigate("/login", { replace: true });
       }
 
-      setInvoiceCount(0);
+      setInvoiceCount((prev) => (prev !== null ? prev : 0));
     } finally {
       setInvoiceCountLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, invoiceCount]);
 
   useEffect(() => {
-    fetchInvoiceCount();
+    const initialFetch = window.setTimeout(() => {
+      fetchInvoiceCount(true);
+    }, 0);
+
+    // Optional event listener if an invoice is created/deleted elsewhere in the app
+    const handleInvoiceSync = () => fetchInvoiceCount(false);
+    window.addEventListener("autobillr-invoices-updated", handleInvoiceSync);
+
+    return () => {
+      window.clearTimeout(initialFetch);
+      window.removeEventListener("autobillr-invoices-updated", handleInvoiceSync);
+    };
   }, [fetchInvoiceCount]);
+
+  // Filter navigation based on permissions
+  const filteredNavigation = useMemo(() => {
+    return navigation
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => {
+          if (item.permission === null || item.permission === undefined) {
+            return true;
+          }
+          return can(item.permission);
+        }),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [can]);
 
   const handleLogout = () => {
     try {
@@ -217,7 +310,7 @@ export default function Sidebar() {
         className="flex-1 px-3 overflow-y-auto pb-2"
         aria-label="Application navigation"
       >
-        {navigation.map((section) => (
+        {filteredNavigation.map((section) => (
           <div
             key={section.section}
             className={section.section !== "Workspace" ? "mt-5" : ""}
@@ -249,9 +342,12 @@ export default function Sidebar() {
                         text-[10.5px] tabular-nums font-semibold
                         text-text-light
                       "
-                      aria-label={`${invoiceCount} invoices`}
+                      aria-label={`${invoiceCount ?? 0} invoices`}
                     >
-                      {invoiceCountLoading ? "…" : invoiceCount}
+                      {/* Never show "…" if we already have the count */}
+                      {invoiceCountLoading && invoiceCount === null
+                        ? "…"
+                        : (invoiceCount ?? 0)}
                     </span>
                   )}
 
@@ -276,32 +372,34 @@ export default function Sidebar() {
 
       {/* ========== BOTTOM ACTIONS ========== */}
       <div className="p-4 border-t border-border space-y-3">
-        <button
-          type="button"
-          onClick={() => navigate("/composer")}
-          className="
-            w-full flex items-center justify-center gap-2
-            py-2.5 px-4
-            rounded-xl
-            text-sm font-semibold
-            bg-primary text-text-inverse
-            shadow-sm shadow-primary/20
-            hover:bg-primary-hover
-            active:scale-[0.98]
-            transition-all duration-200
-            outline-none
-            focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
-          "
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: "18px" }}
-            aria-hidden="true"
+        {can("invoices:create") && (
+          <button
+            type="button"
+            onClick={() => navigate("/composer")}
+            className="
+              w-full flex items-center justify-center gap-2
+              py-2.5 px-4
+              rounded-xl
+              text-sm font-semibold
+              bg-primary text-text-inverse
+              shadow-sm shadow-primary/20
+              hover:bg-primary-hover
+              active:scale-[0.98]
+              transition-all duration-200
+              outline-none
+              focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
+            "
           >
-            add
-          </span>
-          New Invoice
-        </button>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "18px" }}
+              aria-hidden="true"
+            >
+              add
+            </span>
+            New Invoice
+          </button>
+        )}
 
         <button
           type="button"

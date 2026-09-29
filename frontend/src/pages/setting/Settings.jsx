@@ -1,25 +1,21 @@
-
-import React, { useEffect, useState } from "react";
-
+import { useEffect, useState } from "react";
 import ApiWebhooksSection from "../../components/setting/ApiWebhooksSection";
 import DataExportSection from "../../components/setting/DataExportSection";
 import NotificationsSection from "../../components/setting/NotificationsSection";
 import IntegrationsSection from "../../components/setting/IntegrationsSection";
 import PaymentMethodsSection from "../../components/setting/PaymentMethodsSection";
-
 import SectionHeader from "../../components/ui/SectionHeader";
 import SettingsNav from "../../components/setting/SettingsNav";
 import BusinessInfoSection from "../../components/setting/BusinessInfoSection";
 import BrandingSection from "../../components/setting/BrandingSection";
 import TaxInvoicingSection from "../../components/setting/TaxInvoicingSection";
-
 import { getProfile } from "../../services/userService";
+import { updateBusinessProfile } from "../../services/settingsService";
 import { showSuccessToast } from "../../components/ui/CustomToast";
+import FeatureGate from "../../components/common/FeatureGate";
 
 /* =========================================================
    EMPTY STATES
-   These are NOT default company values.
-   They are only empty values until backend data loads.
 ========================================================= */
 
 const EMPTY_BUSINESS = {
@@ -27,7 +23,7 @@ const EMPTY_BUSINESS = {
   displayName: "",
   industry: "",
   companySize: "",
-  currency: "",
+  currency: "USD",
   fiscalYear: "",
   address: "",
   taxId: "",
@@ -35,7 +31,7 @@ const EMPTY_BUSINESS = {
 };
 
 const EMPTY_TAX = {
- rate: "18",
+  rate: "18",
   label: "",
   prefix: "",
   nextNumber: "",
@@ -54,36 +50,11 @@ const EMPTY_BRANDING = {
 };
 
 const NOTIFICATION_ROWS = [
-  {
-    id: "paid",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "overdue",
-    email: true,
-    push: false,
-    slack: true,
-  },
-  {
-    id: "errors",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "mentions",
-    email: true,
-    push: true,
-    slack: true,
-  },
-  {
-    id: "weekly",
-    email: true,
-    push: false,
-    slack: false,
-  },
+  { id: "paid", email: true, push: true, slack: true },
+  { id: "overdue", email: true, push: false, slack: true },
+  { id: "errors", email: true, push: true, slack: true },
+  { id: "mentions", email: true, push: true, slack: true },
+  { id: "weekly", email: true, push: false, slack: false },
 ];
 
 function getEmptyNotifications() {
@@ -100,255 +71,115 @@ function getEmptyNotifications() {
 }
 
 /* =========================================================
-   SETTINGS
+   SETTINGS COMPONENT
 ========================================================= */
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business");
-
   const [loading, setLoading] = useState(true);
 
-  const [business, setBusiness] =
-    useState(EMPTY_BUSINESS);
-
-  const [tax, setTax] =
-    useState(EMPTY_TAX);
-
-  const [branding, setBranding] =
-    useState(EMPTY_BRANDING);
-
-  const [notif, setNotif] = useState(
-    getEmptyNotifications()
-  );
-
-  const [exportToggles, setExportToggles] =
-    useState({
-      archive: false,
-      encrypt: false,
-    });
+  const [business, setBusiness] = useState(EMPTY_BUSINESS);
+  const [tax, setTax] = useState(EMPTY_TAX);
+  const [branding, setBranding] = useState(EMPTY_BRANDING);
+  const [notif, setNotif] = useState(getEmptyNotifications());
+  const [exportToggles, setExportToggles] = useState({
+    archive: false,
+    encrypt: false,
+  });
 
   /* =========================================================
-     LOAD REGISTERED DATA
+     LOAD SAVED / REGISTERED DATA
   ========================================================= */
 
   const loadSettings = async () => {
+    const localBiz = JSON.parse(
+      localStorage.getItem("autobillr-business") || "{}"
+    );
+    const localTax = JSON.parse(
+      localStorage.getItem("autobillr-tax") || "{}"
+    );
+    const localBranding = JSON.parse(
+      localStorage.getItem("autobillr-branding") || "{}"
+    );
+
     try {
       setLoading(true);
 
-      const response = await getProfile();
+      const response = await getProfile().catch(() => null);
+      const user = response?.user || {};
+      const company = user?.company || response?.company || {};
 
-      console.log(
-        "REGISTERED PROFILE RESPONSE:",
-        response
-      );
-
-      const user = response?.user;
-
-      if (!user) {
-        throw new Error(
-          "User information not returned by backend"
-        );
-      }
-
-      /*
-       * Company can come from:
-       *
-       * response.user.company
-       * response.company
-       *
-       */
-
-      const company =
-        user?.company ||
-        response?.company ||
-        {};
-
-      console.log(
-        "REGISTERED COMPANY:",
-        company
-      );
-
-      /* =====================================================
-         BUSINESS
-      ===================================================== */
-
+      /* ================= BUSINESS ================= */
       setBusiness({
         companyName:
-          company?.name ??
-          user?.companyName ??
-          "",
-
+          company?.name || user?.companyName || localBiz.companyName || "",
         displayName:
-          company?.displayName ??
-          user?.displayName ??
-          "",
-
+          company?.displayName || user?.displayName || localBiz.displayName || "",
         industry:
-          company?.industry ??
-          user?.industry ??
-          "",
-
+          company?.industry || user?.industry || localBiz.industry || "",
         companySize:
-          company?.companySize ??
-          user?.companySize ??
-          "",
-
+          company?.companySize || user?.companySize || localBiz.companySize || "",
         currency:
-          company?.currency ??
-          user?.currency ??
-          "",
-
+          company?.currency || user?.currency || localBiz.currency || "USD",
         fiscalYear:
-          company?.fiscalYear ??
-          user?.fiscalYear ??
-          "",
-
+          company?.fiscalYear || user?.fiscalYear || localBiz.fiscalYear || "",
         address:
-          company?.address ??
-          user?.address ??
-          "",
-
+          company?.address || user?.address || localBiz.address || "",
         taxId:
-          company?.taxId ??
-          user?.taxId ??
-          "",
-
+          company?.taxId || user?.taxId || localBiz.taxId || "",
         vat:
-          company?.vat ??
-          user?.vat ??
-          "",
+          company?.vat || user?.vat || localBiz.vat || "",
       });
 
-      /* =====================================================
-         TAX
-
-         THIS IS THE IMPORTANT PART.
-
-         Values come from backend/database.
-         No hardcoded tax values.
-      ===================================================== */
-
+      /* ================= TAX ================= */
       setTax({
-        rate:
-          company?.taxRate ??
-          user?.taxRate ??
-          "",
-
-        label:
-          company?.taxLabel ??
-          user?.taxLabel ??
-          "",
-
-        prefix:
-          company?.invoicePrefix ??
-          user?.invoicePrefix ??
-          "",
-
+        rate: company?.taxRate || user?.taxRate || localTax.rate || "18",
+        label: company?.taxLabel || user?.taxLabel || localTax.label || "",
+        prefix: company?.invoicePrefix || user?.invoicePrefix || localTax.prefix || "",
         nextNumber:
-          company?.nextInvoiceNumber ??
-          user?.nextInvoiceNumber ??
-          "",
-
-        terms:
-          company?.paymentTerms ??
-          user?.paymentTerms ??
-          "",
-
-        lateFee:
-          company?.lateFee ??
-          user?.lateFee ??
-          "",
-
+          company?.nextInvoiceNumber || user?.nextInvoiceNumber || localTax.nextNumber || "",
+        terms: company?.paymentTerms || user?.paymentTerms || localTax.terms || "",
+        lateFee: company?.lateFee || user?.lateFee || localTax.lateFee || "",
         autoTax:
-          company?.autoTax ??
-          user?.autoTax ??
-          false,
-
+          company?.autoTax ?? user?.autoTax ?? localTax.autoTax ?? false,
         breakdown:
-          company?.taxBreakdown ??
-          user?.taxBreakdown ??
-          false,
+          company?.taxBreakdown ?? user?.taxBreakdown ?? localTax.breakdown ?? false,
       });
 
-      /* =====================================================
-         BRANDING
-      ===================================================== */
-
+      /* ================= BRANDING ================= */
       setBranding({
-        logo:
-          company?.logo ??
-          user?.logo ??
-          null,
-
+        logo: company?.logo || user?.logo || localBranding.logo || null,
         brandColor:
-          company?.brandColor ??
-          user?.brandColor ??
-          "",
-
-        qr:
-          company?.showQr ??
-          user?.showQr ??
-          false,
-
+          company?.brandColor || user?.brandColor || localBranding.brandColor || "",
+        qr: company?.showQr ?? user?.showQr ?? localBranding.qr ?? false,
         thumbnails:
-          company?.showThumbnails ??
-          user?.showThumbnails ??
-          false,
-
+          company?.showThumbnails ?? user?.showThumbnails ?? localBranding.thumbnails ?? false,
         footer:
-          company?.showFooter ??
-          user?.showFooter ??
-          false,
+          company?.showFooter ?? user?.showFooter ?? localBranding.footer ?? false,
       });
 
-      /* =====================================================
-         NOTIFICATIONS
-      ===================================================== */
-
-      if (
-        company?.notifications ||
-        user?.notifications
-      ) {
-        setNotif(
-          company?.notifications ||
-            user?.notifications
-        );
+      if (company?.notifications || user?.notifications) {
+        setNotif(company?.notifications || user?.notifications);
       }
 
-      /* =====================================================
-         EXPORT
-      ===================================================== */
-
-      if (
-        company?.exportSettings ||
-        user?.exportSettings
-      ) {
-        setExportToggles(
-          company?.exportSettings ||
-            user?.exportSettings
-        );
+      if (company?.exportSettings || user?.exportSettings) {
+        setExportToggles(company?.exportSettings || user?.exportSettings);
       }
-
     } catch (error) {
-      console.error(
-        "LOAD SETTINGS ERROR:",
-        error
-      );
+      console.error("LOAD SETTINGS ERROR:", error);
+      if (Object.keys(localBiz).length > 0) setBusiness((prev) => ({ ...prev, ...localBiz }));
+      if (Object.keys(localTax).length > 0) setTax((prev) => ({ ...prev, ...localTax }));
     } finally {
       setLoading(false);
     }
   };
-
-  /* =========================================================
-     LOAD WHEN PAGE OPENS
-  ========================================================= */
 
   useEffect(() => {
     loadSettings();
   }, []);
 
   /* =========================================================
-     BUSINESS INPUT
+     INPUT HANDLERS
   ========================================================= */
 
   const setBiz = (key) => (event) => {
@@ -358,10 +189,6 @@ export default function Settings() {
     }));
   };
 
-  /* =========================================================
-     TAX INPUT
-  ========================================================= */
-
   const setTaxField = (key) => (event) => {
     setTax((previous) => ({
       ...previous,
@@ -369,83 +196,66 @@ export default function Settings() {
     }));
   };
 
-  /* =========================================================
-     THEME
-  ========================================================= */
-
   const applyThemeColor = (color) => {
     if (!color) return;
-
-    document.documentElement.style.setProperty(
-      "--primary",
-      color
-    );
-
-    document.documentElement.style.setProperty(
-      "--color-primary",
-      color
-    );
-
-    document.documentElement.style.setProperty(
-      "--primary-color",
-      color
-    );
+    document.documentElement.style.setProperty("--primary", color);
+    document.documentElement.style.setProperty("--color-primary", color);
+    document.documentElement.style.setProperty("--primary-color", color);
   };
-
-  /* =========================================================
-     BRAND COLOR
-  ========================================================= */
 
   const handleBrandColor = (color) => {
     setBranding((previous) => ({
       ...previous,
       brandColor: color,
     }));
-
     applyThemeColor(color);
   };
 
   /* =========================================================
-     SAVE
+     SAVE HANDLER
   ========================================================= */
 
   const handleSave = async () => {
-  console.log("TAX VALUES:", tax);
-  console.log("BUSINESS VALUES:", business);
-  console.log("BRANDING VALUES:", branding);
+    try {
+      localStorage.setItem("autobillr-business", JSON.stringify(business));
+      localStorage.setItem(
+        "autobillr-tax",
+        JSON.stringify({
+          rate: tax.rate ?? "18",
+          label: tax.label ?? "",
+          prefix: tax.prefix ?? "",
+          nextNumber: tax.nextNumber ?? "",
+          terms: tax.terms ?? "",
+          lateFee: tax.lateFee ?? "",
+          autoTax: Boolean(tax.autoTax),
+          breakdown: Boolean(tax.breakdown),
+        })
+      );
+      localStorage.setItem("autobillr-branding", JSON.stringify(branding));
 
-  // Persist tax so Composer can use it
-  localStorage.setItem(
-    "autobillr-tax",
-    JSON.stringify({
-      rate: tax.rate ?? "18",
-      label: tax.label ?? "",
-      prefix: tax.prefix ?? "",
-      nextNumber: tax.nextNumber ?? "",
-      terms: tax.terms ?? "",
-      lateFee: tax.lateFee ?? "",
-      autoTax: Boolean(tax.autoTax),
-      breakdown: Boolean(tax.breakdown),
-    })
-  );
+      try {
+        await updateBusinessProfile(business);
+      } catch (apiErr) {
+        console.warn("Backend update API failed, but data is saved in browser:", apiErr);
+      }
 
-  showSuccessToast("Tax settings updated.");
-};
+      showSuccessToast("Settings saved successfully.");
+    } catch (err) {
+      console.error("Save error:", err);
+    }
+  };
 
   /* =========================================================
-     DISCARD
+     DISCARD HANDLER
   ========================================================= */
 
   const handleDiscard = async () => {
     await loadSettings();
-
-    showSuccessToast(
-      "Changes reverted."
-    );
+    showSuccessToast("Changes reverted.");
   };
 
   /* =========================================================
-     LOADING
+     LOADING STATE
   ========================================================= */
 
   if (loading) {
@@ -461,32 +271,22 @@ export default function Settings() {
   }
 
   /* =========================================================
-     UI
+     RENDER UI
   ========================================================= */
 
   return (
     <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
-
       <div className="page-in">
-
         <SectionHeader
           title="Settings"
           description="Configure your workspace, branding, tax, integrations and exports."
         />
 
         <div className="grid grid-cols-12 gap-6">
-
-          <SettingsNav
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
+          <SettingsNav activeTab={activeTab} onTabChange={setActiveTab} />
 
           <div className="col-span-12 md:col-span-9 space-y-5">
-
-            {/* =================================================
-                BUSINESS
-            ================================================= */}
-
+            {/* BUSINESS */}
             {activeTab === "business" && (
               <BusinessInfoSection
                 business={business}
@@ -496,171 +296,88 @@ export default function Settings() {
               />
             )}
 
-            {/* =================================================
-                BRANDING
-            ================================================= */}
-
+            {/* BRANDING */}
             {activeTab === "branding" && (
               <BrandingSection
-                brandColor={
-                  branding.brandColor
-                }
-
-                setBrandColor={
-                  handleBrandColor
-                }
-
+                brandColor={branding.brandColor}
+                setBrandColor={handleBrandColor}
                 brandToggles={{
                   qr: branding.qr,
-                  thumbnails:
-                    branding.thumbnails,
-                  footer:
-                    branding.footer,
+                  thumbnails: branding.thumbnails,
+                  footer: branding.footer,
                 }}
-
                 setBrandToggles={(value) => {
-                  setBranding(
-                    (previous) => ({
-                      ...previous,
-                      ...value,
-                    })
-                  );
+                  setBranding((previous) => ({
+                    ...previous,
+                    ...value,
+                  }));
                 }}
-
-                logoUrl={
-                  branding.logo
-                }
-
+                logoUrl={branding.logo}
                 setLogoUrl={(value) => {
-                  setBranding(
-                    (previous) => ({
-                      ...previous,
-                      logo: value,
-                    })
-                  );
+                  setBranding((previous) => ({
+                    ...previous,
+                    logo: value,
+                  }));
                 }}
-
-                onDiscard={
-                  handleDiscard
-                }
-
-                onSave={
-                  handleSave
-                }
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
-            {/* =================================================
-                TAX
-            ================================================= */}
 
             {activeTab === "tax" && (
               <TaxInvoicingSection
                 tax={tax}
-
-                setTaxField={
-                  setTaxField
-                }
-
+                setTaxField={setTaxField}
                 setTax={setTax}
-
-                onDiscard={
-                  handleDiscard
-                }
-
-                onSave={
-                  handleSave
-                }
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
-            {/* =================================================
-                PAYMENTS
-            ================================================= */}
 
             {activeTab === "payments" && (
               <PaymentMethodsSection
-                onDiscard={
-                  handleDiscard
-                }
-                onSave={
-                  handleSave
-                }
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
-            {/* =================================================
-                INTEGRATIONS
-            ================================================= */}
 
             {activeTab === "integrations" && (
               <IntegrationsSection
-                onDiscard={
-                  handleDiscard
-                }
-                onSave={
-                  handleSave
-                }
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
-            {/* =================================================
-                NOTIFICATIONS
-            ================================================= */}
 
             {activeTab === "notifications" && (
               <NotificationsSection
                 notif={notif}
                 setNotif={setNotif}
-                onDiscard={
-                  handleDiscard
-                }
-                onSave={
-                  handleSave
-                }
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
-            {/* =================================================
-                API
-            ================================================= */}
 
             {activeTab === "api" && (
-              <ApiWebhooksSection
-                onDiscard={
-                  handleDiscard
-                }
-                onSave={
-                  handleSave
-                }
-              />
+              <FeatureGate feature="canUseApiWebhooks" requiredPlan="Pro">
+                <ApiWebhooksSection
+                  onDiscard={handleDiscard}
+                  onSave={handleSave}
+                />
+              </FeatureGate>
             )}
 
-            {/* =================================================
-                EXPORT
-            ================================================= */}
-
+            {/* EXPORT */}
             {activeTab === "export" && (
               <DataExportSection
-                exportToggles={
-                  exportToggles
-                }
-                setExportToggles={
-                  setExportToggles
-                }
-                onDiscard={
-                  handleDiscard
-                }
-                onSave={
-                  handleSave
-                }
+                exportToggles={exportToggles}
+                setExportToggles={setExportToggles}
+                onDiscard={handleDiscard}
+                onSave={handleSave}
               />
             )}
-
           </div>
         </div>
       </div>
     </main>
   );
 }
-

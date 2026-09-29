@@ -56,7 +56,7 @@ const getAnalyticsData = async (req, res) => {
       }),
       prisma.client.findMany({
         where: { companyId },
-        select: { id: true, name: true, mrr: true },
+        select: { id: true, name: true },
       }),
     ]);
 

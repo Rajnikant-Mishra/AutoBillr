@@ -1,21 +1,24 @@
+import { useState, useEffect } from "react";
 import {
   BrowserRouter,
   Navigate,
   Route,
   Routes,
+  useNavigate,
 } from "react-router-dom";
 import axios from "axios";
-
 import { Toaster } from "react-hot-toast";
 
-// Layout / Auth
+// Layout / Auth / Permissions
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AcceptInvitation from "./pages/auth/AcceptInvitation";
+import { useCurrencyStore } from "./store/currencyStore";
+import { usePermissions } from "./hooks/usePermissions";
+
 // ============================================================
 // PUBLIC PAGES
 // ============================================================
-
 import LandingPage from "./pages/landing/LandingPage";
 import PricingPage from "./pages/landing/PricingPage";
 import Login from "./pages/Login";
@@ -25,7 +28,6 @@ import VerifyEmail from "./pages/VerifyEmail";
 // ============================================================
 // PROTECTED PAGES
 // ============================================================
-
 import Dashboard from "./pages/dashboard/Dashboard";
 import Projects from "./pages/projects/Projects";
 import Clients from "./pages/clients/Clients";
@@ -42,7 +44,6 @@ import Help from "./pages/adminSettings/Help";
 // ============================================================
 // SETTINGS
 // ============================================================
-
 import SettingsLayout from "./pages/adminSettings/SettingsLayout";
 import AccountSettings from "./pages/adminSettings/AccountSettings";
 import ProfileSettings from "./pages/adminSettings/ProfileSettings";
@@ -50,10 +51,17 @@ import SecuritySettings from "./pages/adminSettings/SecuritySettings";
 import NotificationSettings from "./pages/adminSettings/NotificationSettings";
 
 // ============================================================
-// PROTECTED LAYOUT
+// PROTECTED LAYOUT WITH PERMISSION GUARD
 // ============================================================
+function ProtectedLayout({ children, permission }) {
+  const { can, role } = usePermissions();
 
-function ProtectedLayout({ children }) {
+  // Agar route par permission required hai aur user ke paas permission nahi hai
+  // (Owner aur Admin ko bypass milta hai)
+  if (permission && role !== "Owner" && role !== "Admin" && !can(permission)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <ProtectedRoute>
       <MainLayout>{children}</MainLayout>
@@ -61,7 +69,86 @@ function ProtectedLayout({ children }) {
   );
 }
 
+// ============================================================
+// TRIAL EXPIRED MODAL COMPONENT (MODERN UI)
+// ============================================================
+function TrialExpiredModal({ isOpen, onClose }) {
+  const navigate = useNavigate();
 
+  if (!isOpen) return null;
+
+  const handleUpgrade = () => {
+    onClose();
+    navigate("/app/pricing");
+  };
+
+  const handleSignOut = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = "/login";
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-center transform transition-all scale-100">
+        {/* Lock Badge Icon */}
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-8 ring-amber-50/50">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-7 w-7"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
+        </div>
+
+        <h3 className="text-xl font-bold text-slate-900">Your Free Trial Has Ended</h3>
+        <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+          Your 14-day trial period has expired. Upgrade your plan to continue creating invoices, managing clients, and accessing analytics.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={handleUpgrade}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 active:scale-[0.98] transition cursor-pointer"
+          >
+            Upgrade Plan Now
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition cursor-pointer"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// AXIOS INTERCEPTOR (DISPATCH CUSTOM EVENT INSTEAD OF ALERT)
+// ============================================================
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -69,18 +156,8 @@ axios.interceptors.response.use(
       error.response?.status === 403 &&
       error.response?.data?.code === "TRIAL_EXPIRED"
     ) {
-      localStorage.clear();
-      sessionStorage.clear();
-
-      alert(
-        error.response?.data?.message ||
-          "Your trial period has ended. Please upgrade your plan to continue."
-      );
-
-      // 3. User ko login ya pricing page bhejein
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent("trial-expired"));
     }
-
     return Promise.reject(error);
   }
 );
@@ -88,54 +165,48 @@ axios.interceptors.response.use(
 // ============================================================
 // APP
 // ============================================================
-
 function App() {
+  const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const fetchCurrencies = useCurrencyStore((state) => state.fetchCurrencies); 
+
+  useEffect(() => {
+    fetchCurrencies();
+  }, [fetchCurrencies]);
+
+  useEffect(() => {
+    const handleTrialExpired = () => {
+      setIsTrialModalOpen(true);
+    };
+
+    window.addEventListener("trial-expired", handleTrialExpired);
+    return () => {
+      window.removeEventListener("trial-expired", handleTrialExpired);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
-      <Routes>
+      {/* Modern Trial Expired Popup */}
+      <TrialExpiredModal
+        isOpen={isTrialModalOpen}
+        onClose={() => setIsTrialModalOpen(false)}
+      />
 
+      <Routes>
         {/* ======================================================
             PUBLIC ROUTES
         ====================================================== */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/accept-invitation" element={<AcceptInvitation />} />
 
-        {/* Landing */}
-        <Route
-          path="/"
-          element={<LandingPage />}
-        />
-
-        {/* Public Pricing */}
-        <Route
-          path="/pricing"
-          element={<PricingPage />}
-        />
-
-        {/* Login */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        {/* Register */}
-        <Route
-          path="/register"
-          element={<Register />}
-        />
-
-        {/* Email Verification */}
-        <Route
-          path="/verify-email"
-          element={<VerifyEmail />}
-        />
-<Route
-  path="/accept-invitation"
-  element={<AcceptInvitation />}
-/>
         {/* ======================================================
-            PROTECTED ROUTES
+            PROTECTED ROUTES WITH PERMISSION CHECKS
         ====================================================== */}
-
-        {/* Dashboard */}
+        {/* Dashboard open rehta hai kyunki wo apna 'No access assigned' screen khud handle karta hai */}
         <Route
           path="/dashboard"
           element={
@@ -145,57 +216,51 @@ function App() {
           }
         />
 
-        {/* Projects */}
         <Route
           path="/projects"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="projects:view">
               <Projects />
             </ProtectedLayout>
           }
         />
 
-        {/* Clients */}
         <Route
           path="/clients"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="clients:view">
               <Clients />
             </ProtectedLayout>
           }
         />
 
-        {/* Invoice Composer - New */}
         <Route
           path="/composer"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:create">
               <Composer />
             </ProtectedLayout>
           }
         />
 
-        {/* Invoice Composer - Edit */}
         <Route
           path="/composer/:id"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:create">
               <Composer />
             </ProtectedLayout>
           }
         />
 
-        {/* Invoices */}
         <Route
           path="/invoices"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:view">
               <Invoices />
             </ProtectedLayout>
           }
         />
 
-        {/* Invoice Preview */}
         <Route
           path="/invoice-preview"
           element={
@@ -205,47 +270,42 @@ function App() {
           }
         />
 
-        {/* Analytics */}
         <Route
           path="/analytics"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="analytics:view">
               <AdvancedAnalytics />
             </ProtectedLayout>
           }
         />
 
-        {/* Recurring Billing */}
         <Route
           path="/automation"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="automation:view">
               <RecurringBilling />
             </ProtectedLayout>
           }
         />
 
-        {/* Team & Permissions */}
         <Route
           path="/team"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="team:view">
               <TeamPermissions />
             </ProtectedLayout>
           }
         />
 
-        {/* Settings */}
         <Route
           path="/settings"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="settings:view">
               <Settings />
             </ProtectedLayout>
           }
         />
 
-        {/* Help */}
         <Route
           path="/help"
           element={
@@ -255,7 +315,6 @@ function App() {
           }
         />
 
-        {/* Client Portal */}
         <Route
           path="/clientportal"
           element={
@@ -268,7 +327,6 @@ function App() {
         {/* ======================================================
             PROTECTED PRICING
         ====================================================== */}
-
         <Route
           path="/app/pricing"
           element={
@@ -281,56 +339,29 @@ function App() {
         {/* ======================================================
             ADMIN SETTINGS
         ====================================================== */}
-
         <Route
           path="/adminsettings"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="settings:view">
               <SettingsLayout />
             </ProtectedLayout>
           }
         >
-          {/* /adminsettings */}
-          <Route
-            index
-            element={<AccountSettings />}
-          />
-
-          {/* /adminsettings/profile */}
-          <Route
-            path="profile"
-            element={<ProfileSettings />}
-          />
-
-          {/* /adminsettings/security */}
-          <Route
-            path="security"
-            element={<SecuritySettings />}
-          />
-
-          {/* /adminsettings/notifications */}
-          <Route
-            path="notifications"
-            element={<NotificationSettings />}
-          />
+          <Route index element={<AccountSettings />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecuritySettings />} />
+          <Route path="notifications" element={<NotificationSettings />} />
         </Route>
 
         {/* ======================================================
             FALLBACK
         ====================================================== */}
-
-        {/* Any unknown URL goes to login */}
-        <Route
-          path="*"
-          element={<Navigate to="/login" replace />}
-        />
-
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
       {/* ========================================================
           TOASTER
       ======================================================== */}
-
       <Toaster
         position="bottom-center"
         toastOptions={{

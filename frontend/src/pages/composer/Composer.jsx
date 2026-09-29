@@ -643,334 +643,116 @@ export default function Composer() {
      FETCH EXISTING INVOICE - EDIT MODE
   ========================================================= */
 
-  useEffect(() => {
-    if (!id) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchInvoice = async () => {
-      try {
-        const token =
-          getAuthToken() ||
-          localStorage.getItem(
-            "autobiller-auth"
-          ) ||
-          localStorage.getItem("token");
-
-        if (!token) {
-          showErrorToast(
-            "Session expired. Please login again."
-          );
-
-          navigate("/login");
-          return;
-        }
-
-        console.log(
-          "================================="
-        );
-
-        console.log(
-          "LOADING INVOICE FOR EDIT:",
-          id
-        );
-
-        console.log(
-          "================================="
-        );
-
-        const response = await fetch(
-          `${API_BASE}/invoices/${id}`,
-          {
-            method: "GET",
-
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          }
-        );
-
-        if (response.status === 401) {
-          localStorage.removeItem(
-            "autobiller-auth"
-          );
-
-          localStorage.removeItem("token");
-
-          localStorage.removeItem(
-            "autobillr_subscription"
-          );
-
-          localStorage.removeItem("user");
-
-          showErrorToast(
-            "Session expired. Please login again."
-          );
-
-          navigate("/login");
-
-          return;
-        }
-
-        const data =
-          await response
-            .json()
-            .catch(() => ({}));
-
-        console.log(
-          "EDIT INVOICE API RESPONSE:",
-          data
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            data?.message ||
-              `Failed to load invoice (${response.status})`
-          );
-        }
-
-        /* =====================================================
-           FIND ACTUAL INVOICE OBJECT
-
-           Supports:
-           { invoice: {...} }
-           { data: { invoice: {...} } }
-           { data: {...} }
-           {...}
-        ===================================================== */
-
-        const invoiceData =
-          data?.invoice ??
-          data?.data?.invoice ??
-          data?.data ??
-          data;
-
-        console.log(
-          "NORMALIZED INVOICE OBJECT:",
-          invoiceData
-        );
-
-        if (
-          !invoiceData ||
-          typeof invoiceData !== "object"
-        ) {
-          throw new Error(
-            "Invalid invoice response from server."
-          );
-        }
-
-        if (cancelled) {
-          return;
-        }
-
-        /* =====================================================
-           CLIENT
-        ===================================================== */
-
-        const clientId =
-          getInvoiceClientId(
-            invoiceData
-          );
-
-        /* =====================================================
-           PROJECT
-        ===================================================== */
-
-        const projectId =
-          getInvoiceProjectId(
-            invoiceData
-          );
-
-        /* =====================================================
-           ITEMS
-        ===================================================== */
-
-        const normalizedItems =
-          normalizeInvoiceItems(
-            invoiceData
-          );
-
-        /* =====================================================
-           DATES
-        ===================================================== */
-
-        const invoiceDate =
-          normalizeDate(
-            invoiceData?.invoiceDate ??
-              invoiceData?.date ??
-              invoiceData?.createdAt
-          );
-
-        const dueDate =
-          normalizeDate(
-            invoiceData?.dueDate ??
-              invoiceData?.paymentDueDate
-          );
-
-        /* =====================================================
-           TOTALS
-        ===================================================== */
-
-        const backendSubtotal =
-          toNumber(
-            invoiceData?.subtotal ??
-              invoiceData?.subTotal ??
-              invoiceData?.SubTotal ??
-              0
-          );
-
-        const backendTax =
-          toNumber(
-            invoiceData?.tax ??
-              invoiceData?.taxAmount ??
-              invoiceData?.Tax ??
-              0
-          );
-
-        const backendTotal =
-          toNumber(
-            invoiceData?.total ??
-              invoiceData?.totalAmount ??
-              invoiceData?.grandTotal ??
-              invoiceData?.amount ??
-              0
-          );
-
-        /* =====================================================
-           SETTINGS
-        ===================================================== */
-
-        const payLink =
-          invoiceData?.payLink ??
-          invoiceData?.enablePayLink ??
-          true;
-
-        const emailClient =
-          invoiceData?.emailClient ??
-          invoiceData?.sendEmail ??
-          true;
-
-        const autoCharge =
-          invoiceData?.autoCharge ??
-          invoiceData?.automaticCharge ??
-          false;
-
-        /* =====================================================
-           FINAL INVOICE STATE
-        ===================================================== */
-
-        const normalizedInvoice = {
-          ...invoiceData,
-
-          id:
-            invoiceData?.id ??
-            id,
-
-          invoiceNumber:
-            invoiceData?.invoiceNumber ??
-            invoiceData?.number ??
-            invoiceData?.invoiceNo ??
-            "",
-
-          client: clientId,
-
-          project: projectId,
-
-          invoiceDate,
-
-          dueDate,
-
-          items:
-            normalizedItems.length > 0
-              ? normalizedItems
-              : [
-                  {
-                    id: `edit-item-${Date.now()}`,
-                    desc: "",
-                    qty: 1,
-                    rate: 0,
-                  },
-                ],
-
-          subtotal: backendSubtotal,
-
-          tax: backendTax,
-
-          total: backendTotal,
-
-          currency:
-            invoiceData?.currency ??
-            invoiceData?.currencyCode ??
-            "USD",
-
-          status:
-            invoiceData?.status ??
-            "Draft",
-
-          payLink,
-
-          emailClient,
-
-          autoCharge,
-        };
-
-        console.log(
-          "================================="
-        );
-
-        console.log(
-          "SETTING EDIT INVOICE:",
-          normalizedInvoice
-        );
-
-        console.log(
-          "CLIENT ID:",
-          clientId
-        );
-
-        console.log(
-          "PROJECT ID:",
-          projectId
-        );
-
-        console.log(
-          "ITEMS:",
-          normalizedItems
-        );
-
-        console.log(
-          "================================="
-        );
-
-        setInvoice(normalizedInvoice);
-
-        setSettings({
-          payLink,
-          emailClient,
-          autoCharge,
-        });
-      } catch (error) {
-        console.error(
-          "Failed to load invoice:",
-          error
-        );
-
-        showErrorToast(
-          error.message ||
-            "Failed to load invoice"
-        );
+ useEffect(() => {
+  if (!id) return;
+
+  let cancelled = false;
+
+  const fetchInvoice = async () => {
+    try {
+      const token =
+        getAuthToken() ||
+        localStorage.getItem("autobiller-auth") ||
+        localStorage.getItem("token");
+
+      if (!token) {
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
       }
-    };
 
-    fetchInvoice();
+      const response = await fetch(`${API_BASE}/invoices/${id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [id, navigate, API_BASE]);
+      if (response.status === 401) {
+        localStorage.removeItem("autobiller-auth");
+        localStorage.removeItem("token");
+        showErrorToast("Session expired. Please login again.");
+        navigate("/login");
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || `Failed to load invoice (${response.status})`);
+      }
+
+      const invoiceData =
+        data?.invoice ?? data?.data?.invoice ?? data?.data ?? data;
+
+      if (!invoiceData || typeof invoiceData !== "object") {
+        throw new Error("Invalid invoice response from server.");
+      }
+      if (cancelled) return;
+
+      const clientId = getInvoiceClientId(invoiceData);
+      const projectId = getInvoiceProjectId(invoiceData);
+      const normalizedItems = normalizeInvoiceItems(invoiceData);
+
+      // Backend field is issueDate
+      const invoiceDate = normalizeDate(
+        invoiceData?.issueDate ??
+        invoiceData?.invoiceDate ??
+        invoiceData?.date ??
+        invoiceData?.createdAt
+      );
+
+      const dueDate = normalizeDate(
+        invoiceData?.dueDate ?? invoiceData?.paymentDueDate
+      );
+
+      const normalizedInvoice = {
+        ...invoiceData,
+        id: invoiceData?.id ?? id,
+        invoiceNumber:
+          invoiceData?.invoiceNumber ??
+          invoiceData?.number ??
+          invoiceData?.invoiceNo ??
+          "",
+        client: clientId ? String(clientId) : "",
+        project: projectId ? String(projectId) : "",
+        invoiceDate,
+        dueDate,
+        items:
+          normalizedItems.length > 0
+            ? normalizedItems
+            : [{ id: `edit-item-${Date.now()}`, desc: "", qty: 1, rate: 0 }],
+        subtotal: toNumber(invoiceData?.subtotal ?? invoiceData?.subTotal ?? 0),
+        tax: toNumber(invoiceData?.tax ?? invoiceData?.taxAmount ?? 0),
+        total: toNumber(
+          invoiceData?.total ??
+          invoiceData?.totalAmount ??
+          invoiceData?.grandTotal ??
+          invoiceData?.amount ??
+          0
+        ),
+        currency: invoiceData?.currency ?? invoiceData?.currencyCode ?? "USD",
+        status: invoiceData?.status ?? "Draft",
+      };
+
+      console.log("EDIT → client:", clientId, "project:", projectId);
+      console.log("EDIT → items:", normalizedItems);
+
+      setInvoice(normalizedInvoice);
+      setSettings({
+        payLink: invoiceData?.payLink ?? true,
+        emailClient: invoiceData?.emailClient ?? true,
+        autoCharge: invoiceData?.autoCharge ?? false,
+      });
+    } catch (error) {
+      console.error("Failed to load invoice:", error);
+      showErrorToast(error.message || "Failed to load invoice");
+    }
+  };
+
+  fetchInvoice();
+  return () => { cancelled = true; };
+}, [id, navigate, API_BASE]);
 
   /* =========================================================
      FETCH PROJECTS FOR SELECTED CLIENT
@@ -1831,52 +1613,38 @@ export default function Composer() {
                     Project
                   </label>
 
-                  <select
-                    value={
-                      invoice.project
-                    }
-                    onChange={(e) =>
-                      updateField(
-                        "project",
-                        e.target.value
-                      )
-                    }
-                    className={
-                      selectClass
-                    }
-                    disabled={
-                      !invoice.client ||
-                      loadingProjects
-                    }
-                  >
-                    <option value="">
-                      {!invoice.client
-                        ? "Select Client"
-                        : loadingProjects
-                        ? "Loading..."
-                        : currentClientProjects.length ===
-                          0
-                        ? "No Projects Assigned"
-                        : "Select Project"}
-                    </option>
+                 <select
+  value={invoice.project || ""}
+  onChange={(e) => updateField("project", e.target.value)}
+  className={selectClass}
+  disabled={!invoice.client || loadingProjects}
+>
+  <option value="">
+    {!invoice.client
+      ? "Select Client"
+      : loadingProjects
+      ? "Loading..."
+      : currentClientProjects.length === 0
+      ? "No Projects Assigned"
+      : "Select Project"}
+  </option>
 
-                    {currentClientProjects.map(
-                      (project) => (
-                        <option
-                          key={
-                            project.id
-                          }
-                          value={
-                            project.id
-                          }
-                        >
-                          {
-                            project.title
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+  {currentClientProjects.map((project) => (
+    <option key={project.id} value={String(project.id)}>
+      {project.title}
+    </option>
+  ))}
+
+  {/* Keep already-selected project visible while list loads */}
+  {invoice.project &&
+    !currentClientProjects.some(
+      (p) => String(p.id) === String(invoice.project)
+    ) && (
+      <option value={String(invoice.project)}>
+        {selectedProject?.title || "Selected Project"}
+      </option>
+    )}
+</select>
                 </div>
 
                 {/* INVOICE DATE */}
@@ -2324,3 +2092,169 @@ export default function Composer() {
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

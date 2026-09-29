@@ -30,14 +30,31 @@ export default function ProjectCard({
     "Unknown Client";
 
   const calculateProgress = () => {
-    if (!Array.isArray(milestones) || milestones.length === 0) {
-      return Math.min(Math.max(Number(initialProgress) || 0, 0), 100);
-    }
-    const paidCount = milestones.filter(
-      (m) => String(m?.status || "").toLowerCase() === "paid"
+  if (
+    !Array.isArray(milestones) ||
+    milestones.length === 0
+  ) {
+    return Math.min(
+      Math.max(
+        Number(initialProgress) || 0,
+        0
+      ),
+      100
+    );
+  }
+
+  const paidCount =
+    milestones.filter(
+      (milestone) =>
+        String(
+          milestone?.status || ""
+        ).toLowerCase() === "paid"
     ).length;
-    return Math.round((paidCount / milestones.length) * 100);
-  };
+
+  return Math.round(
+    (paidCount / milestones.length) * 100
+  );
+};
 
   const progress = calculateProgress();
 

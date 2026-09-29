@@ -1,127 +1,18 @@
 const express = require("express");
 const router = express.Router();
+
 const teamController = require("../controllers/teamController");
+const authMiddleware = require("../middleware/authMiddleware");
+const requirePermission = require("../middleware/requirePermission");
+const { PERMISSIONS } = require("../constants/permissions");
 
 /*
 |--------------------------------------------------------------------------
-| TEMPORARY AUTH / COMPANY MIDDLEWARE
-|--------------------------------------------------------------------------
-| Later replace this with your real JWT middleware.
-|--------------------------------------------------------------------------
-*/
-const protect = (req, res, next) => {
-  next();
-};
-
-const requireCompany = (req, res, next) => {
-  /*
-   * TEMPORARY COMPANY
-   * This MUST match the Company that exists in PostgreSQL.
-   */
-  req.companyId = "cmtv6r6z30000v0vfcly55d5w";
-
-  req.user = {
-    id: null,
-  };
-
-  console.log("TEAM COMPANY ID:", req.companyId);
-
-  next();
-};
-
-/*
-|--------------------------------------------------------------------------
-| STATIC ROUTES (must come BEFORE /:id routes)
+| PUBLIC ROUTES (no auth)
 |--------------------------------------------------------------------------
 */
 
-/*
-|--------------------------------------------------------------------------
-| GET TEAM MEMBERS
-| GET /api/v1/team
-|--------------------------------------------------------------------------
-*/
-router.get(
-  "/",
-  protect,
-  requireCompany,
-  teamController.getTeamMembers
-);
-
-/*
-|--------------------------------------------------------------------------
-| GET TEAM STATS
-| GET /api/v1/team/stats
-|--------------------------------------------------------------------------
-*/
-router.get(
-  "/stats",
-  protect,
-  requireCompany,
-  teamController.getTeamStats
-);
-
-/*
-|--------------------------------------------------------------------------
-| LIST CUSTOM ROLES
-| GET /api/v1/team/roles
-|--------------------------------------------------------------------------
-*/
-router.get(
-  "/roles",
-  protect,
-  requireCompany,
-  teamController.listCustomRoles
-);
-
-/*
-|--------------------------------------------------------------------------
-| CREATE CUSTOM ROLE
-| POST /api/v1/team/roles
-|--------------------------------------------------------------------------
-*/
-router.post(
-  "/roles",
-  protect,
-  requireCompany,
-  teamController.createCustomRole
-);
-
-/*
-|--------------------------------------------------------------------------
-| DELETE CUSTOM ROLE
-| DELETE /api/v1/team/roles/:id
-|--------------------------------------------------------------------------
-*/
-router.delete(
-  "/roles/:id",
-  protect,
-  requireCompany,
-  teamController.deleteCustomRole
-);
-
-/*
-|--------------------------------------------------------------------------
-| INVITE TEAM MEMBER
-| POST /api/v1/team/invite
-|--------------------------------------------------------------------------
-*/
-router.post(
-  "/invite",
-  protect,
-  requireCompany,
-  teamController.inviteTeamMember
-);
-
-/*
-|--------------------------------------------------------------------------
-| ACCEPT INVITATION
-| POST /api/v1/team/accept-invitation
-|--------------------------------------------------------------------------
-| Public route – no auth / company middleware
-| Must be BEFORE any /:id routes
-|--------------------------------------------------------------------------
-*/
+// Accept invitation – public, must be before /:id routes
 router.post(
   "/accept-invitation",
   teamController.acceptTeamInvitation
@@ -129,33 +20,111 @@ router.post(
 
 /*
 |--------------------------------------------------------------------------
-| DYNAMIC ROUTES (must come AFTER static routes)
+| PROTECTED ROUTES
 |--------------------------------------------------------------------------
 */
 
+// Apply real auth to everything below
+router.use(authMiddleware);
+
 /*
 |--------------------------------------------------------------------------
-| UPDATE ROLE
-| PATCH /api/v1/team/:id/role
+| STATIC ROUTES (must come BEFORE /:id routes)
 |--------------------------------------------------------------------------
 */
-router.patch(
-  "/:id/role",
-  protect,
-  requireCompany,
-  teamController.updateTeamMemberRole
+
+// GET /api/v1/team
+router.get(
+  "/",
+  requirePermission(PERMISSIONS.TEAM_VIEW),
+  teamController.getTeamMembers
+);
+
+// GET /api/v1/team/stats
+router.get(
+  "/stats",
+  requirePermission(PERMISSIONS.TEAM_VIEW),
+  teamController.getTeamStats
+);
+
+// GET /api/v1/team/me  ← current user + role + permissions
+router.get("/me", (req, res) => {
+  res.json({
+    success: true,
+    role: req.user.role,
+    roleId: req.user.roleId || null,
+    permissions: req.user.permissions || [],
+    extraPermissions: req.user.extraPermissions || [],
+    data: {
+      role: req.user.role,
+      roleId: req.user.roleId || null,
+      permissions: req.user.permissions || [],
+      extraPermissions: req.user.extraPermissions || [],
+      user: {
+        userId: req.user.userId,
+        companyId: req.user.companyId,
+        email: req.user.email,
+      },
+    },
+  });
+});
+
+// GET /api/v1/team/roles
+router.get(
+  "/roles",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.listCustomRoles
+);
+
+// POST /api/v1/team/roles
+router.post(
+  "/roles",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.createCustomRole
+);
+
+// DELETE /api/v1/team/roles/:id
+router.delete(
+  "/roles/:id",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.deleteCustomRole
+);
+
+// POST /api/v1/team/invite
+router.post(
+  "/invite",
+  requirePermission(PERMISSIONS.TEAM_INVITE),
+  teamController.inviteTeamMember
 );
 
 /*
 |--------------------------------------------------------------------------
-| DELETE MEMBER
-| DELETE /api/v1/team/:id
+| DYNAMIC ROUTES (must come AFTER static routes)
 |--------------------------------------------------------------------------
 */
+router.patch(
+  "/roles/:id",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.updateRolePermissions
+);
+
+router.patch(
+  "/:id/permissions",
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
+  teamController.updateTeamMemberPermissions
+);
+
+// PATCH /api/v1/team/:id/role
+router.patch(
+  "/:id/role",
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
+  teamController.updateTeamMemberRole
+);
+
+// DELETE /api/v1/team/:id
 router.delete(
   "/:id",
-  protect,
-  requireCompany,
+  requirePermission(PERMISSIONS.TEAM_REMOVE_MEMBER),
   teamController.deleteTeamMember
 );
 

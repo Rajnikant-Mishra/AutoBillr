@@ -6,28 +6,51 @@ const plans = [
   {
     id: "starter",
     name: "Starter",
-    price: 49.0,
-    currency: "USD",
-    interval: "month",
-    description: "Up to 100 invoices/mo",
+
+    monthlyPrice: "0.00",
+    yearlyPrice: "0.00",
+
+    currency: "INR",
+
+    description: "Up to 10 invoices",
+
+    trialDays: 14,
+    invoiceLimit: 10,
+
     isActive: true,
   },
+
   {
     id: "professional",
     name: "Professional",
-    price: 199.0,
-    currency: "USD",
-    interval: "month",
+
+    monthlyPrice: "2599.00",
+    yearlyPrice: "25990.00",
+
+    currency: "INR",
+
     description: "Unlimited invoices",
+
+    trialDays: 14,
+    invoiceLimit: null,
+
     isActive: true,
   },
+
   {
     id: "enterprise",
     name: "Enterprise",
-    price: 0.0,
-    currency: "USD",
-    interval: "month",
+
+    monthlyPrice: null,
+    yearlyPrice: null,
+
+    currency: "INR",
+
     description: "Everything + SSO + SLA",
+
+    trialDays: 14,
+    invoiceLimit: null,
+
     isActive: true,
   },
 ];
@@ -40,14 +63,18 @@ async function main() {
       where: {
         id: plan.id,
       },
+
       update: {
         name: plan.name,
-        price: plan.price,
+        monthlyPrice: plan.monthlyPrice,
+        yearlyPrice: plan.yearlyPrice,
         currency: plan.currency,
-        interval: plan.interval,
         description: plan.description,
+        trialDays: plan.trialDays,
+        invoiceLimit: plan.invoiceLimit,
         isActive: plan.isActive,
       },
+
       create: plan,
     });
   }
@@ -56,7 +83,7 @@ async function main() {
 
   const savedPlans = await prisma.plan.findMany({
     orderBy: {
-      price: "asc",
+      id: "asc",
     },
   });
 
@@ -64,8 +91,26 @@ async function main() {
     savedPlans.map((plan) => ({
       id: plan.id,
       name: plan.name,
-      price: plan.price.toString(),
+
+      monthly:
+        plan.monthlyPrice === null
+          ? "Custom"
+          : `₹${plan.monthlyPrice.toString()}`,
+
+      yearly:
+        plan.yearlyPrice === null
+          ? "Custom"
+          : `₹${plan.yearlyPrice.toString()}`,
+
       currency: plan.currency,
+
+      trial: `${plan.trialDays} days`,
+
+      invoices:
+        plan.invoiceLimit === null
+          ? "Unlimited"
+          : plan.invoiceLimit,
+
       active: plan.isActive,
     }))
   );

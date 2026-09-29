@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -8,22 +8,17 @@ import {
 export default function DataTable({
   data = [],
   columns = [],
-
   loading = false,
 
-  // Pagination state
-  pagination = {
-    pageIndex: 0,
-    pageSize: 10,
-  },
+  // Controlled Pagination
+  pagination: controlledPagination,
+  setPagination: setControlledPagination,
 
-  setPagination,
-
-  // Total records from backend (optional, fallbacks to data.length)
+  // Server-side flag (Default false = pure client-side auto-pagination)
+  manualPagination = false,
   totalRows,
 
   emptyMessage = "No data found",
-
   pageSizes = [5, 10, 20, 50],
 
   // Row selection
@@ -32,59 +27,62 @@ export default function DataTable({
 
   // Row click
   onRowClick,
-
-  // Optional
   getRowId,
-
   className = "",
+  hidePagination = false,
 }) {
-  /*
-   * =========================================================
-   * SAFE VALUES & TOTAL ROWS CALCULATION
-   * =========================================================
-   */
+  // 1. Uncontrolled fallback agar parent ne pagination state pass na kiya ho
+  const [internalPagination, setInternalPagination] = useState({
+    pageIndex: 0,
+    pageSize: 5, // Default 5 per page
+  });
 
-  const pageIndex = pagination?.pageIndex ?? 0;
-  const pageSize = pagination?.pageSize ?? 10;
+  const isControlled = Boolean(controlledPagination && setControlledPagination);
+  const activePagination = isControlled
+    ? controlledPagination
+    : internalPagination;
 
-  // Agar totalRows backend se nahi aaya toh data.length use hoga
-  const safeTotalRows = Math.max(
-    0,
-    totalRows !== undefined && totalRows !== null && Number(totalRows) > 0
+  const pageIndex = Number(activePagination?.pageIndex ?? 0);
+  const pageSize = Number(activePagination?.pageSize ?? 5);
+
+  const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  // 2. Total Rows calculation
+  const safeTotalRows =
+    manualPagination && totalRows !== undefined && totalRows !== null
       ? Number(totalRows)
-      : (Array.isArray(data) ? data.length : 0)
-  );
+      : safeData.length;
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(safeTotalRows / pageSize)
-  );
+  const totalPages = Math.max(1, Math.ceil(safeTotalRows / pageSize));
+  const safePageIndex = Math.min(pageIndex, Math.max(0, totalPages - 1));
 
-  const safePageIndex = Math.min(
-    pageIndex,
-    Math.max(0, totalPages - 1)
-  );
-
-  // Agar caller ne poora data pass kiya hai toh table ke liye current page slice karein
-  const isServerPaged = totalRows !== undefined && totalRows !== null && Number(totalRows) > 0;
-  const tableData = useMemo(() => {
-    if (!isServerPaged && Array.isArray(data) && data.length > pageSize) {
-      const start = safePageIndex * pageSize;
-      return data.slice(start, start + pageSize);
+  // 3. Client-side Slicing (Sirf 5 records dikhega agar pageSize 5 hai)
+  const paginatedData = useMemo(() => {
+    if (manualPagination) {
+      return safeData;
     }
-    return Array.isArray(data) ? data : [];
-  }, [data, isServerPaged, safePageIndex, pageSize]);
+    const start = safePageIndex * pageSize;
+    return safeData.slice(start, start + pageSize);
+  }, [safeData, manualPagination, safePageIndex, pageSize]);
 
-  /*
-   * =========================================================
-   * TABLE INSTANCE
-   * =========================================================
-   */
+  // 4. Update Handler
+  const updatePagination = (updater) => {
+    const nextState =
+      typeof updater === "function"
+        ? updater({ pageIndex: safePageIndex, pageSize })
+        : updater;
 
+    if (isControlled) {
+      setControlledPagination(nextState);
+    } else {
+      setInternalPagination(nextState);
+    }
+  };
+
+  // 5. Table Instance
   const table = useReactTable({
-    data: tableData,
+    data: paginatedData,
     columns,
-
     state: {
       pagination: {
         pageIndex: safePageIndex,
@@ -92,34 +90,36 @@ export default function DataTable({
       },
       rowSelection,
     },
-
     manualPagination: true,
     rowCount: safeTotalRows,
     enableRowSelection: Boolean(setRowSelection),
     onRowSelectionChange: setRowSelection,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getRowId,
   });
 
-  /*
-   * =========================================================
-   * DISPLAY RANGE
-   * =========================================================
-   */
+  // 6. Helpers
+  const goToPage = (target) => {
+    const nextPage = Math.min(Math.max(target, 0), totalPages - 1);
+    updatePagination((prev) => ({
+      ...prev,
+      pageIndex: nextPage,
+    }));
+  };
+
+  const changePageSize = (newSize) => {
+    updatePagination({
+      pageIndex: 0,
+      pageSize: Number(newSize),
+    });
+  };
 
   const startItem =
-    safeTotalRows === 0
-      ? 0
-      : safePageIndex * pageSize + 1;
-
+    safeTotalRows === 0 ? 0 : safePageIndex * pageSize + 1;
   const endItem =
     safeTotalRows === 0
       ? 0
-      : Math.min(
-          (safePageIndex + 1) * pageSize,
-          safeTotalRows
-        );
+      : Math.min((safePageIndex + 1) * pageSize, safeTotalRows);
 
   const rangeText =
     safeTotalRows === 0
@@ -128,26 +128,12 @@ export default function DataTable({
       ? `${startItem}`
       : `${startItem}-${endItem}`;
 
-  /*
-   * =========================================================
-   * PAGE NUMBERS
-   * =========================================================
-   */
-
   const pageNumbers = useMemo(() => {
     const current = safePageIndex + 1;
-
     if (totalPages <= 5) {
-      return Array.from(
-        { length: totalPages },
-        (_, index) => index + 1
-      );
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
     }
-
-    if (current <= 3) {
-      return [1, 2, 3, 4, "...", totalPages];
-    }
-
+    if (current <= 3) return [1, 2, 3, 4, "...", totalPages];
     if (current >= totalPages - 2) {
       return [
         1,
@@ -158,63 +144,11 @@ export default function DataTable({
         totalPages,
       ];
     }
-
-    return [
-      1,
-      "...",
-      current - 1,
-      current,
-      current + 1,
-      "...",
-      totalPages,
-    ];
+    return [1, "...", current - 1, current, current + 1, "...", totalPages];
   }, [safePageIndex, totalPages]);
 
-  /*
-   * =========================================================
-   * PAGINATION HELPERS
-   * =========================================================
-   */
-
-  const goToPage = (page) => {
-    if (!setPagination) return;
-
-    const nextPage = Math.min(
-      Math.max(page, 0),
-      totalPages - 1
-    );
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: nextPage,
-    }));
-  };
-
-  const changePageSize = (size) => {
-    if (!setPagination) return;
-
-    setPagination((previous) => ({
-      ...previous,
-      pageIndex: 0,
-      pageSize: Number(size),
-    }));
-  };
-
-  /*
-   * =========================================================
-   * RENDER
-   * =========================================================
-   */
-
   return (
-    <div
-      className={[
-        "data-table",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={["data-table", className].filter(Boolean).join(" ")}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px]">
           <thead className="bg-slate-50 border-b border-slate-100">
@@ -247,18 +181,14 @@ export default function DataTable({
                   key={row.id}
                   onClick={() => onRowClick?.(row.original)}
                   className={[
-                    "group",
-                    "transition-colors",
+                    "group transition-colors",
                     onRowClick
                       ? "cursor-pointer hover:bg-slate-50"
                       : "hover:bg-slate-50",
                   ].join(" ")}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className="px-6 py-4 align-middle"
-                    >
+                    <td key={cell.id} className="px-6 py-4 align-middle">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -291,136 +221,114 @@ export default function DataTable({
         </table>
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 border-t border-slate-100 bg-slate-50">
-        <div className="flex items-center gap-4 flex-wrap">
-          <p className="text-sm text-slate-500">
-            Showing{" "}
-            <span className="font-semibold text-slate-900">
-              {rangeText}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-slate-900">
-              {safeTotalRows}
-            </span>
-          </p>
+      {!hidePagination && (
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div className="flex items-center gap-4 flex-wrap">
+            <p className="text-sm text-slate-500">
+              Showing{" "}
+              <span className="font-semibold text-slate-900">{rangeText}</span>{" "}
+              of{" "}
+              <span className="font-semibold text-slate-900">
+                {safeTotalRows}
+              </span>
+            </p>
 
-          <label className="flex items-center gap-2 text-sm text-slate-500">
-            <span className="sr-only">Rows per page</span>
-            <select
-              value={pageSize}
-              onChange={(event) =>
-                changePageSize(event.target.value)
-              }
-              disabled={loading}
-              className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
-            >
-              {pageSizes.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-            <span>per page</span>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-slate-500 whitespace-nowrap">
-            Page{" "}
-            <span className="font-semibold text-slate-900">
-              {safePageIndex + 1}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-slate-900">
-              {totalPages}
-            </span>
+            <label className="flex items-center gap-2 text-sm text-slate-500">
+              <select
+                value={pageSize}
+                onChange={(e) => changePageSize(e.target.value)}
+                disabled={loading}
+                className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer"
+              >
+                {pageSizes.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+              <span>per page</span>
+            </label>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => goToPage(safePageIndex - 1)}
-              disabled={loading || safePageIndex === 0}
-              aria-label="Previous page"
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:pointer-events-none transition"
-            >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                aria-hidden="true"
-              >
-                chevron_left
-              </span>
-            </button>
-
-            <div className="hidden sm:flex items-center gap-1">
-              {pageNumbers.map((page, index) =>
-                page === "..." ? (
-                  <span
-                    key={`ellipsis-${index}`}
-                    className="h-9 w-7 flex items-center justify-center text-slate-400"
-                  >
-                    ...
-                  </span>
-                ) : (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => goToPage(page - 1)}
-                    disabled={loading}
-                    aria-label={`Go to page ${page}`}
-                    aria-current={
-                      page === safePageIndex + 1 ? "page" : undefined
-                    }
-                    className={[
-                      "h-9 min-w-9 px-2 rounded-lg text-sm font-medium transition",
-                      page === safePageIndex + 1
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-slate-600 hover:bg-white hover:shadow-sm",
-                      "disabled:opacity-40",
-                    ].join(" ")}
-                  >
-                    {page}
-                  </button>
-                )
-              )}
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-500 whitespace-nowrap">
+              Page{" "}
+              <span className="font-semibold text-slate-900">
+                {safePageIndex + 1}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-slate-900">{totalPages}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => goToPage(safePageIndex + 1)}
-              disabled={loading || safePageIndex >= totalPages - 1}
-              aria-label="Next page"
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:pointer-events-none transition"
-            >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                aria-hidden="true"
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => goToPage(safePageIndex - 1)}
+                disabled={loading || safePageIndex === 0}
+                className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
               >
-                chevron_right
-              </span>
-            </button>
+                <span className="material-symbols-outlined text-[20px]">
+                  chevron_left
+                </span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1">
+                {pageNumbers.map((page, index) =>
+                  page === "..." ? (
+                    <span
+                      key={`ellipsis-${index}`}
+                      className="h-9 w-7 flex items-center justify-center text-slate-400"
+                    >
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => goToPage(page - 1)}
+                      disabled={loading}
+                      className={[
+                        "h-9 min-w-9 px-2 rounded-lg text-sm font-medium transition cursor-pointer",
+                        page === safePageIndex + 1
+                          ? "bg-primary text-white shadow-sm"
+                          : "text-slate-600 hover:bg-white hover:shadow-sm",
+                      ].join(" ")}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => goToPage(safePageIndex + 1)}
+                disabled={loading || safePageIndex >= totalPages - 1}
+                className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  chevron_right
+                </span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 function LoadingRows({ columnCount }) {
   const rows = Array.from({ length: 5 }, (_, index) => index);
-
   return (
     <>
       {rows.map((row) => (
         <tr key={row}>
-          {Array.from(
-            { length: Math.max(columnCount, 1) },
-            (_, column) => (
-              <td key={column} className="px-6 py-4">
-                <div className="h-4 w-full max-w-[180px] bg-slate-100 rounded animate-pulse" />
-              </td>
-            )
-          )}
+          {Array.from({ length: Math.max(columnCount, 1) }, (_, col) => (
+            <td key={col} className="px-6 py-4">
+              <div className="h-4 w-full max-w-[180px] bg-slate-100 rounded animate-pulse" />
+            </td>
+          ))}
         </tr>
       ))}
     </>

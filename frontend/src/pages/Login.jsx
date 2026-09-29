@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { showSuccessToast, showErrorToast } from "../components/ui/CustomToast";
 import Button from "../components/ui/Button";
 import FormInput from "../components/ui/FormInput";
-import { setAuthData } from "../utils/auth";
+import { setAuthData, setCurrentUser } from "../utils/auth";
+import { getTeamMe } from "../services/teamService";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -47,12 +48,33 @@ export default function Login() {
       const lastName = params.get("lastName") || "User";
       const userEmail = params.get("email") || "";
 
-      setAuthData({
+           setAuthData({
         token,
         user: { id: userId, firstName, lastName, email: userEmail },
         company: { id: companyId },
         subscription: null,
       });
+
+      // Load real permissions from backend
+      (async () => {
+        try {
+          const me = await getTeamMe();
+          if (me && me.success !== false) {
+            setCurrentUser({
+              id: userId,
+              firstName,
+              lastName,
+              email: userEmail,
+              role: me.role || me.data?.role,
+              roleId: me.roleId || me.data?.roleId || null,
+              permissions: me.permissions || me.data?.permissions || [],
+              extraPermissions: me.extraPermissions || me.data?.extraPermissions || [],
+            });
+          }
+        } catch (err) {
+          console.error("Failed to load permissions after Google login:", err);
+        }
+      })();
 
       showSuccessToast("Welcome Back", firstName);
       navigate("/dashboard", { replace: true });
@@ -116,12 +138,30 @@ export default function Login() {
         return;
       }
 
-      setAuthData({
+            setAuthData({
         token: data.token,
         user: data.user,
         company: data.company,
         subscription: data.subscription,
       });
+
+      // Load real permissions from backend
+      try {
+        const me = await getTeamMe();
+        console.log("getTeamMe result:", me); // temporary – you can remove later
+
+        if (me && me.success !== false) {
+          setCurrentUser({
+            ...data.user,
+            role: me.role || me.data?.role || data.user?.role,
+            roleId: me.roleId || me.data?.roleId || null,
+            permissions: me.permissions || me.data?.permissions || [],
+            extraPermissions: me.extraPermissions || me.data?.extraPermissions || [],
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load permissions after login:", err);
+      }
 
       const userName =
         `${data.user?.firstName || ""} ${data.user?.lastName || ""}`.trim() ||
@@ -346,7 +386,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/forgot-password", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}`||"http://localhost:5000/api/v1/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: modalEmail.trim().toLowerCase() }),
@@ -593,7 +633,7 @@ function Stat({ value, label }) {
 
 function SocialLogin() {
   const handleGoogleClick = () => {
-    window.location.href = "http://localhost:5000/api/v1/auth/google";
+    window.location.href = import.meta.env.VITE_API_URL ||"http://localhost:5000/api/v1/auth/google";
   };
 
   return (

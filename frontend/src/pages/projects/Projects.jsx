@@ -25,9 +25,11 @@ import useProjectNotifications from "../../hooks/useProjectNotifications";
 ========================================================= */
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000/api/v1";
 
-const API_URL = `${API_BASE_URL.replace(/\/$/, "")}/projects`;
+const API_URL =
+  `${API_BASE_URL.replace(/\/+$/, "")}/projects`;
 
 const DEFAULT_FILTERS = {
   projectStatus: [],
@@ -275,66 +277,110 @@ export default function Projects() {
   ======================================================= */
 
   const handleProjectCreated = useCallback(
-    async (createdProject) => {
-      console.log("NEW PROJECT CREATED:", createdProject);
+  async (createdProjectResponse) => {
+    console.log(
+      "NEW PROJECT CREATED:",
+      createdProjectResponse
+    );
 
-      if (!createdProject) {
-        console.warn("Project created but no project data returned.");
-        await fetchProjects();
-        setProjectDrawer(false);
-        return;
-      }
+    /*
+     * Supports both:
+     *
+     * onProjectCreated(project)
+     *
+     * and
+     *
+     * onProjectCreated({ success, project })
+     */
+    const createdProject =
+      createdProjectResponse?.project ||
+      createdProjectResponse?.data?.project ||
+      createdProjectResponse;
 
-      const normalizedProject = normalizeProject(createdProject);
+    if (!createdProject) {
+      await fetchProjects();
 
-      if (!normalizedProject?.id) {
-        console.warn("Created project has no ID:", normalizedProject);
-        await fetchProjects();
-        setProjectDrawer(false);
-        return;
-      }
+      setProjectDrawer(false);
 
-      /* Step 1: Immediately add project to UI */
-      setProjects((previousProjects) => {
-        const alreadyExists = previousProjects.some(
-          (project) => String(project?.id) === String(normalizedProject.id)
-        );
+      return;
+    }
 
-        if (alreadyExists) {
-          return previousProjects.map((project) =>
-            String(project?.id) === String(normalizedProject.id)
-              ? normalizedProject
-              : project
+    const normalizedProject =
+      normalizeProject(createdProject);
+
+    if (!normalizedProject?.id) {
+      console.warn(
+        "Created project has no ID:",
+        normalizedProject
+      );
+
+      await fetchProjects();
+
+      setProjectDrawer(false);
+
+      return;
+    }
+
+    setProjects(
+      (previousProjects) => {
+        const exists =
+          previousProjects.some(
+            (project) =>
+              String(project?.id) ===
+              String(
+                normalizedProject.id
+              )
+          );
+
+        if (exists) {
+          return previousProjects.map(
+            (project) =>
+              String(project?.id) ===
+              String(
+                normalizedProject.id
+              )
+                ? normalizedProject
+                : project
           );
         }
 
-        return [normalizedProject, ...previousProjects];
-      });
+        return [
+          normalizedProject,
+          ...previousProjects,
+        ];
+      }
+    );
 
-      /* Step 2: Reset filters */
-      setActiveFilter("all");
-      setFilters({
-        ...DEFAULT_FILTERS,
-        budgetRange: [0, 0],
-      });
+    setActiveFilter("all");
 
-      /* Step 3: Select newly created project */
-      setSelectedProjectId(normalizedProject.id);
+    setFilters({
+      ...DEFAULT_FILTERS,
+      budgetRange: [0, 0],
+    });
 
-      /* Step 4: Show notification */
-      notifyProjectCreated(normalizedProject, format);
+    setSelectedProjectId(
+      normalizedProject.id
+    );
 
-      /* Step 5: Refresh from database */
-      await fetchProjects();
+    notifyProjectCreated(
+      normalizedProject,
+      format
+    );
 
-      /* Step 6: Keep selected */
-      setSelectedProjectId(normalizedProject.id);
+    await fetchProjects();
 
-      /* Step 7: Close drawer */
-      setProjectDrawer(false);
-    },
-    [fetchProjects, notifyProjectCreated, format]
-  );
+    setSelectedProjectId(
+      normalizedProject.id
+    );
+
+    setProjectDrawer(false);
+  },
+  [
+    fetchProjects,
+    notifyProjectCreated,
+    format,
+  ]
+);
 
   /* =======================================================
      MAX BUDGET
@@ -758,18 +804,19 @@ export default function Projects() {
      SAVE MILESTONE
   ======================================================= */
 
-  const saveMilestone = useCallback(async () => {
+  const saveMilestone = useCallback(
+  async (savedMilestone) => {
     try {
       await fetchProjects();
 
       if (
-        editingMilestone &&
-        !editingMilestone.id &&
+        savedMilestone &&
+        !editingMilestone?.id &&
         selectedProject
       ) {
         notifyMilestoneCreated(
           selectedProject,
-          editingMilestone,
+          savedMilestone,
           format
         );
       }
@@ -777,15 +824,22 @@ export default function Projects() {
       setShowMilestoneModal(false);
       setEditingMilestone(null);
     } catch (error) {
-      console.error("Error refreshing milestones:", error);
+      console.error(
+        "ERROR REFRESHING MILESTONES:",
+        error
+      );
+
+      throw error;
     }
-  }, [
+  },
+  [
     fetchProjects,
     editingMilestone,
     selectedProject,
     notifyMilestoneCreated,
     format,
-  ]);
+  ]
+);
 
   /* =======================================================
      RENDER

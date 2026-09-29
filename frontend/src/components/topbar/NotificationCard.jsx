@@ -1,4 +1,3 @@
-// src/components/notifications/NotificationCard.jsx
 
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
@@ -51,7 +50,7 @@ export default function NotificationCard({
         if (!isRead) markAsRead(_id);
       }}
       className={`
-        relative
+        group relative
         border border-border-light
         ${isRead ? "bg-surface" : "bg-primary-soft"}
         transition-colors duration-fast
@@ -132,7 +131,7 @@ export default function NotificationCard({
 
       {/* Content */}
       <div className="flex gap-4">
-        {/* Icon */}
+        {/* Icon with Ringing Animation */}
         <div
           className="
             w-12 h-12 rounded-xl
@@ -141,7 +140,12 @@ export default function NotificationCard({
             shrink-0
           "
         >
-          <span className="material-symbols-outlined text-2xl text-primary">
+          <span
+            className={`
+              material-symbols-outlined text-2xl text-primary origin-top transition-transform
+              ${!isRead ? "animate-bell" : "group-hover:animate-bell"}
+            `}
+          >
             {icon}
           </span>
         </div>
