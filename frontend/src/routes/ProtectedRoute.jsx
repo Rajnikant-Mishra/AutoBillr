@@ -7,6 +7,7 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation();
   const token = getAuthToken();
 
+  // No authentication token
   if (!token) {
     return (
       <Navigate
@@ -17,5 +18,6 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
+  // User is authenticated
   return children;
 }
