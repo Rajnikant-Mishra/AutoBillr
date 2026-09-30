@@ -69,7 +69,12 @@ const authMiddleware = async (req, res, next) => {
     // =====================================================
 
     let decoded;
-
+console.log("========== JWT DEBUG ==========");
+console.log("JWT_SECRET exists:", !!process.env.JWT_SECRET);
+console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
+console.log("Token received:", !!token);
+console.log("Token length:", token?.length);
+console.log("===============================");
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (jwtError) {
@@ -443,48 +448,36 @@ const authMiddleware = async (req, res, next) => {
     // =====================================================
 
     next();
-  } catch (error) {
-    console.error("========================================");
-    console.error("[AUTH] UNEXPECTED ERROR");
-    console.error("[AUTH] Name:", error?.name);
-    console.error("[AUTH] Message:", error?.message);
-    console.error("[AUTH] Stack:", error?.stack);
-    console.error("========================================");
+  }  catch (error) {
+  console.error("========================================");
+  console.error("[AUTH ERROR]");
+  console.error("Name:", error?.name);
+  console.error("Message:", error?.message);
+  console.error("Stack:", error?.stack);
+  console.error("========================================");
 
-    // =====================================================
-    // JWT EXPIRED
-    // =====================================================
-
-    if (error?.name === "TokenExpiredError") {
-      return res.status(401).json({
-        success: false,
-        code: "TOKEN_EXPIRED",
-        message: "Session expired. Please login again.",
-      });
-    }
-
-    // =====================================================
-    // INVALID JWT
-    // =====================================================
-
-    if (error?.name === "JsonWebTokenError") {
-      return res.status(401).json({
-        success: false,
-        code: "INVALID_TOKEN",
-        message: "Invalid authentication token",
-      });
-    }
-
-    // =====================================================
-    // DATABASE / OTHER AUTH ERROR
-    // =====================================================
-
+  if (error?.name === "TokenExpiredError") {
     return res.status(401).json({
       success: false,
-      code: "AUTHENTICATION_FAILED",
-      message: "Authentication failed",
+      code: "TOKEN_EXPIRED",
+      message: "Session expired. Please login again.",
     });
   }
+
+  if (error?.name === "JsonWebTokenError") {
+    return res.status(401).json({
+      success: false,
+      code: "INVALID_TOKEN",
+      message: "Invalid authentication token",
+    });
+  }
+
+  return res.status(500).json({
+    success: false,
+    code: "AUTH_SERVER_ERROR",
+    message: "Authentication server error",
+  });
+}
 };
 
 module.exports = authMiddleware;
