@@ -3,9 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { showSuccessToast, showErrorToast } from "../components/ui/CustomToast";
 import Button from "../components/ui/Button";
 import FormInput from "../components/ui/FormInput";
-import { setAuthData, setCurrentUser } from "../utils/auth";
+import {
+  setAuthData,
+  setCurrentUser,
+  getAuthToken,
+} from "../utils/auth";
 import { getTeamMe } from "../services/teamService";
-
+const API_URL =
+      import.meta.env.VITE_API_URL ||
+      "http://localhost:5000/api/v1";
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -84,96 +90,211 @@ export default function Login() {
   // =====================================================
   // MANUAL LOGIN
   // =====================================================
-  const handleLogin = async (e) => {
-    e.preventDefault();
+ const handleLogin = async (e) => {
+  e.preventDefault();
 
-    if (!email.trim() || !password) {
-      showErrorToast("Please enter email and password");
+  if (!email.trim() || !password) {
+    showErrorToast("Please enter email and password");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+   
+
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
+
+    const rawResponse = await response.text();
+
+    if (!rawResponse.trim()) {
+      showErrorToast(
+        `Server returned an empty response (${response.status})`
+      );
       return;
     }
 
+    let data;
+
     try {
-      setLoading(true);
+      data = JSON.parse(rawResponse);
+    } catch (error) {
+      console.error("Invalid JSON response:", rawResponse);
 
-      const response = await fetch("http://localhost:5000/api/v1/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-        }),
-      });
-
-      const rawResponse = await response.text();
-
-      if (!rawResponse.trim()) {
-        showErrorToast(`Server returned an empty response (${response.status})`);
-        return;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(rawResponse);
-      } catch {
-        showErrorToast("Server returned an invalid response");
-        return;
-      }
-
-      if (!response.ok) {
-        showErrorToast(data?.message || `Login failed (${response.status})`);
-        if (response.status === 401 || response.status === 404) {
-          setTimeout(() => {
-            navigate("/register");
-          }, 800);
-        }
-        return;
-      }
-
-      if (!data?.token) {
-        showErrorToast(data?.message || "Login succeeded but token was not returned");
-        return;
-      }
-
-            setAuthData({
-        token: data.token,
-        user: data.user,
-        company: data.company,
-        subscription: data.subscription,
-      });
-
-      // Load real permissions from backend
-      try {
-        const me = await getTeamMe();
-        console.log("getTeamMe result:", me); // temporary – you can remove later
-
-        if (me && me.success !== false) {
-          setCurrentUser({
-            ...data.user,
-            role: me.role || me.data?.role || data.user?.role,
-            roleId: me.roleId || me.data?.roleId || null,
-            permissions: me.permissions || me.data?.permissions || [],
-            extraPermissions: me.extraPermissions || me.data?.extraPermissions || [],
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load permissions after login:", err);
-      }
-
-      const userName =
-        `${data.user?.firstName || ""} ${data.user?.lastName || ""}`.trim() ||
-        data.user?.email?.split("@")[0] ||
-        "User";
-
-      showSuccessToast("Welcome Back", userName);
-      navigate("/dashboard", { replace: true });
-    } catch (err) {
-      showErrorToast(err?.message || "Unable to connect to the server");
-    } finally {
-      setLoading(false);
+      showErrorToast(
+        "Server returned an invalid response"
+      );
+      return;
     }
-  };
+
+    /* =========================
+       LOGIN ERROR
+    ========================= */
+
+    if (!response.ok) {
+      showErrorToast(
+        data?.message ||
+          `Login failed (${response.status})`
+      );
+
+      if (
+        response.status === 401 ||
+        response.status === 404
+      ) {
+        setTimeout(() => {
+          navigate("/register");
+        }, 800);
+      }
+
+      return;
+    }
+
+    /* =========================
+       TOKEN CHECK
+    ========================= */
+
+    if (!data?.token) {
+      console.error("Login response:", data);
+
+      showErrorToast(
+        data?.message ||
+          "Login succeeded but token was not returned"
+      );
+
+      return;
+    }
+
+    /* =========================
+       SAVE AUTH DATA
+    ========================= */
+
+    setAuthData({
+      token: data.token,
+      user: data.user || null,
+      company: data.company || null,
+      subscription: data.subscription || null,
+    });
+
+    /*
+     * Verify token was actually stored.
+     */
+    const storedToken = getAuthToken();
+
+    console.log("========== LOGIN SUCCESS ==========");
+    console.log("API token:", data.token);
+    console.log("Stored token:", storedToken);
+    console.log(
+      "Stored user:",
+      localStorage.getItem("user")
+    );
+    console.log(
+      "Stored company:",
+      localStorage.getItem("company")
+    );
+    console.log("===================================");
+
+    if (!storedToken) {
+      console.error(
+        "Authentication token was not saved."
+      );
+
+      showErrorToast(
+        "Login succeeded but authentication could not be saved."
+      );
+
+      return;
+    }
+
+    /* =========================
+       LOAD USER PERMISSIONS
+    ========================= */
+
+    try {
+      const me = await getTeamMe();
+
+      console.log("getTeamMe result:", me);
+
+      if (me && me.success !== false) {
+        setCurrentUser({
+          ...(data.user || {}),
+
+          role:
+            me.role ||
+            me.data?.role ||
+            data.user?.role ||
+            null,
+
+          roleId:
+            me.roleId ||
+            me.data?.roleId ||
+            data.user?.roleId ||
+            null,
+
+          permissions:
+            me.permissions ||
+            me.data?.permissions ||
+            [],
+
+          extraPermissions:
+            me.extraPermissions ||
+            me.data?.extraPermissions ||
+            [],
+        });
+      }
+    } catch (err) {
+      /*
+       * Permission loading failure should NOT
+       * prevent the user from entering dashboard.
+       */
+      console.error(
+        "Failed to load permissions after login:",
+        err
+      );
+    }
+
+    /* =========================
+       WELCOME MESSAGE
+    ========================= */
+
+    const userName =
+      `${data.user?.firstName || ""} ${
+        data.user?.lastName || ""
+      }`.trim() ||
+      data.user?.email?.split("@")[0] ||
+      "User";
+
+    showSuccessToast(
+      "Welcome Back",
+      userName
+    );
+
+    /* =========================
+       DASHBOARD REDIRECT
+    ========================= */
+
+    navigate("/dashboard", {
+      replace: true,
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+
+    showErrorToast(
+      err?.message ||
+        "Unable to connect to the server"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f5faf8] font-[Inter] relative">
@@ -384,7 +505,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/forgot-password", {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: modalEmail.trim().toLowerCase() }),
@@ -415,7 +536,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/verify-reset-otp", {
+      const res = await fetch(`${API_URL}/auth/verify-reset-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -452,7 +573,7 @@ function ForgotPasswordModal({ isOpen, initialEmail = "", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/v1/auth/reset-password", {
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -631,48 +752,80 @@ function Stat({ value, label }) {
 
 function SocialLogin() {
   const handleGoogleClick = () => {
-    window.location.href = "http://localhost:5000/api/v1/auth/google";
+    
+
+    window.location.href = `${API_URL}/auth/google`;
   };
 
   return (
     <div className="flex flex-col sm:flex-row gap-3">
-      {/* Google Button */}
+      {/* Google */}
       <button
         type="button"
         onClick={handleGoogleClick}
         className="flex-1 flex items-center justify-center gap-2.5 py-3 border border-slate-200 rounded-xl hover:bg-white transition font-semibold text-sm cursor-pointer"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+        >
           <path
             fill="#4285F4"
             d="M22.5 12.3c0-.9-.1-1.7-.2-2.5H12v4.7h5.9c-.3 1.4-1 2.6-2.2 3.4v2.8h3.6c2.1-1.9 3.2-4.8 3.2-8.4z"
           />
+
           <path
             fill="#34A853"
             d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.8c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8C4.1 20.4 7.8 23 12 23z"
           />
+
           <path
             fill="#FBBC04"
             d="M6 14.2c-.2-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2V7H2.3C1.5 8.5 1 10.2 1 12s.5 3.5 1.3 5l3.7-2.8z"
           />
+
           <path
             fill="#EA4335"
             d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1C17.4 2 14.9 1 12 1 7.8 1 4.1 3.6 2.3 7L6 9.8c.9-2.5 3.2-4.4 6-4.4z"
           />
         </svg>
+
         Google
       </button>
 
+      {/* Microsoft */}
       <button
         type="button"
+        disabled
         className="flex-1 flex items-center justify-center gap-2.5 py-3 border border-slate-200 rounded-xl hover:bg-white transition font-semibold text-sm opacity-50 cursor-not-allowed"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24">
-          <path fill="#F25022" d="M2 2h10v10H2z" />
-          <path fill="#7FBA00" d="M12 2h10v10H12z" />
-          <path fill="#00A4EF" d="M2 12h10v10H2z" />
-          <path fill="#FFB900" d="M12 12h10v10H12z" />
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+        >
+          <path
+            fill="#F25022"
+            d="M2 2h10v10H2z"
+          />
+
+          <path
+            fill="#7FBA00"
+            d="M12 2h10v10H12z"
+          />
+
+          <path
+            fill="#00A4EF"
+            d="M2 12h10v10H2z"
+          />
+
+          <path
+            fill="#FFB900"
+            d="M12 12h10v10H12z"
+          />
         </svg>
+
         Microsoft
       </button>
     </div>
