@@ -396,6 +396,7 @@
 // };
 
 // module.exports = authMiddleware;
+
 const jwt = require("jsonwebtoken");
 const prisma = require("../../config/prisma");
 const { DEFAULT_ROLE_PERMISSIONS } = require("../constants/permissions");
