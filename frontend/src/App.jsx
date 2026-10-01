@@ -9,10 +9,12 @@ import {
 import axios from "axios";
 import { Toaster } from "react-hot-toast";
 
-// Layout / Auth
+// Layout / Auth / Permissions
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AcceptInvitation from "./pages/auth/AcceptInvitation";
+import { useCurrencyStore } from "./store/currencyStore";
+import { usePermissions } from "./hooks/usePermissions";
 
 // ============================================================
 // PUBLIC PAGES
@@ -49,9 +51,17 @@ import SecuritySettings from "./pages/adminSettings/SecuritySettings";
 import NotificationSettings from "./pages/adminSettings/NotificationSettings";
 
 // ============================================================
-// PROTECTED LAYOUT
+// PROTECTED LAYOUT WITH PERMISSION GUARD
 // ============================================================
-function ProtectedLayout({ children }) {
+function ProtectedLayout({ children, permission }) {
+  const { can, role } = usePermissions();
+
+  // Agar route par permission required hai aur user ke paas permission nahi hai
+  // (Owner aur Admin ko bypass milta hai)
+  if (permission && role !== "Owner" && role !== "Admin" && !can(permission)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <ProtectedRoute>
       <MainLayout>{children}</MainLayout>
@@ -146,7 +156,6 @@ axios.interceptors.response.use(
       error.response?.status === 403 &&
       error.response?.data?.code === "TRIAL_EXPIRED"
     ) {
-      // Custom event dispatch karke React modal trigger karega
       window.dispatchEvent(new CustomEvent("trial-expired"));
     }
     return Promise.reject(error);
@@ -158,6 +167,11 @@ axios.interceptors.response.use(
 // ============================================================
 function App() {
   const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const fetchCurrencies = useCurrencyStore((state) => state.fetchCurrencies); 
+
+  useEffect(() => {
+    fetchCurrencies();
+  }, [fetchCurrencies]);
 
   useEffect(() => {
     const handleTrialExpired = () => {
@@ -190,8 +204,9 @@ function App() {
         <Route path="/accept-invitation" element={<AcceptInvitation />} />
 
         {/* ======================================================
-            PROTECTED ROUTES
+            PROTECTED ROUTES WITH PERMISSION CHECKS
         ====================================================== */}
+        {/* Dashboard open rehta hai kyunki wo apna 'No access assigned' screen khud handle karta hai */}
         <Route
           path="/dashboard"
           element={
@@ -204,7 +219,7 @@ function App() {
         <Route
           path="/projects"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="projects:view">
               <Projects />
             </ProtectedLayout>
           }
@@ -213,7 +228,7 @@ function App() {
         <Route
           path="/clients"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="clients:view">
               <Clients />
             </ProtectedLayout>
           }
@@ -222,7 +237,7 @@ function App() {
         <Route
           path="/composer"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:create">
               <Composer />
             </ProtectedLayout>
           }
@@ -231,7 +246,7 @@ function App() {
         <Route
           path="/composer/:id"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:create">
               <Composer />
             </ProtectedLayout>
           }
@@ -240,7 +255,7 @@ function App() {
         <Route
           path="/invoices"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="invoices:view">
               <Invoices />
             </ProtectedLayout>
           }
@@ -258,7 +273,7 @@ function App() {
         <Route
           path="/analytics"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="analytics:view">
               <AdvancedAnalytics />
             </ProtectedLayout>
           }
@@ -267,7 +282,7 @@ function App() {
         <Route
           path="/automation"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="automation:view">
               <RecurringBilling />
             </ProtectedLayout>
           }
@@ -276,7 +291,7 @@ function App() {
         <Route
           path="/team"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="team:view">
               <TeamPermissions />
             </ProtectedLayout>
           }
@@ -285,7 +300,7 @@ function App() {
         <Route
           path="/settings"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="settings:view">
               <Settings />
             </ProtectedLayout>
           }
@@ -327,7 +342,7 @@ function App() {
         <Route
           path="/adminsettings"
           element={
-            <ProtectedLayout>
+            <ProtectedLayout permission="settings:view">
               <SettingsLayout />
             </ProtectedLayout>
           }
