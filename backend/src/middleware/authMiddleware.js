@@ -397,6 +397,17 @@
 
 // module.exports = authMiddleware;
 
+
+
+
+
+
+
+
+
+
+
+
 const jwt = require("jsonwebtoken");
 const prisma = require("../../config/prisma");
 const {
@@ -448,7 +459,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    console.log("[AUTH] Token received:", `${token.substring(0, 15)}...`);
+   
 
     // =====================================================
     // 3. CHECK JWT SECRET
@@ -470,7 +481,7 @@ const authMiddleware = async (req, res, next) => {
     let decoded;
 console.log("========== JWT DEBUG ==========");
 console.log("JWT_SECRET exists:", !!process.env.JWT_SECRET);
-console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
+
 console.log("Token received:", !!token);
 console.log("Token length:", token?.length);
 console.log("===============================");
