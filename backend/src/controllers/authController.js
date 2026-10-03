@@ -394,8 +394,9 @@ const register = async (req, res) => {
 //     });
 //   }
 // };
+
 // =====================================================
-// 4. LOGIN (Crash-Safe + Debug Enabled)
+// 4. LOGIN (Safe Column Select)
 // =====================================================
 const login = async (req, res) => {
   try {
@@ -411,7 +412,16 @@ const login = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { company: true },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            companySize: true,
+            industry: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -464,6 +474,7 @@ const login = async (req, res) => {
     });
   }
 };
+
 // =====================================================
 // 5. FORGOT PASSWORD (GENERATE & SEND OTP)
 // =====================================================
