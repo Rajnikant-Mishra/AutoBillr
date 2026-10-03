@@ -752,9 +752,7 @@ function Stat({ value, label }) {
 
 function SocialLogin() {
   const handleGoogleClick = () => {
-    
-
-    window.location.href = `${API_URL}/auth/google`;
+    window.location.href = "http://localhost:5000/api/v1/auth/google";
   };
 
   return (

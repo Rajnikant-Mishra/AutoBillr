@@ -1,3 +1,5 @@
+require("dotenv").config();
+console.log("GOOGLE CLIENT ID:", process.env.GOOGLE_CLIENT_ID);
 const express = require("express");
 const cors = require("cors");
 const http = require("http");

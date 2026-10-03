@@ -33,7 +33,6 @@ const getCompanyId = async (req) => {
     }
   }
 
-  // 3. Fallback: Jis company ke paas latest clients hain
   const latestClient = await prisma.client.findFirst({
     orderBy: { createdAt: "desc" },
     select: { companyId: true },
@@ -50,9 +49,12 @@ const getAutomationOverview = async (req, res) => {
       return res.status(400).json({ success: false, message: "Company not found" });
     }
 
-    // Sirf aapki company ke real clients fetch honge
+    // Sirf active clients fetch honge (deleted/archived clients filtered out)
     const clients = await prisma.client.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        archivedAt: null,
+      },
       include: {
         projects: {
           select: { id: true, title: true },

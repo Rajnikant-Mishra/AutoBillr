@@ -8,9 +8,20 @@ const projectRoutes = require("./routes/projectRoutes"); // ← required
 
 const app = express();
 
+// app.use(cors({
+//   origin: "http://localhost:5173",
+//   credentials: true,
+// }));
+
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5000",
+    "https://mediumseagreen-weasel-646392.hostingersite.com"
+  ],
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json());

@@ -48,13 +48,51 @@ const sendOtpEmail = async (email, otp) => {
   return transporter.sendMail(mailOptions);
 };
 
-// =====================================================
-// 1. REDIRECT TO GOOGLE
-// =====================================================
+// // =====================================================
+// // 1. REDIRECT TO GOOGLE
+// // =====================================================
+// const redirectToGoogle = (req, res) => {
+//   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+//   const params = new URLSearchParams({
+//     client_id: GOOGLE_CLIENT_ID,
+//     redirect_uri: REDIRECT_URI,
+//     response_type: "code",
+//     scope: "openid email profile",
+//   });
+
+//   return res.redirect(`${rootUrl}?${params.toString()}`);
+// };
+
+// // =====================================================
+// // 1. REDIRECT TO GOOGLE
+// // =====================================================
+// const redirectToGoogle = (req, res) => {
+//   const clientId = process.env.GOOGLE_CLIENT_ID;
+
+//   console.log("Current Client ID:", clientId); 
+
+//   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+//   const params = new URLSearchParams({
+//     client_id: clientId,
+//     redirect_uri: REDIRECT_URI,
+//     response_type: "code",
+//     scope: "openid email profile",
+//   });
+
+//   return res.redirect(`${rootUrl}?${params.toString()}`);
+// };
+
 const redirectToGoogle = (req, res) => {
+  console.log("🔥 GOOGLE ROUTE REACHED");
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+
+  console.log("🔥 CLIENT ID:", clientId);
+
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+
   const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: REDIRECT_URI,
     response_type: "code",
     scope: "openid email profile",
@@ -62,6 +100,9 @@ const redirectToGoogle = (req, res) => {
 
   return res.redirect(`${rootUrl}?${params.toString()}`);
 };
+
+
+
 
 // =====================================================
 // 2. GOOGLE OAUTH CALLBACK
