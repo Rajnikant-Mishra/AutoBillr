@@ -335,6 +335,68 @@ const register = async (req, res) => {
 // =====================================================
 // 4. LOGIN
 // =====================================================
+// const login = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+//     const normalizedEmail = email?.trim().toLowerCase();
+
+//     if (!normalizedEmail || !password) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Email and password are required",
+//       });
+//     }
+
+//     const user = await prisma.user.findUnique({
+//       where: { email: normalizedEmail },
+//       include: { company: true },
+//     });
+
+//     if (!user) {
+//       return res.status(401).json({ success: false, message: "Invalid email or password" });
+//     }
+
+//     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+//     if (!passwordMatch) {
+//       return res.status(401).json({ success: false, message: "Invalid email or password" });
+//     }
+
+//     const token = generateToken({
+//       userId: user.id,
+//       companyId: user.companyId,
+//       role: user.role,
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Login successful",
+//       token,
+//       user: {
+//         id: user.id,
+//         firstName: user.firstName,
+//         lastName: user.lastName,
+//         email: user.email,
+//         role: user.role,
+//       },
+//       company: {
+//         id: user.company?.id,
+//         name: user.company?.name,
+//         companySize: user.company?.companySize,
+//         industry: user.company?.industry,
+//       },
+//       subscription: null,
+//     });
+//   } catch (error) {
+//     console.error("LOGIN ERROR:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Login failed. Please try again later.",
+//     });
+//   }
+// };
+// =====================================================
+// 4. LOGIN (Crash-Safe + Debug Enabled)
+// =====================================================
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -354,6 +416,13 @@ const login = async (req, res) => {
 
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid email or password" });
+    }
+
+    if (!user.passwordHash) {
+      return res.status(400).json({
+        success: false,
+        message: "This account was registered via Google. Please log in with Google.",
+      });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
@@ -390,11 +459,11 @@ const login = async (req, res) => {
     console.error("LOGIN ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: "Login failed. Please try again later.",
+      message: error.message || "Login failed. Please try again later.",
+      details: error.name || "ServerError",
     });
   }
 };
-
 // =====================================================
 // 5. FORGOT PASSWORD (GENERATE & SEND OTP)
 // =====================================================
