@@ -427,6 +427,7 @@ enum TeamMemberStatus {
 }
 
 enum UserRole {
+  SUPERADMIN
   OWNER
   ADMIN
   MANAGER

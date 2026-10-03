@@ -7,6 +7,7 @@ const path = require("path");
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const clientRoutes = require("./src/routes/clientRoutes");
+const superAdminRoutes = require("./src/routes/superAdminRoutes");
 const projectRoutes = require("./src/routes/projectRoutes");
 const invoiceRoutes = require("./src/routes/invoiceRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
@@ -67,6 +68,7 @@ app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/email-verification", emailVerificationRoutes);
 app.use("/api/v1/team", teamRoutes);
+app.use("/api/v1/superadmin", superAdminRoutes);
 if (currencyRoutes) {
   app.use("/api/v1/currencies", currencyRoutes);
 } else {
