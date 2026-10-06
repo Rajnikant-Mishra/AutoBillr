@@ -296,7 +296,7 @@ model Role {
   name        String
   description String?
   companyId   String
-  permissions String[]
+  permissions String[] @default([])
   isSystem    Boolean      @default(false)
 
   createdAt   DateTime     @default(now())
