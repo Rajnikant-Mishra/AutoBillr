@@ -953,35 +953,28 @@ async function acceptInvitation(token) {
   /*
    * Existing TeamMember role.
    */
-const invitationRole =
-  member.role || "VIEWER";
+// ---------- START OF REPLACEMENT ----------
 
-const normalizedInvitationRole =
-  String(invitationRole)
-    .trim()
-    .toUpperCase();
+// Existing TeamMember role (can be "Helper", "HELPER", "Viewer", etc.)
+const invitationRole = member.role || "VIEWER";
 
-const userRole =
-  ["OWNER", "ADMIN", "MANAGER", "ANALYST", "VIEWER"]
-    .includes(normalizedInvitationRole)
-    ? normalizedInvitationRole
-    : "VIEWER";
+const normalizedInvitationRole = String(invitationRole)
+  .trim()
+  .toUpperCase();
 
-const temporaryPassword =
-  generateRandomPassword(16);
+// ONLY system roles are allowed on User.role
+const allowedUserRoles = ["OWNER", "ADMIN", "MANAGER", "ANALYST", "VIEWER"];
 
-const passwordHash =
-  await bcrypt.hash(
-    temporaryPassword,
-    12
-  );
+const userRole = allowedUserRoles.includes(normalizedInvitationRole)
+  ? normalizedInvitationRole
+  : "VIEWER";   // custom roles (Helper, etc.) always become VIEWER on the User table
 
-let user =
-  await prisma.user.findUnique({
-    where: {
-      email: member.email,
-    },
-  });
+const temporaryPassword = generateRandomPassword(16);
+const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+let user = await prisma.user.findUnique({
+  where: { email: member.email },
+});
 
 if (!user) {
   user = await prisma.user.create({
@@ -990,18 +983,16 @@ if (!user) {
       firstName,
       lastName,
       passwordHash,
-      role: userRole,
+      role: userRole,          // always a real UserRole enum value
       companyId: member.companyId,
     },
   });
 } else {
   user = await prisma.user.update({
-    where: {
-      id: user.id,
-    },
+    where: { id: user.id },
     data: {
       passwordHash,
-      role: userRole,
+      role: userRole,          // always a real UserRole enum value
       companyId: member.companyId,
       firstName,
       lastName,
@@ -1009,6 +1000,7 @@ if (!user) {
   });
 }
 
+// ---------- END OF REPLACEMENT ----------
   /*
    * Activate TeamMember.
    *
