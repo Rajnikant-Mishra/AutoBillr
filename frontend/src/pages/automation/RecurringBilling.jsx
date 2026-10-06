@@ -1,11 +1,10 @@
-
-
 import { useState, useEffect, useCallback } from "react";
 import AutomationFlow from "../../components/automation/AutomationFlow";
 import BillingConfiguration from "../../components/automation/BillingConfiguration";
 import SchedulePreview from "../../components/automation/SchedulePreview";
 import Badge from "../../components/ui/Badge";
 import SectionHeader from "../../components/ui/SectionHeader";
+import { getAuthToken } from "../../utils/auth";
 
 export default function RecurringBilling() {
   const [clients, setClients] = useState([]);
@@ -24,26 +23,91 @@ export default function RecurringBilling() {
     active: false,
   });
 
+  /* =========================================================
+     API BASE URL
+  ========================================================= */
+  const API_BASE = (
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "http://localhost:5000/api/v1"
+  ).replace(/\/$/, "");
+
+  /* =========================================================
+     NORMALIZE CLIENT (same as Composer.jsx)
+  ========================================================= */
+  const normalizeClient = (client) => {
+    if (!client) return null;
+
+    const clientId =
+      client.id ?? client._id ?? client.clientId ?? null;
+
+    const clientName =
+      client.name ??
+      client.clientName ??
+      client.companyName ??
+      client.fullName ??
+      "Unnamed Client";
+
+    return {
+      ...client,
+      id: clientId,
+      name: clientName,
+    };
+  };
+
+  /* =========================================================
+     FETCH OVERVIEW
+  ========================================================= */
   const fetchOverview = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token") || "";
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/automation/overview`||"http://localhost:5000/api/v1/automation/overview", {
+      const token =
+        getAuthToken() ||
+        localStorage.getItem("autobiller-auth") ||
+        localStorage.getItem("token") ||
+        "";
+
+      const res = await fetch(`${API_BASE}/automation/overview`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          Accept: "application/json",
         },
       });
-      const data = await res.json();
-      if (data.success) {
-        setClients(data.clients || []);
-        setActiveEngines(data.activeEngines || 0);
 
-        if (data.clients?.length > 0) {
-          setPreviewData((prev) => ({
-            ...prev,
-            clientId: prev.clientId || data.clients[0].id,
-            clientName: prev.clientName || data.clients[0].name,
-          }));
+      const data = await res.json().catch(() => ({}));
+
+      if (data.success || res.ok) {
+        let list = [];
+
+        if (Array.isArray(data.clients)) {
+          list = data.clients;
+        } else if (Array.isArray(data.data?.clients)) {
+          list = data.data.clients;
+        } else if (Array.isArray(data.data)) {
+          list = data.data;
+        } else if (Array.isArray(data)) {
+          list = data;
+        }
+
+        const normalizedClients = list
+          .map(normalizeClient)
+          .filter((c) => c && c.id !== null && c.id !== undefined);
+
+        setClients(normalizedClients);
+        setActiveEngines(
+          data.activeEngines ?? data.data?.activeEngines ?? 0
+        );
+
+        // Pre-select first client if none selected
+        if (normalizedClients.length > 0) {
+          setPreviewData((prev) => {
+            if (prev.clientId) return prev;
+
+            return {
+              ...prev,
+              clientId: String(normalizedClients[0].id),
+              clientName: normalizedClients[0].name,
+            };
+          });
         }
       }
     } catch (err) {
@@ -51,33 +115,65 @@ export default function RecurringBilling() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [API_BASE]);
 
-  // Initial load on mount (no synchronous setState inside effect)
+  /* =========================================================
+     INITIAL LOAD
+  ========================================================= */
   useEffect(() => {
     let isMounted = true;
 
-    const loadInitialData = async () => {
+    const load = async () => {
       try {
-        const token = localStorage.getItem("token") || "";
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/automation/overview`||"http://localhost:5000/api/v1/automation/overview", {
+        const token =
+          getAuthToken() ||
+          localStorage.getItem("autobiller-auth") ||
+          localStorage.getItem("token") ||
+          "";
+
+        const res = await fetch(`${API_BASE}/automation/overview`, {
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+            Accept: "application/json",
           },
         });
-        const data = await res.json();
 
-        if (isMounted && data.success) {
-          setClients(data.clients || []);
-          setActiveEngines(data.activeEngines || 0);
+        const data = await res.json().catch(() => ({}));
 
-          if (data.clients?.length > 0) {
-            setPreviewData((prev) => ({
-              ...prev,
-              clientId: prev.clientId || data.clients[0].id,
-              clientName: prev.clientName || data.clients[0].name,
-            }));
+        if (!isMounted) return;
+
+        if (data.success || res.ok) {
+          let list = [];
+
+          if (Array.isArray(data.clients)) {
+            list = data.clients;
+          } else if (Array.isArray(data.data?.clients)) {
+            list = data.data.clients;
+          } else if (Array.isArray(data.data)) {
+            list = data.data;
+          } else if (Array.isArray(data)) {
+            list = data;
+          }
+
+          const normalizedClients = list
+            .map(normalizeClient)
+            .filter((c) => c && c.id !== null && c.id !== undefined);
+
+          setClients(normalizedClients);
+          setActiveEngines(
+            data.activeEngines ?? data.data?.activeEngines ?? 0
+          );
+
+          if (normalizedClients.length > 0) {
+            setPreviewData((prev) => {
+              if (prev.clientId) return prev;
+
+              return {
+                ...prev,
+                clientId: String(normalizedClients[0].id),
+                clientName: normalizedClients[0].name,
+              };
+            });
           }
         }
       } catch (err) {
@@ -89,12 +185,12 @@ export default function RecurringBilling() {
       }
     };
 
-    loadInitialData();
+    load();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [API_BASE]);
 
   return (
     <div className="page-in">
