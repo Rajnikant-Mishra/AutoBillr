@@ -1421,7 +1421,7 @@ export default function Composer() {
                             onChange={(e) =>
                               updateItem(item.id, "qty", e.target.value)
                             }
-                            className="w-full bg-transparent outline-none text-right text-text border border-border/60 rounded-lg px-2 py-1.5 mt-0.5 focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                            className="w-full bg-transparent outline-none text-right text-text border border-border/60 rounded-lg px-0.5 py-0.5 mt-0.5 focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
                           />
                         </div>
 
