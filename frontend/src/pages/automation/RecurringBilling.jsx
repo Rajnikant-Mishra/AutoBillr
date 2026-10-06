@@ -1,4 +1,6 @@
+
 import { useState, useEffect, useCallback } from "react";
+
 import AutomationFlow from "../../components/automation/AutomationFlow";
 import BillingConfiguration from "../../components/automation/BillingConfiguration";
 import SchedulePreview from "../../components/automation/SchedulePreview";
@@ -8,16 +10,24 @@ import { getAuthToken } from "../../utils/auth";
 
 export default function RecurringBilling() {
   const [clients, setClients] = useState([]);
+  const [projects, setProjects] = useState([]);
+
   const [activeEngines, setActiveEngines] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingOverview, setLoadingOverview] = useState(true);
 
   const [previewData, setPreviewData] = useState({
     frequency: "Monthly",
     amount: 10000,
+
     clientId: "",
     clientName: "",
+
     projectId: "",
     projectName: "",
+
     autoSubmit: true,
     autoCharge: false,
     active: false,
@@ -26,6 +36,7 @@ export default function RecurringBilling() {
   /* =========================================================
      API BASE URL
   ========================================================= */
+
   const API_BASE = (
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
@@ -33,13 +44,30 @@ export default function RecurringBilling() {
   ).replace(/\/$/, "");
 
   /* =========================================================
-     NORMALIZE CLIENT (same as Composer.jsx)
+     TOKEN
   ========================================================= */
+
+  const getToken = () => {
+    return (
+      getAuthToken() ||
+      localStorage.getItem("autobiller-auth") ||
+      localStorage.getItem("token") ||
+      ""
+    );
+  };
+
+  /* =========================================================
+     NORMALIZE CLIENT
+  ========================================================= */
+
   const normalizeClient = (client) => {
     if (!client) return null;
 
     const clientId =
-      client.id ?? client._id ?? client.clientId ?? null;
+      client.id ??
+      client._id ??
+      client.clientId ??
+      null;
 
     const clientName =
       client.name ??
@@ -56,141 +84,463 @@ export default function RecurringBilling() {
   };
 
   /* =========================================================
-     FETCH OVERVIEW
+     NORMALIZE PROJECT
   ========================================================= */
+
+  const normalizeProject = (project) => {
+    if (!project) return null;
+
+    const projectId =
+      project.id ??
+      project._id ??
+      project.projectId ??
+      null;
+
+    const projectName =
+      project.title ??
+      project.name ??
+      project.projectName ??
+      project.projectTitle ??
+      "Untitled Project";
+
+    const clientId =
+      project.clientId ??
+      project.client_id ??
+      project.client?.id ??
+      project.client?._id ??
+      project.client?.clientId ??
+      project.Client?.id ??
+      project.Client?._id ??
+      project.Client?.clientId ??
+      null;
+
+    return {
+      ...project,
+      id: projectId,
+      title: projectName,
+      name: projectName,
+      clientId,
+    };
+  };
+
+  /* =========================================================
+     NORMALIZE CLIENT RESPONSE
+  ========================================================= */
+
+  const normalizeClientsResponse = (data) => {
+    let list = [];
+
+    if (Array.isArray(data)) {
+      list = data;
+    } else if (Array.isArray(data?.clients)) {
+      list = data.clients;
+    } else if (Array.isArray(data?.Clients)) {
+      list = data.Clients;
+    } else if (Array.isArray(data?.data?.clients)) {
+      list = data.data.clients;
+    } else if (Array.isArray(data?.data)) {
+      list = data.data;
+    } else if (Array.isArray(data?.result)) {
+      list = data.result;
+    }
+
+    return list
+      .map(normalizeClient)
+      .filter(
+        (client) =>
+          client &&
+          client.id !== null &&
+          client.id !== undefined
+      );
+  };
+
+  /* =========================================================
+     NORMALIZE PROJECT RESPONSE
+  ========================================================= */
+
+  const normalizeProjectsResponse = (data) => {
+    let list = [];
+
+    if (Array.isArray(data)) {
+      list = data;
+    } else if (Array.isArray(data?.projects)) {
+      list = data.projects;
+    } else if (Array.isArray(data?.Projects)) {
+      list = data.Projects;
+    } else if (Array.isArray(data?.data?.projects)) {
+      list = data.data.projects;
+    } else if (Array.isArray(data?.data)) {
+      list = data.data;
+    } else if (Array.isArray(data?.result)) {
+      list = data.result;
+    }
+
+    return list
+      .map(normalizeProject)
+      .filter(
+        (project) =>
+          project &&
+          project.id !== null &&
+          project.id !== undefined
+      );
+  };
+
+  /* =========================================================
+     FETCH OVERVIEW
+     Only fetch automation information here.
+  ========================================================= */
+
   const fetchOverview = useCallback(async () => {
     try {
-      const token =
-        getAuthToken() ||
-        localStorage.getItem("autobiller-auth") ||
-        localStorage.getItem("token") ||
-        "";
+      setLoadingOverview(true);
 
-      const res = await fetch(`${API_BASE}/automation/overview`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+      const token = getToken();
 
-      const data = await res.json().catch(() => ({}));
-
-      if (data.success || res.ok) {
-        let list = [];
-
-        if (Array.isArray(data.clients)) {
-          list = data.clients;
-        } else if (Array.isArray(data.data?.clients)) {
-          list = data.data.clients;
-        } else if (Array.isArray(data.data)) {
-          list = data.data;
-        } else if (Array.isArray(data)) {
-          list = data;
-        }
-
-        const normalizedClients = list
-          .map(normalizeClient)
-          .filter((c) => c && c.id !== null && c.id !== undefined);
-
-        setClients(normalizedClients);
-        setActiveEngines(
-          data.activeEngines ?? data.data?.activeEngines ?? 0
-        );
-
-        // Pre-select first client if none selected
-        if (normalizedClients.length > 0) {
-          setPreviewData((prev) => {
-            if (prev.clientId) return prev;
-
-            return {
-              ...prev,
-              clientId: String(normalizedClients[0].id),
-              clientName: normalizedClients[0].name,
-            };
-          });
-        }
+      if (!token) {
+        console.error("No authentication token found.");
+        return;
       }
-    } catch (err) {
-      console.error("Failed to fetch automation overview:", err);
+
+      const response = await fetch(
+        `${API_BASE}/automation/overview`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            `Failed to load automation overview (${response.status})`
+        );
+      }
+
+      setActiveEngines(
+        data.activeEngines ??
+          data.data?.activeEngines ??
+          0
+      );
+    } catch (error) {
+      console.error(
+        "Failed to fetch automation overview:",
+        error
+      );
+
+      setActiveEngines(0);
     } finally {
-      setLoading(false);
+      setLoadingOverview(false);
     }
   }, [API_BASE]);
 
   /* =========================================================
-     INITIAL LOAD
+     FETCH CLIENTS
+     Same endpoint/pattern as Composer.jsx
   ========================================================= */
-  useEffect(() => {
-    let isMounted = true;
 
-    const load = async () => {
+  const fetchClients = useCallback(async () => {
+    try {
+      setLoadingClients(true);
+
+      const token = getToken();
+
+      if (!token) {
+        console.error("No authentication token found.");
+        setClients([]);
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE}/clients`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            `Failed to load clients (${response.status})`
+        );
+      }
+
+      const normalizedClients =
+        normalizeClientsResponse(data);
+
+      console.log(
+        "RECURRING BILLING → CLIENTS:",
+        normalizedClients
+      );
+
+      setClients(normalizedClients);
+
+      /*
+       * Select first client automatically.
+       */
+      if (normalizedClients.length > 0) {
+        setPreviewData((prev) => {
+          if (prev.clientId) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            clientId: String(normalizedClients[0].id),
+            clientName: normalizedClients[0].name,
+            projectId: "",
+            projectName: "",
+          };
+        });
+      }
+    } catch (error) {
+      console.error(
+        "Failed to fetch clients:",
+        error
+      );
+
+      setClients([]);
+    } finally {
+      setLoadingClients(false);
+    }
+  }, [API_BASE]);
+
+  /* =========================================================
+     FETCH PROJECTS FOR SELECTED CLIENT
+     Same logic as Composer.jsx
+  ========================================================= */
+
+  const fetchProjects = useCallback(
+    async (clientId) => {
+      if (!clientId) {
+        setProjects([]);
+        setLoadingProjects(false);
+        return;
+      }
+
       try {
-        const token =
-          getAuthToken() ||
-          localStorage.getItem("autobiller-auth") ||
-          localStorage.getItem("token") ||
-          "";
+        setLoadingProjects(true);
 
-        const res = await fetch(`${API_BASE}/automation/overview`, {
+        const token = getToken();
+
+        if (!token) {
+          console.error("No authentication token found.");
+          setProjects([]);
+          return;
+        }
+
+        const url =
+          `${API_BASE}/projects?clientId=` +
+          encodeURIComponent(clientId);
+
+        console.log(
+          "RECURRING BILLING → FETCH PROJECTS:",
+          url
+        );
+
+        const response = await fetch(url, {
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
         });
 
-        const data = await res.json().catch(() => ({}));
+        const data = await response.json().catch(() => ({}));
 
-        if (!isMounted) return;
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              `Failed to load projects (${response.status})`
+          );
+        }
 
-        if (data.success || res.ok) {
-          let list = [];
+        const normalizedProjects =
+          normalizeProjectsResponse(data);
 
-          if (Array.isArray(data.clients)) {
-            list = data.clients;
-          } else if (Array.isArray(data.data?.clients)) {
-            list = data.data.clients;
-          } else if (Array.isArray(data.data)) {
-            list = data.data;
-          } else if (Array.isArray(data)) {
-            list = data;
-          }
+        console.log(
+          "RECURRING BILLING → PROJECTS FROM API:",
+          normalizedProjects
+        );
 
-          const normalizedClients = list
-            .map(normalizeClient)
-            .filter((c) => c && c.id !== null && c.id !== undefined);
+        /*
+         * The endpoint already receives clientId.
+         *
+         * Still verify client relationship when
+         * project response contains client information.
+         */
 
-          setClients(normalizedClients);
-          setActiveEngines(
-            data.activeEngines ?? data.data?.activeEngines ?? 0
+        const projectsWithClientInfo =
+          normalizedProjects.filter(
+            (project) =>
+              project.clientId !== null &&
+              project.clientId !== undefined &&
+              project.clientId !== ""
           );
 
-          if (normalizedClients.length > 0) {
-            setPreviewData((prev) => {
-              if (prev.clientId) return prev;
+        let filteredProjects = normalizedProjects;
 
-              return {
-                ...prev,
-                clientId: String(normalizedClients[0].id),
-                clientName: normalizedClients[0].name,
-              };
-            });
+        if (projectsWithClientInfo.length > 0) {
+          const selectedClientId = String(clientId);
+
+          filteredProjects =
+            normalizedProjects.filter(
+              (project) =>
+                String(project.clientId) ===
+                selectedClientId
+            );
+        }
+
+        console.log(
+          "RECURRING BILLING → FILTERED PROJECTS:",
+          filteredProjects
+        );
+
+        setProjects(filteredProjects);
+
+        /*
+         * If current project no longer belongs to
+         * selected client, clear it.
+         */
+
+        setPreviewData((prev) => {
+          const currentProjectExists =
+            filteredProjects.some(
+              (project) =>
+                String(project.id) ===
+                String(prev.projectId)
+            );
+
+          if (currentProjectExists) {
+            const selectedProject =
+              filteredProjects.find(
+                (project) =>
+                  String(project.id) ===
+                  String(prev.projectId)
+              );
+
+            return {
+              ...prev,
+              projectName:
+                selectedProject?.title ||
+                selectedProject?.name ||
+                "",
+            };
           }
-        }
-      } catch (err) {
-        console.error("Failed to fetch automation overview:", err);
+
+          return {
+            ...prev,
+            projectId: "",
+            projectName: "",
+          };
+        });
+      } catch (error) {
+        console.error(
+          "Failed to fetch projects:",
+          error
+        );
+
+        setProjects([]);
+
+        setPreviewData((prev) => ({
+          ...prev,
+          projectId: "",
+          projectName: "",
+        }));
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoadingProjects(false);
       }
-    };
+    },
+    [API_BASE]
+  );
 
-    load();
+  /* =========================================================
+     INITIAL LOAD
+  ========================================================= */
 
-    return () => {
-      isMounted = false;
-    };
-  }, [API_BASE]);
+  useEffect(() => {
+    fetchOverview();
+    fetchClients();
+  }, [fetchOverview, fetchClients]);
+
+  /* =========================================================
+     CLIENT CHANGE → FETCH PROJECTS
+  ========================================================= */
+
+  useEffect(() => {
+    if (!previewData.clientId) {
+      setProjects([]);
+      return;
+    }
+
+    fetchProjects(previewData.clientId);
+  }, [
+    previewData.clientId,
+    fetchProjects,
+  ]);
+
+  /* =========================================================
+     CLIENT SELECT HANDLER
+  ========================================================= */
+
+  const handleClientChange = (clientId) => {
+    const selectedClient = clients.find(
+      (client) =>
+        String(client.id) === String(clientId)
+    );
+
+    setPreviewData((prev) => ({
+      ...prev,
+
+      clientId: clientId
+        ? String(clientId)
+        : "",
+
+      clientName:
+        selectedClient?.name || "",
+      projectId: "",
+      projectName: "",
+    })
+  )
+  };
+
+  /* =========================================================
+     PROJECT SELECT HANDLER
+  ========================================================= */
+
+  const handleProjectChange = (projectId) => {
+    const selectedProject = projects.find(
+      (project) =>
+        String(project.id) === String(projectId)
+    );
+
+    setPreviewData((prev) => ({
+      ...prev,
+
+      projectId: projectId
+        ? String(projectId)
+        : "",
+
+      projectName:
+        selectedProject?.title ||
+        selectedProject?.name ||
+        "",
+    }));
+  };
+
+  /* =========================================================
+     PASS SELECT HANDLERS TO BILLING CONFIGURATION
+  ========================================================= */
 
   return (
     <div className="page-in">
@@ -202,14 +552,22 @@ export default function RecurringBilling() {
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <Badge label="Active Engines" variant="active" />
+            <Badge
+              label="Active Engines"
+              variant="active"
+            />
+
             <div className="text-xl font-black text-text">
-              {loading ? "..." : activeEngines}
+              {loadingOverview
+                ? "..."
+                : activeEngines}
             </div>
           </div>
 
           <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary grid place-items-center">
-            <span className="material-symbols-outlined">bolt</span>
+            <span className="material-symbols-outlined">
+              bolt
+            </span>
           </div>
         </div>
       </div>
@@ -219,17 +577,40 @@ export default function RecurringBilling() {
           <BillingConfiguration
             previewData={previewData}
             setPreviewData={setPreviewData}
+
             clients={clients}
-            onRefresh={fetchOverview}
+            projects={projects}
+
+            loadingClients={loadingClients}
+            loadingProjects={loadingProjects}
+
+            onClientChange={handleClientChange}
+            onProjectChange={handleProjectChange}
+
+            onRefresh={async () => {
+              await fetchOverview();
+              await fetchClients();
+
+              if (previewData.clientId) {
+                await fetchProjects(
+                  previewData.clientId
+                );
+              }
+            }}
           />
         </div>
 
         <div className="lg:col-span-5">
-          <SchedulePreview previewData={previewData} />
+          <SchedulePreview
+            previewData={previewData}
+          />
         </div>
       </div>
 
-      <AutomationFlow previewData={previewData} />
+      <AutomationFlow
+        previewData={previewData}
+      />
     </div>
   );
 }
+
