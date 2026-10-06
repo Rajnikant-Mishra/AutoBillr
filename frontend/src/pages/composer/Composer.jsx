@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 
 import SectionHeader from "../../components/ui/SectionHeader";
 import Card from "../../components/ui/Card";
@@ -71,9 +66,9 @@ export default function Composer() {
     dueDate.setDate(today.getDate() + 30);
 
     return {
-      invoiceNumber: `INV-${today.getFullYear()}-${String(
-        Date.now()
-      ).slice(-4)}`,
+      invoiceNumber: `INV-${today.getFullYear()}-${String(Date.now()).slice(
+        -4,
+      )}`,
 
       client: "",
       project: "",
@@ -101,9 +96,7 @@ export default function Composer() {
     };
   };
 
-  const [invoice, setInvoice] = useState(
-    createDefaultInvoice()
-  );
+  const [invoice, setInvoice] = useState(createDefaultInvoice());
 
   /* =========================================================
      SETTINGS
@@ -140,21 +133,12 @@ export default function Composer() {
   ========================================================= */
 
   const getId = (value) => {
-    if (
-      value === null ||
-      value === undefined
-    ) {
+    if (value === null || value === undefined) {
       return null;
     }
 
     if (typeof value === "object") {
-      return (
-        value.id ??
-        value._id ??
-        value.clientId ??
-        value.projectId ??
-        null
-      );
+      return value.id ?? value._id ?? value.clientId ?? value.projectId ?? null;
     }
 
     return value;
@@ -163,10 +147,7 @@ export default function Composer() {
   const normalizeId = (value) => {
     const idValue = getId(value);
 
-    if (
-      idValue === null ||
-      idValue === undefined
-    ) {
+    if (idValue === null || idValue === undefined) {
       return "";
     }
 
@@ -174,19 +155,13 @@ export default function Composer() {
   };
 
   const toNumber = (value, fallback = 0) => {
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
+    if (value === null || value === undefined || value === "") {
       return fallback;
     }
 
     const number = Number(value);
 
-    return Number.isFinite(number)
-      ? number
-      : fallback;
+    return Number.isFinite(number) ? number : fallback;
   };
 
   const normalizeDate = (value) => {
@@ -228,11 +203,7 @@ export default function Composer() {
       return null;
     }
 
-    const clientId =
-      client.id ??
-      client._id ??
-      client.clientId ??
-      null;
+    const clientId = client.id ?? client._id ?? client.clientId ?? null;
 
     const clientName =
       client.name ??
@@ -257,11 +228,7 @@ export default function Composer() {
       return null;
     }
 
-    const projectId =
-      project.id ??
-      project._id ??
-      project.projectId ??
-      null;
+    const projectId = project.id ?? project._id ?? project.projectId ?? null;
 
     const projectTitle =
       project.title ??
@@ -296,19 +263,14 @@ export default function Composer() {
       list = data.data;
     } else if (Array.isArray(data?.result)) {
       list = data.result;
-    } else if (
-      Array.isArray(data?.Projects)
-    ) {
+    } else if (Array.isArray(data?.Projects)) {
       list = data.Projects;
     }
 
     return list
       .map(normalizeProject)
       .filter(
-        (project) =>
-          project &&
-          project.id !== null &&
-          project.id !== undefined
+        (project) => project && project.id !== null && project.id !== undefined,
       );
   };
 
@@ -316,9 +278,7 @@ export default function Composer() {
      NORMALIZE INVOICE ITEMS
   ========================================================= */
 
-  const normalizeInvoiceItems = (
-    invoiceData
-  ) => {
+  const normalizeInvoiceItems = (invoiceData) => {
     const rawItems =
       invoiceData?.items ??
       invoiceData?.Items ??
@@ -348,18 +308,11 @@ export default function Composer() {
         "";
 
       const quantity = toNumber(
-        item?.qty ??
-          item?.quantity ??
-          item?.itemQuantity ??
-          0
+        item?.qty ?? item?.quantity ?? item?.itemQuantity ?? 0,
       );
 
       const rate = toNumber(
-        item?.rate ??
-          item?.unitPrice ??
-          item?.price ??
-          item?.unit_price ??
-          0
+        item?.rate ?? item?.unitPrice ?? item?.price ?? item?.unit_price ?? 0,
       );
 
       return {
@@ -380,12 +333,8 @@ export default function Composer() {
      GET CLIENT ID FROM INVOICE
   ========================================================= */
 
-  const getInvoiceClientId = (
-    invoiceData
-  ) => {
-    const client =
-      invoiceData?.client ??
-      invoiceData?.Client;
+  const getInvoiceClientId = (invoiceData) => {
+    const client = invoiceData?.client ?? invoiceData?.Client;
 
     if (typeof client === "string") {
       return client;
@@ -406,12 +355,8 @@ export default function Composer() {
      GET PROJECT ID FROM INVOICE
   ========================================================= */
 
-  const getInvoiceProjectId = (
-    invoiceData
-  ) => {
-    const project =
-      invoiceData?.project ??
-      invoiceData?.Project;
+  const getInvoiceProjectId = (invoiceData) => {
+    const project = invoiceData?.project ?? invoiceData?.Project;
 
     if (typeof project === "string") {
       return project;
@@ -434,8 +379,7 @@ export default function Composer() {
 
   const handlePrint = useReactToPrint({
     contentRef: invoiceRef,
-    documentTitle:
-      invoice.invoiceNumber || "Invoice",
+    documentTitle: invoice.invoiceNumber || "Invoice",
   });
 
   /* =========================================================
@@ -446,9 +390,7 @@ export default function Composer() {
     const element = invoiceRef.current;
 
     if (!element) {
-      showErrorToast(
-        "Invoice preview is not available."
-      );
+      showErrorToast("Invoice preview is not available.");
       return;
     }
 
@@ -456,9 +398,7 @@ export default function Composer() {
       const options = {
         margin: 0.3,
 
-        filename: `${
-          invoice.invoiceNumber || "invoice"
-        }.pdf`,
+        filename: `${invoice.invoiceNumber || "invoice"}.pdf`,
 
         image: {
           type: "jpeg",
@@ -478,19 +418,11 @@ export default function Composer() {
         },
       };
 
-      await html2pdf()
-        .set(options)
-        .from(element)
-        .save();
+      await html2pdf().set(options).from(element).save();
     } catch (error) {
-      console.error(
-        "PDF download error:",
-        error
-      );
+      console.error("PDF download error:", error);
 
-      showErrorToast(
-        "Failed to download invoice PDF."
-      );
+      showErrorToast("Failed to download invoice PDF.");
     }
   };
 
@@ -518,57 +450,42 @@ export default function Composer() {
       try {
         const token =
           getAuthToken() ||
-          localStorage.getItem(
-            "autobiller-auth"
-          ) ||
+          localStorage.getItem("autobiller-auth") ||
           localStorage.getItem("token");
 
         if (!token) {
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+          showErrorToast("Session expired. Please login again.");
 
           navigate("/login");
           return;
         }
 
-        const response = await fetch(
-          `${API_BASE}/clients`,
-          {
-            method: "GET",
+        const response = await fetch(`${API_BASE}/clients`, {
+          method: "GET",
 
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          }
-        );
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
 
         if (response.status === 401) {
-          localStorage.removeItem(
-            "autobiller-auth"
-          );
+          localStorage.removeItem("autobiller-auth");
 
           localStorage.removeItem("token");
 
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+          showErrorToast("Session expired. Please login again.");
 
           navigate("/login");
 
           return;
         }
 
-        const data =
-          await response
-            .json()
-            .catch(() => ({}));
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
           throw new Error(
-            data?.message ||
-              `Failed to load clients (${response.status})`
+            data?.message || `Failed to load clients (${response.status})`,
           );
         }
 
@@ -576,55 +493,35 @@ export default function Composer() {
 
         if (Array.isArray(data)) {
           list = data;
-        } else if (
-          Array.isArray(data?.clients)
-        ) {
+        } else if (Array.isArray(data?.clients)) {
           list = data.clients;
-        } else if (
-          Array.isArray(data?.Clients)
-        ) {
+        } else if (Array.isArray(data?.Clients)) {
           list = data.Clients;
-        } else if (
-          Array.isArray(data?.data)
-        ) {
+        } else if (Array.isArray(data?.data)) {
           list = data.data;
-        } else if (
-          Array.isArray(data?.result)
-        ) {
+        } else if (Array.isArray(data?.result)) {
           list = data.result;
         }
 
         const normalizedClients = list
           .map(normalizeClient)
           .filter(
-            (client) =>
-              client &&
-              client.id !== null &&
-              client.id !== undefined
+            (client) => client && client.id !== null && client.id !== undefined,
           );
 
-        console.log(
-          "CLIENTS:",
-          normalizedClients
-        );
+        console.log("CLIENTS:", normalizedClients);
 
         if (!cancelled) {
           setClients(normalizedClients);
         }
       } catch (error) {
-        console.error(
-          "Failed to fetch clients:",
-          error
-        );
+        console.error("Failed to fetch clients:", error);
 
         if (!cancelled) {
           setClients([]);
         }
 
-        showErrorToast(
-          error.message ||
-            "Failed to load clients"
-        );
+        showErrorToast(error.message || "Failed to load clients");
       } finally {
         if (!cancelled) {
           setLoadingClients(false);
@@ -643,116 +540,122 @@ export default function Composer() {
      FETCH EXISTING INVOICE - EDIT MODE
   ========================================================= */
 
- useEffect(() => {
-  if (!id) return;
+  useEffect(() => {
+    if (!id) return;
 
-  let cancelled = false;
+    let cancelled = false;
 
-  const fetchInvoice = async () => {
-    try {
-      const token =
-        getAuthToken() ||
-        localStorage.getItem("autobiller-auth") ||
-        localStorage.getItem("token");
+    const fetchInvoice = async () => {
+      try {
+        const token =
+          getAuthToken() ||
+          localStorage.getItem("autobiller-auth") ||
+          localStorage.getItem("token");
 
-      if (!token) {
-        showErrorToast("Session expired. Please login again.");
-        navigate("/login");
-        return;
+        if (!token) {
+          showErrorToast("Session expired. Please login again.");
+          navigate("/login");
+          return;
+        }
+
+        const response = await fetch(`${API_BASE}/invoices/${id}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem("autobiller-auth");
+          localStorage.removeItem("token");
+          showErrorToast("Session expired. Please login again.");
+          navigate("/login");
+          return;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            data?.message || `Failed to load invoice (${response.status})`,
+          );
+        }
+
+        const invoiceData =
+          data?.invoice ?? data?.data?.invoice ?? data?.data ?? data;
+
+        if (!invoiceData || typeof invoiceData !== "object") {
+          throw new Error("Invalid invoice response from server.");
+        }
+        if (cancelled) return;
+
+        const clientId = getInvoiceClientId(invoiceData);
+        const projectId = getInvoiceProjectId(invoiceData);
+        const normalizedItems = normalizeInvoiceItems(invoiceData);
+
+        // Backend field is issueDate
+        const invoiceDate = normalizeDate(
+          invoiceData?.issueDate ??
+            invoiceData?.invoiceDate ??
+            invoiceData?.date ??
+            invoiceData?.createdAt,
+        );
+
+        const dueDate = normalizeDate(
+          invoiceData?.dueDate ?? invoiceData?.paymentDueDate,
+        );
+
+        const normalizedInvoice = {
+          ...invoiceData,
+          id: invoiceData?.id ?? id,
+          invoiceNumber:
+            invoiceData?.invoiceNumber ??
+            invoiceData?.number ??
+            invoiceData?.invoiceNo ??
+            "",
+          client: clientId ? String(clientId) : "",
+          project: projectId ? String(projectId) : "",
+          invoiceDate,
+          dueDate,
+          items:
+            normalizedItems.length > 0
+              ? normalizedItems
+              : [{ id: `edit-item-${Date.now()}`, desc: "", qty: 1, rate: 0 }],
+          subtotal: toNumber(
+            invoiceData?.subtotal ?? invoiceData?.subTotal ?? 0,
+          ),
+          tax: toNumber(invoiceData?.tax ?? invoiceData?.taxAmount ?? 0),
+          total: toNumber(
+            invoiceData?.total ??
+              invoiceData?.totalAmount ??
+              invoiceData?.grandTotal ??
+              invoiceData?.amount ??
+              0,
+          ),
+          currency: invoiceData?.currency ?? invoiceData?.currencyCode ?? "USD",
+          status: invoiceData?.status ?? "Draft",
+        };
+
+        console.log("EDIT → client:", clientId, "project:", projectId);
+        console.log("EDIT → items:", normalizedItems);
+
+        setInvoice(normalizedInvoice);
+        setSettings({
+          payLink: invoiceData?.payLink ?? true,
+          emailClient: invoiceData?.emailClient ?? true,
+          autoCharge: invoiceData?.autoCharge ?? false,
+        });
+      } catch (error) {
+        console.error("Failed to load invoice:", error);
+        showErrorToast(error.message || "Failed to load invoice");
       }
+    };
 
-      const response = await fetch(`${API_BASE}/invoices/${id}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("autobiller-auth");
-        localStorage.removeItem("token");
-        showErrorToast("Session expired. Please login again.");
-        navigate("/login");
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.message || `Failed to load invoice (${response.status})`);
-      }
-
-      const invoiceData =
-        data?.invoice ?? data?.data?.invoice ?? data?.data ?? data;
-
-      if (!invoiceData || typeof invoiceData !== "object") {
-        throw new Error("Invalid invoice response from server.");
-      }
-      if (cancelled) return;
-
-      const clientId = getInvoiceClientId(invoiceData);
-      const projectId = getInvoiceProjectId(invoiceData);
-      const normalizedItems = normalizeInvoiceItems(invoiceData);
-
-      // Backend field is issueDate
-      const invoiceDate = normalizeDate(
-        invoiceData?.issueDate ??
-        invoiceData?.invoiceDate ??
-        invoiceData?.date ??
-        invoiceData?.createdAt
-      );
-
-      const dueDate = normalizeDate(
-        invoiceData?.dueDate ?? invoiceData?.paymentDueDate
-      );
-
-      const normalizedInvoice = {
-        ...invoiceData,
-        id: invoiceData?.id ?? id,
-        invoiceNumber:
-          invoiceData?.invoiceNumber ??
-          invoiceData?.number ??
-          invoiceData?.invoiceNo ??
-          "",
-        client: clientId ? String(clientId) : "",
-        project: projectId ? String(projectId) : "",
-        invoiceDate,
-        dueDate,
-        items:
-          normalizedItems.length > 0
-            ? normalizedItems
-            : [{ id: `edit-item-${Date.now()}`, desc: "", qty: 1, rate: 0 }],
-        subtotal: toNumber(invoiceData?.subtotal ?? invoiceData?.subTotal ?? 0),
-        tax: toNumber(invoiceData?.tax ?? invoiceData?.taxAmount ?? 0),
-        total: toNumber(
-          invoiceData?.total ??
-          invoiceData?.totalAmount ??
-          invoiceData?.grandTotal ??
-          invoiceData?.amount ??
-          0
-        ),
-        currency: invoiceData?.currency ?? invoiceData?.currencyCode ?? "USD",
-        status: invoiceData?.status ?? "Draft",
-      };
-
-      console.log("EDIT → client:", clientId, "project:", projectId);
-      console.log("EDIT → items:", normalizedItems);
-
-      setInvoice(normalizedInvoice);
-      setSettings({
-        payLink: invoiceData?.payLink ?? true,
-        emailClient: invoiceData?.emailClient ?? true,
-        autoCharge: invoiceData?.autoCharge ?? false,
-      });
-    } catch (error) {
-      console.error("Failed to load invoice:", error);
-      showErrorToast(error.message || "Failed to load invoice");
-    }
-  };
-
-  fetchInvoice();
-  return () => { cancelled = true; };
-}, [id, navigate, API_BASE]);
+    fetchInvoice();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, navigate, API_BASE]);
 
   /* =========================================================
      FETCH PROJECTS FOR SELECTED CLIENT
@@ -775,15 +678,11 @@ export default function Composer() {
       try {
         const token =
           getAuthToken() ||
-          localStorage.getItem(
-            "autobiller-auth"
-          ) ||
+          localStorage.getItem("autobiller-auth") ||
           localStorage.getItem("token");
 
         if (!token) {
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+          showErrorToast("Session expired. Please login again.");
 
           navigate("/login");
 
@@ -791,126 +690,86 @@ export default function Composer() {
         }
 
         const url =
-          `${API_BASE}/projects?clientId=` +
-          encodeURIComponent(clientId);
+          `${API_BASE}/projects?clientId=` + encodeURIComponent(clientId);
 
-        console.log(
-          "FETCHING PROJECTS:",
-          url
-        );
+        console.log("FETCHING PROJECTS:", url);
 
-        const response = await fetch(
-          url,
-          {
-            method: "GET",
+        const response = await fetch(url, {
+          method: "GET",
 
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          }
-        );
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
 
         if (response.status === 401) {
-          localStorage.removeItem(
-            "autobiller-auth"
-          );
+          localStorage.removeItem("autobiller-auth");
 
           localStorage.removeItem("token");
 
-          localStorage.removeItem(
-            "autobillr_subscription"
-          );
+          localStorage.removeItem("autobillr_subscription");
 
           localStorage.removeItem("user");
 
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+          showErrorToast("Session expired. Please login again.");
 
           navigate("/login");
 
           return;
         }
 
-        const data =
-          await response
-            .json()
-            .catch(() => ({}));
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
           throw new Error(
-            data?.message ||
-              `Failed to load projects (${response.status})`
+            data?.message || `Failed to load projects (${response.status})`,
           );
         }
 
-        const projects =
-          normalizeProjects(data);
+        const projects = normalizeProjects(data);
 
-        console.log(
-          "PROJECTS FROM API:",
-          projects
-        );
+        console.log("PROJECTS FROM API:", projects);
 
         /* =====================================================
            FILTER BY CLIENT ONLY IF CLIENT INFO EXISTS
         ===================================================== */
 
-        const selectedClientId =
-          normalizeId(clientId);
+        const selectedClientId = normalizeId(clientId);
 
-        const projectsWithClientInfo =
-          projects.filter((project) => {
-            const projectClientId =
-              getProjectClientId(project);
+        const projectsWithClientInfo = projects.filter((project) => {
+          const projectClientId = getProjectClientId(project);
 
+          return (
+            projectClientId !== null &&
+            projectClientId !== undefined &&
+            projectClientId !== ""
+          );
+        });
+
+        let filteredProjects = projects;
+
+        if (projectsWithClientInfo.length > 0) {
+          filteredProjects = projects.filter((project) => {
             return (
-              projectClientId !== null &&
-              projectClientId !== undefined &&
-              projectClientId !== ""
+              normalizeId(getProjectClientId(project)) === selectedClientId
             );
           });
-
-        let filteredProjects =
-          projects;
-
-        if (
-          projectsWithClientInfo.length > 0
-        ) {
-          filteredProjects =
-            projects.filter((project) => {
-              return (
-                normalizeId(
-                  getProjectClientId(project)
-                ) === selectedClientId
-              );
-            });
         }
 
-        console.log(
-          "SELECTED CLIENT:",
-          selectedClientId
-        );
+        console.log("SELECTED CLIENT:", selectedClientId);
 
-        console.log(
-          "FILTERED PROJECTS:",
-          filteredProjects
-        );
+        console.log("FILTERED PROJECTS:", filteredProjects);
 
         if (!cancelled) {
           setProjectsByClient((prev) => ({
             ...prev,
 
-            [String(clientId)]:
-              filteredProjects,
+            [String(clientId)]: filteredProjects,
           }));
         }
       } catch (error) {
-        console.error(
-          "Failed to fetch projects:",
-          error
-        );
+        console.error("Failed to fetch projects:", error);
 
         if (!cancelled) {
           setProjectsByClient((prev) => ({
@@ -920,10 +779,7 @@ export default function Composer() {
           }));
         }
 
-        showErrorToast(
-          error.message ||
-            "Failed to load projects"
-        );
+        showErrorToast(error.message || "Failed to load projects");
       } finally {
         if (!cancelled) {
           setLoadingProjects(false);
@@ -942,31 +798,23 @@ export default function Composer() {
      CURRENT CLIENT PROJECTS
   ========================================================= */
 
-  const currentClientProjects =
-    projectsByClient[
-      String(invoice.client)
-    ] || [];
+  const currentClientProjects = projectsByClient[String(invoice.client)] || [];
 
   /* =========================================================
      SELECTED CLIENT
   ========================================================= */
 
   const selectedClient = clients.find(
-    (client) =>
-      normalizeId(client.id) ===
-      normalizeId(invoice.client)
+    (client) => normalizeId(client.id) === normalizeId(invoice.client),
   );
 
   /* =========================================================
      SELECTED PROJECT
   ========================================================= */
 
-  const selectedProject =
-    currentClientProjects.find(
-      (project) =>
-        normalizeId(project.id) ===
-        normalizeId(invoice.project)
-    );
+  const selectedProject = currentClientProjects.find(
+    (project) => normalizeId(project.id) === normalizeId(invoice.project),
+  );
 
   /* =========================================================
      ADD ITEM
@@ -977,9 +825,7 @@ export default function Composer() {
       ...prev,
 
       items: [
-        ...(Array.isArray(prev.items)
-          ? prev.items
-          : []),
+        ...(Array.isArray(prev.items) ? prev.items : []),
 
         {
           id: `item-${Date.now()}`,
@@ -995,11 +841,7 @@ export default function Composer() {
      UPDATE ITEM
   ========================================================= */
 
-  const updateItem = (
-    id,
-    field,
-    value
-  ) => {
+  const updateItem = (id, field, value) => {
     setInvoice((prev) => ({
       ...prev,
 
@@ -1012,10 +854,7 @@ export default function Composer() {
           ...item,
 
           [field]:
-            field === "qty" ||
-            field === "rate"
-              ? Number(value) || 0
-              : value,
+            field === "qty" || field === "rate" ? Number(value) || 0 : value,
         };
       }),
     }));
@@ -1027,10 +866,7 @@ export default function Composer() {
 
   const removeItem = (id) => {
     setInvoice((prev) => {
-      const remainingItems =
-        prev.items.filter(
-          (item) => item.id !== id
-        );
+      const remainingItems = prev.items.filter((item) => item.id !== id);
 
       return {
         ...prev,
@@ -1054,10 +890,7 @@ export default function Composer() {
      UPDATE FIELD
   ========================================================= */
 
-  const updateField = (
-    field,
-    value
-  ) => {
+  const updateField = (field, value) => {
     setInvoice((prev) => ({
       ...prev,
 
@@ -1070,8 +903,7 @@ export default function Composer() {
   ========================================================= */
 
   const handleClientChange = (e) => {
-    const clientId =
-      e.target.value;
+    const clientId = e.target.value;
 
     /*
       This is intentionally here.
@@ -1101,18 +933,13 @@ export default function Composer() {
   ========================================================= */
 
   const subtotal = useMemo(() => {
-    return invoice.items.reduce(
-      (sum, item) => {
-        const qty =
-          Number(item.qty) || 0;
+    return invoice.items.reduce((sum, item) => {
+      const qty = Number(item.qty) || 0;
 
-        const rate =
-          Number(item.rate) || 0;
+      const rate = Number(item.rate) || 0;
 
-        return sum + qty * rate;
-      },
-      0
-    );
+      return sum + qty * rate;
+    }, 0);
   }, [invoice.items]);
 
   /*
@@ -1124,41 +951,36 @@ export default function Composer() {
     1 * 0.99 = 0.99
   */
 
- const savedTax = JSON.parse(localStorage.getItem("autobillr-tax") || "{}");
- const taxRate = Number(savedTax.rate) || 18;
- const tax = (subtotal * taxRate) / 100;
- const total = subtotal + tax;
+  const savedTax = JSON.parse(localStorage.getItem("autobillr-tax") || "{}");
+  const taxRate = Number(savedTax.rate) || 18;
+  const tax = (subtotal * taxRate) / 100;
+  const total = subtotal + tax;
 
   /* =========================================================
      FINALIZE / SAVE INVOICE
   ========================================================= */
 
-  const handleFinalizeInvoice =
-    async () => {
-      try {
-        setSavingInvoice(true);
+  const handleFinalizeInvoice = async () => {
+    try {
+      setSavingInvoice(true);
 
-        /* =====================================================
+      /* =====================================================
            VALIDATION
         ===================================================== */
 
-        if (!invoice.client) {
-          showErrorToast(
-            "Please select a Client"
-          );
+      if (!invoice.client) {
+        showErrorToast("Please select a Client");
 
-          return;
-        }
+        return;
+      }
 
-        if (!invoice.project) {
-          showErrorToast(
-            "Please select a Project"
-          );
+      if (!invoice.project) {
+        showErrorToast("Please select a Project");
 
-          return;
-        }
+        return;
+      }
 
-        /*
+      /*
           Project validation.
 
           During normal usage, project must belong
@@ -1167,200 +989,150 @@ export default function Composer() {
           If project list is still loading, wait.
         */
 
-        if (loadingProjects) {
-          showErrorToast(
-            "Please wait for projects to finish loading."
-          );
+      if (loadingProjects) {
+        showErrorToast("Please wait for projects to finish loading.");
 
-          return;
-        }
+        return;
+      }
 
-        const validProject =
-          currentClientProjects.some(
-            (project) =>
-              normalizeId(
-                project.id
-              ) ===
-              normalizeId(
-                invoice.project
-              )
-          );
+      const validProject = currentClientProjects.some(
+        (project) => normalizeId(project.id) === normalizeId(invoice.project),
+      );
 
-        if (!validProject) {
-          showErrorToast(
-            "Selected project does not belong to the selected client."
-          );
+      if (!validProject) {
+        showErrorToast(
+          "Selected project does not belong to the selected client.",
+        );
 
-          return;
-        }
+        return;
+      }
 
-        /* =====================================================
+      /* =====================================================
            PDF
         ===================================================== */
 
-        const element =
-          invoiceRef.current;
+      const element = invoiceRef.current;
 
-        if (!element) {
-          showErrorToast(
-            "Invoice preview is not available."
-          );
+      if (!element) {
+        showErrorToast("Invoice preview is not available.");
 
-          return;
-        }
+        return;
+      }
 
-        const options = {
-          margin: 0.3,
+      const options = {
+        margin: 0.3,
 
-          filename: `${
-            invoice.invoiceNumber ||
-            "invoice"
-          }.pdf`,
+        filename: `${invoice.invoiceNumber || "invoice"}.pdf`,
 
-          image: {
-            type: "jpeg",
-            quality: 1,
-          },
+        image: {
+          type: "jpeg",
+          quality: 1,
+        },
 
-          html2canvas: {
-            scale: 4,
-            useCORS: true,
-            letterRendering: true,
-          },
+        html2canvas: {
+          scale: 4,
+          useCORS: true,
+          letterRendering: true,
+        },
 
-          jsPDF: {
-            unit: "mm",
-            format: "a4",
-            orientation: "portrait",
-          },
-        };
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+        },
+      };
 
-        const pdfBlob =
-          await html2pdf()
-            .set(options)
-            .from(element)
-            .outputPdf("blob");
+      const pdfBlob = await html2pdf()
+        .set(options)
+        .from(element)
+        .outputPdf("blob");
 
-        /* =====================================================
+      /* =====================================================
            FORM DATA
         ===================================================== */
 
-        const formData =
-          new FormData();
+      const formData = new FormData();
 
-        const payload = {
-          ...invoice,
+      const payload = {
+        ...invoice,
 
-          client:
-            invoice.client,
+        client: invoice.client,
 
-          project:
-            invoice.project,
+        project: invoice.project,
 
-          items: invoice.items.map(
-            (item) => ({
-              ...item,
+        items: invoice.items.map((item) => ({
+          ...item,
 
-              desc: item.desc || "",
+          desc: item.desc || "",
 
-              qty:
-                Number(item.qty) || 0,
+          qty: Number(item.qty) || 0,
 
-              rate:
-                Number(item.rate) || 0,
-            })
-          ),
+          rate: Number(item.rate) || 0,
+        })),
 
-          subtotal,
+        subtotal,
 
-          tax,
+        tax,
 
-          total,
+        total,
 
-          payLink:
-            settings.payLink,
+        payLink: settings.payLink,
 
-          emailClient:
-            settings.emailClient,
+        emailClient: settings.emailClient,
 
-          autoCharge:
-            settings.autoCharge,
+        autoCharge: settings.autoCharge,
 
-          status:
-            isEditMode
-              ? invoice.status ||
-                "Scheduled"
-              : "Scheduled",
-        };
+        status: isEditMode ? invoice.status || "Scheduled" : "Scheduled",
+      };
 
-        console.log(
-          "SAVING INVOICE PAYLOAD:",
-          payload
-        );
+      console.log("SAVING INVOICE PAYLOAD:", payload);
 
-        formData.append(
-          "invoice",
-          JSON.stringify(payload)
-        );
+      formData.append("invoice", JSON.stringify(payload));
 
-        formData.append(
-          "pdf",
-          pdfBlob,
-          `${
-            invoice.invoiceNumber ||
-            "invoice"
-          }.pdf`
-        );
+      formData.append(
+        "pdf",
+        pdfBlob,
+        `${invoice.invoiceNumber || "invoice"}.pdf`,
+      );
 
-        /* =====================================================
+      /* =====================================================
            TOKEN
         ===================================================== */
 
-        const token =
-          getAuthToken() ||
-          localStorage.getItem(
-            "autobiller-auth"
-          ) ||
-          localStorage.getItem("token");
+      const token =
+        getAuthToken() ||
+        localStorage.getItem("autobiller-auth") ||
+        localStorage.getItem("token");
 
-        if (!token) {
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+      if (!token) {
+        showErrorToast("Session expired. Please login again.");
 
-          navigate("/login");
+        navigate("/login");
 
-          return;
-        }
+        return;
+      }
 
-        /* =====================================================
+      /* =====================================================
            CREATE = POST
            EDIT   = PUT
         ===================================================== */
 
-        const url = isEditMode
-          ? `${API_BASE}/invoices/${id}`
-          : `${API_BASE}/invoices`;
+      const url = isEditMode
+        ? `${API_BASE}/invoices/${id}`
+        : `${API_BASE}/invoices`;
 
-        const method = isEditMode
-          ? "PUT"
-          : "POST";
+      const method = isEditMode ? "PUT" : "POST";
 
-        console.log(
-          "INVOICE REQUEST:",
-          method,
-          url
-        );
+      console.log("INVOICE REQUEST:", method, url);
 
-        const response =
-          await fetch(url, {
-            method,
+      const response = await fetch(url, {
+        method,
 
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
 
-            /*
+        /*
               IMPORTANT:
 
               Do NOT manually set
@@ -1371,110 +1143,75 @@ export default function Composer() {
               with boundary.
             */
 
-            body: formData,
-          });
+        body: formData,
+      });
 
-        if (
-          response.status === 401
-        ) {
-          localStorage.removeItem(
-            "autobiller-auth"
-          );
+      if (response.status === 401) {
+        localStorage.removeItem("autobiller-auth");
 
-          localStorage.removeItem(
-            "token"
-          );
+        localStorage.removeItem("token");
 
-          showErrorToast(
-            "Session expired. Please login again."
-          );
+        showErrorToast("Session expired. Please login again.");
 
-          navigate("/login");
+        navigate("/login");
 
-          return;
-        }
+        return;
+      }
 
-        const data =
-          await response
-            .json()
-            .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
-        console.log(
-          "SAVE INVOICE RESPONSE:",
-          data
+      console.log("SAVE INVOICE RESPONSE:", data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || "Failed to save invoice",
         );
+      }
 
-        if (!response.ok) {
-          throw new Error(
-            data?.message ||
-              data?.error ||
-              "Failed to save invoice"
-          );
-        }
-
-        /* =====================================================
+      /* =====================================================
            SUCCESS
         ===================================================== */
 
-        showSuccessToast(
-          isEditMode
-            ? "Invoice updated successfully"
-            : "Invoice created & emailed successfully"
-        );
+      showSuccessToast(
+        isEditMode
+          ? "Invoice updated successfully"
+          : "Invoice created & emailed successfully",
+      );
 
-        addNotification({
-          type: "invoice",
+      addNotification({
+        type: "invoice",
 
-          icon: "receipt_long",
+        icon: "receipt_long",
 
-          iconColor:
-            "text-primary",
+        iconColor: "text-primary",
 
-          bgColor:
-            "bg-primary-soft",
+        bgColor: "bg-primary-soft",
 
-          title: isEditMode
-            ? "Invoice Updated"
-            : "New Invoice Created",
+        title: isEditMode ? "Invoice Updated" : "New Invoice Created",
 
-          description:
-            `#${invoice.invoiceNumber} • ${format(
-              total
-            )}`,
+        description: `#${invoice.invoiceNumber} • ${format(total)}`,
 
-          borderColor:
-            "border-l-primary",
-        });
+        borderColor: "border-l-primary",
+      });
 
-        navigate("/invoices");
-      } catch (error) {
-        console.error(
-          "SAVE INVOICE ERROR:",
-          error
-        );
+      navigate("/invoices");
+    } catch (error) {
+      console.error("SAVE INVOICE ERROR:", error);
 
-        showErrorToast(
-          error.message ||
-            "Failed to save invoice"
-        );
-      } finally {
-        setSavingInvoice(false);
-      }
-    };
+      showErrorToast(error.message || "Failed to save invoice");
+    } finally {
+      setSavingInvoice(false);
+    }
+  };
 
   /* =========================================================
      DYNAMIC BADGE
   ========================================================= */
 
-  const displayStatus =
-    invoice.status
-      ? String(invoice.status)
-          .charAt(0)
-          .toUpperCase() +
-        String(invoice.status)
-          .slice(1)
-          .toLowerCase()
-      : "Draft";
+  const displayStatus = invoice.status
+    ? String(invoice.status).charAt(0).toUpperCase() +
+      String(invoice.status).slice(1).toLowerCase()
+    : "Draft";
 
   /* =========================================================
      SELECT CLASS
@@ -1490,71 +1227,51 @@ export default function Composer() {
   return (
     <main className="flex-1 pt-2 pb-12 max-w-[1600px] mx-auto w-full scroll-host">
       <div className="page-in">
-
         {/* =====================================================
             HEADER
         ===================================================== */}
 
         <SectionHeader
-          title={
-            isEditMode
-              ? "Edit Invoice"
-              : "Invoice Composer"
-          }
-
+          title={isEditMode ? "Edit Invoice" : "Invoice Composer"}
           description={
             isEditMode
               ? "Update invoice details and resend the invoice."
               : "Create a polished, AI-validated invoice and dispatch in seconds."
           }
-
           secondaryAction={{
             label: "Back to Invoices",
             icon: "arrow_back",
-            onClick: () =>
-              navigate("/invoices"),
+            onClick: () => navigate("/invoices"),
           }}
-
           primaryAction={{
             label: "Save Draft",
             icon: "save",
             variant: "secondary",
 
-            onClick: () =>
-              showSuccessToast(
-                "Draft Saved"
-              ),
+            onClick: () => showSuccessToast("Draft Saved"),
           }}
         />
 
         <div className="grid grid-cols-12 gap-6">
-
           {/* ===================================================
               LEFT PANEL
           =================================================== */}
 
           <div className="col-span-12 lg:col-span-5">
-
             <Card>
-
               {/* =================================================
                   BILLING HEADER
               ================================================= */}
 
               <div className="flex items-center justify-between mb-6">
-
-                <h3 className="font-bold text-text">
-                  Billing Details
-                </h3>
+                <h3 className="font-bold text-text">Billing Details</h3>
 
                 <Badge
                   label={`${displayStatus} · ${
-                    invoice.invoiceNumber ||
-                    "Invoice"
+                    invoice.invoiceNumber || "Invoice"
                   }`}
                   variant="active"
                 />
-
               </div>
 
               {/* =================================================
@@ -1562,7 +1279,6 @@ export default function Composer() {
               ================================================= */}
 
               <div className="grid grid-cols-2 gap-4">
-
                 {/* CLIENT */}
 
                 <div>
@@ -1571,38 +1287,19 @@ export default function Composer() {
                   </label>
 
                   <select
-                    value={
-                      invoice.client
-                    }
-                    onChange={
-                      handleClientChange
-                    }
-                    className={
-                      selectClass
-                    }
+                    value={invoice.client}
+                    onChange={handleClientChange}
+                    className={selectClass}
                   >
                     <option value="">
-                      {loadingClients
-                        ? "Loading..."
-                        : "Select Client"}
+                      {loadingClients ? "Loading..." : "Select Client"}
                     </option>
 
-                    {clients.map(
-                      (client) => (
-                        <option
-                          key={
-                            client.id
-                          }
-                          value={
-                            client.id
-                          }
-                        >
-                          {
-                            client.name
-                          }
-                        </option>
-                      )
-                    )}
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1613,38 +1310,38 @@ export default function Composer() {
                     Project
                   </label>
 
-                 <select
-  value={invoice.project || ""}
-  onChange={(e) => updateField("project", e.target.value)}
-  className={selectClass}
-  disabled={!invoice.client || loadingProjects}
->
-  <option value="">
-    {!invoice.client
-      ? "Select Client"
-      : loadingProjects
-      ? "Loading..."
-      : currentClientProjects.length === 0
-      ? "No Projects Assigned"
-      : "Select Project"}
-  </option>
+                  <select
+                    value={invoice.project || ""}
+                    onChange={(e) => updateField("project", e.target.value)}
+                    className={selectClass}
+                    disabled={!invoice.client || loadingProjects}
+                  >
+                    <option value="">
+                      {!invoice.client
+                        ? "Select Client"
+                        : loadingProjects
+                          ? "Loading..."
+                          : currentClientProjects.length === 0
+                            ? "No Projects Assigned"
+                            : "Select Project"}
+                    </option>
 
-  {currentClientProjects.map((project) => (
-    <option key={project.id} value={String(project.id)}>
-      {project.title}
-    </option>
-  ))}
+                    {currentClientProjects.map((project) => (
+                      <option key={project.id} value={String(project.id)}>
+                        {project.title}
+                      </option>
+                    ))}
 
-  {/* Keep already-selected project visible while list loads */}
-  {invoice.project &&
-    !currentClientProjects.some(
-      (p) => String(p.id) === String(invoice.project)
-    ) && (
-      <option value={String(invoice.project)}>
-        {selectedProject?.title || "Selected Project"}
-      </option>
-    )}
-</select>
+                    {/* Keep already-selected project visible while list loads */}
+                    {invoice.project &&
+                      !currentClientProjects.some(
+                        (p) => String(p.id) === String(invoice.project),
+                      ) && (
+                        <option value={String(invoice.project)}>
+                          {selectedProject?.title || "Selected Project"}
+                        </option>
+                      )}
+                  </select>
                 </div>
 
                 {/* INVOICE DATE */}
@@ -1652,15 +1349,8 @@ export default function Composer() {
                 <FormInput
                   label="Invoice Date"
                   type="date"
-                  value={
-                    invoice.invoiceDate
-                  }
-                  onChange={(e) =>
-                    updateField(
-                      "invoiceDate",
-                      e.target.value
-                    )
-                  }
+                  value={invoice.invoiceDate}
+                  onChange={(e) => updateField("invoiceDate", e.target.value)}
                 />
 
                 {/* DUE DATE */}
@@ -1668,17 +1358,9 @@ export default function Composer() {
                 <FormInput
                   label="Due Date"
                   type="date"
-                  value={
-                    invoice.dueDate
-                  }
-                  onChange={(e) =>
-                    updateField(
-                      "dueDate",
-                      e.target.value
-                    )
-                  }
+                  value={invoice.dueDate}
+                  onChange={(e) => updateField("dueDate", e.target.value)}
                 />
-
               </div>
 
               {/* =================================================
@@ -1686,9 +1368,7 @@ export default function Composer() {
               ================================================= */}
 
               <div className="mt-8">
-
                 <div className="flex items-center justify-between mb-4">
-
                   <h4 className="text-xs uppercase tracking-wider font-bold text-text-muted">
                     Line Items
                   </h4>
@@ -1701,145 +1381,82 @@ export default function Composer() {
                     <span className="material-symbols-outlined text-[14px]">
                       add
                     </span>
-
                     Add Item
                   </button>
-
                 </div>
 
                 <div className="space-y-3">
+                  {invoice.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-surface-secondary border border-border-light rounded-xl p-3"
+                    >
+                      <div className="grid grid-cols-12 gap-3 items-end">
+                        {/* DESCRIPTION */}
 
-                  {invoice.items.map(
-                    (item) => (
-                      <div
-                        key={
-                          item.id
-                        }
-                        className="bg-surface-secondary border border-border-light rounded-xl p-3"
-                      >
-
-                        <div className="grid grid-cols-12 gap-3 items-end">
-
-                          {/* DESCRIPTION */}
-
-                          <div className="col-span-6">
-
-                            <label className="text-[10px] font-bold uppercase text-text-light">
-                              Description
-                            </label>
-
-                            <input
-                              value={
-                                item.desc
-                              }
-                              onChange={(
-                                e
-                              ) =>
-                                updateItem(
-                                  item.id,
-                                  "desc",
-                                  e.target
-                                    .value
-                                )
-                              }
-                              className="w-full bg-transparent outline-none text-sm font-medium text-text"
-                            />
-
-                          </div>
-
-                          {/* QTY */}
-
-                          <div className="col-span-2">
-
-                            <label className="text-[10px] font-bold uppercase text-text-light">
-                              Qty
-                            </label>
-
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={
-                                item.qty
-                              }
-                              onChange={(
-                                e
-                              ) =>
-                                updateItem(
-                                  item.id,
-                                  "qty",
-                                  e.target
-                                    .value
-                                )
-                              }
-                              className="w-full bg-transparent outline-none text-right text-text"
-                            />
-
-                          </div>
-
-                          {/* RATE */}
-
-                          <div className="col-span-3">
-
-                            <label className="text-[10px] font-bold uppercase text-text-light">
-
-                              Rate (
-                              {format(
-                                0
-                              ).replace(
-                                /[0-9.,\s]/g,
-                                ""
-                              )}
-                              )
-
-                            </label>
-
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={
-                                item.rate
-                              }
-                              onChange={(
-                                e
-                              ) =>
-                                updateItem(
-                                  item.id,
-                                  "rate",
-                                  e.target
-                                    .value
-                                )
-                              }
-                              className="w-full bg-transparent outline-none text-right text-text"
-                            />
-
-                          </div>
-
-                          {/* DELETE */}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeItem(
-                                item.id
-                              )
+                        {/* DESCRIPTION */}
+                        <div className="col-span-6">
+                          <label className="text-[10px] font-bold uppercase text-text-light">
+                            Description
+                          </label>
+                          <input
+                            value={item.desc}
+                            onChange={(e) =>
+                              updateItem(item.id, "desc", e.target.value)
                             }
-                            className="col-span-1 text-danger hover:text-danger-hover transition"
-                          >
-                            <span className="material-symbols-outlined">
-                              delete
-                            </span>
-                          </button>
-
+                            className="w-full bg-transparent outline-none text-sm font-medium text-text border border-border/60 rounded-lg px-2 py-1.5 mt-0.5 focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                          />
                         </div>
 
+                        {/* QTY */}
+                        <div className="col-span-2">
+                          <label className="text-[10px] font-bold uppercase text-text-light">
+                            Qty
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={item.qty}
+                            onChange={(e) =>
+                              updateItem(item.id, "qty", e.target.value)
+                            }
+                            className="w-full bg-transparent outline-none text-right text-text border border-border/60 rounded-lg px-2 py-1.5 mt-0.5 focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                          />
+                        </div>
+
+                        {/* RATE */}
+                        <div className="col-span-3">
+                          <label className="text-[10px] font-bold uppercase text-text-light">
+                            Rate ({format(0).replace(/[0-9.,\s]/g, "")})
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={item.rate}
+                            onChange={(e) =>
+                              updateItem(item.id, "rate", e.target.value)
+                            }
+                            className="w-full bg-transparent outline-none text-right text-text border border-border/60 rounded-lg px-2 py-1.5 mt-0.5 focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                          />
+                        </div>
+
+                        {/* DELETE */}
+
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="col-span-1 text-danger hover:text-danger-hover transition"
+                        >
+                          <span className="material-symbols-outlined">
+                            delete
+                          </span>
+                        </button>
                       </div>
-                    )
-                  )}
-
+                    </div>
+                  ))}
                 </div>
-
               </div>
 
               {/* =================================================
@@ -1847,141 +1464,88 @@ export default function Composer() {
               ================================================= */}
 
               <div className="mt-8 border-t border-border-light pt-5 space-y-4">
-
                 {[
                   {
                     key: "payLink",
-                    title:
-                      "Enable Pay Link",
-                    desc:
-                      "Client can pay via card or ACH",
-                    icon:
-                      "payments",
+                    title: "Enable Pay Link",
+                    desc: "Client can pay via card or ACH",
+                    icon: "payments",
                   },
 
                   {
-                    key:
-                      "emailClient",
-                    title:
-                      "Email to Client",
-                    desc:
-                      "Auto-send PDF once finalized",
-                    icon:
-                      "mail",
+                    key: "emailClient",
+                    title: "Email to Client",
+                    desc: "Auto-send PDF once finalized",
+                    icon: "mail",
                   },
 
                   {
-                    key:
-                      "autoCharge",
-                    title:
-                      "Auto-charge on due date",
-                    desc:
-                      "Charge stored payment method",
-                    icon:
-                      "auto_mode",
+                    key: "autoCharge",
+                    title: "Auto-charge on due date",
+                    desc: "Charge stored payment method",
+                    icon: "auto_mode",
                   },
-                ].map(
-                  (toggle) => (
-                    <div
-                      key={
-                        toggle.key
-                      }
-                      className="flex items-center justify-between"
-                    >
+                ].map((toggle) => (
+                  <div
+                    key={toggle.key}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-text-muted">
+                        {toggle.icon}
+                      </span>
 
-                      <div className="flex items-center gap-3">
-
-                        <span className="material-symbols-outlined text-text-muted">
-                          {
-                            toggle.icon
-                          }
-                        </span>
-
-                        <div>
-
-                          <div className="font-semibold text-sm text-text">
-                            {
-                              toggle.title
-                            }
-                          </div>
-
-                          <div className="text-xs text-text-muted">
-                            {
-                              toggle.desc
-                            }
-                          </div>
-
+                      <div>
+                        <div className="font-semibold text-sm text-text">
+                          {toggle.title}
                         </div>
 
+                        <div className="text-xs text-text-muted">
+                          {toggle.desc}
+                        </div>
                       </div>
+                    </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleToggle(
-                            toggle.key
-                          )
-                        }
-                        className={`
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(toggle.key)}
+                      className={`
                           relative w-11 h-6 rounded-full transition-all duration-300
                           ${
-                            settings[
-                              toggle.key
-                            ]
+                            settings[toggle.key]
                               ? "bg-primary"
                               : "bg-border-dark"
                           }
                         `}
-                      >
-
-                        <span
-                          className={`
+                    >
+                      <span
+                        className={`
                             absolute top-0.5 w-5 h-5 rounded-full bg-white shadow
                             transition-all duration-300
-                            ${
-                              settings[
-                                toggle.key
-                              ]
-                                ? "right-0.5"
-                                : "left-0.5"
-                            }
+                            ${settings[toggle.key] ? "right-0.5" : "left-0.5"}
                           `}
-                        />
-
-                      </button>
-
-                    </div>
-                  )
-                )}
+                      />
+                    </button>
+                  </div>
+                ))}
 
                 {/* SAVE */}
 
                 <Button
                   fullWidth
-                  icon={
-                    savingInvoice
-                      ? "hourglass_top"
-                      : "send"
-                  }
+                  icon={savingInvoice ? "hourglass_top" : "send"}
                   className="mt-6"
-                  onClick={
-                    handleFinalizeInvoice
-                  }
-                  disabled={
-                    savingInvoice
-                  }
+                  onClick={handleFinalizeInvoice}
+                  disabled={savingInvoice}
                 >
                   {savingInvoice
                     ? "Saving..."
                     : isEditMode
-                    ? "Update & Send Invoice"
-                    : "Finalize & Send Invoice"}
+                      ? "Update & Send Invoice"
+                      : "Finalize & Send Invoice"}
                 </Button>
-
               </div>
-
             </Card>
-
           </div>
 
           {/* ===================================================
@@ -1989,77 +1553,58 @@ export default function Composer() {
           =================================================== */}
 
           <div className="col-span-12 lg:col-span-7">
-
             <div className="flex items-center justify-between mb-3">
-
               {/* LIVE PREVIEW */}
 
               <button
                 type="button"
                 onClick={() => {
-                  const previewData =
-                    {
-                      ...invoice,
+                  const previewData = {
+                    ...invoice,
 
-                      clientName:
-                        selectedClient?.name ||
-                        "",
+                    clientName: selectedClient?.name || "",
 
-                      projectName:
-                        selectedProject?.title ||
-                        "",
+                    projectName: selectedProject?.title || "",
 
-                      subtotal,
+                    subtotal,
 
-                      tax,
+                    tax,
 
-                      total,
-                    };
+                    total,
+                  };
 
                   window.open(
                     `/invoice-preview?data=${encodeURIComponent(
-                      JSON.stringify(
-                        previewData
-                      )
+                      JSON.stringify(previewData),
                     )}`,
-                    "_blank"
+                    "_blank",
                   );
                 }}
                 className="flex items-center gap-1 text-xs font-semibold text-text-muted hover:text-primary transition"
               >
-
                 <span className="material-symbols-outlined text-sm">
                   visibility
                 </span>
-
                 Live Preview
-
               </button>
 
               {/* PDF / PRINT */}
 
               <div className="flex gap-2">
-
                 <Button
                   variant="secondary"
                   size="sm"
                   icon="download"
-                  onClick={
-                    handleDownloadPdf
-                  }
+                  onClick={handleDownloadPdf}
                 />
 
                 <Button
                   variant="secondary"
                   size="sm"
                   icon="print"
-                  onClick={
-                    handlePrint
-                  }
+                  onClick={handlePrint}
                 />
-
               </div>
-
             </div>
 
             {/* =================================================
@@ -2067,194 +1612,23 @@ export default function Composer() {
             ================================================= */}
 
             <div ref={invoiceRef}>
-
               <div className="bg-surface border border-border rounded-xl overflow-hidden">
-            
-               <InvoiceTemplate
-           invoice={invoice}
-           selectedClient={selectedClient}
-           selectedProject={selectedProject}
-          subtotal={subtotal}
-          tax={tax}
-         taxRate={taxRate}
-         taxLabel="Tax"
-          total={total}
-         format={format}/>
-
+                <InvoiceTemplate
+                  invoice={invoice}
+                  selectedClient={selectedClient}
+                  selectedProject={selectedProject}
+                  subtotal={subtotal}
+                  tax={tax}
+                  taxRate={taxRate}
+                  taxLabel="Tax"
+                  total={total}
+                  format={format}
+                />
               </div>
-
             </div>
-
           </div>
-
         </div>
       </div>
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
