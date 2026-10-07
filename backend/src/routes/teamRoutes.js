@@ -159,7 +159,6 @@ const { PERMISSIONS } = require("../constants/permissions");
    PUBLIC ROUTES (no auth)
 ========================================================= */
 
-// Accept invitation – must stay public and before any /:id routes
 router.post(
   "/accept-invitation",
   teamController.acceptTeamInvitation
@@ -172,24 +171,21 @@ router.post(
 router.use(authMiddleware);
 
 /* =========================================================
-   STATIC ROUTES (must come BEFORE /:id routes)
+   STATIC ROUTES (BEFORE /:id)
 ========================================================= */
 
-// GET /api/v1/team
 router.get(
   "/",
   requirePermission(PERMISSIONS.TEAM_VIEW),
   teamController.getTeamMembers
 );
 
-// GET /api/v1/team/stats
 router.get(
   "/stats",
   requirePermission(PERMISSIONS.TEAM_VIEW),
   teamController.getTeamStats
 );
 
-// GET /api/v1/team/me  ← current user role + permissions
 router.get("/me", (req, res) => {
   res.json({
     success: true,
@@ -212,31 +208,27 @@ router.get("/me", (req, res) => {
 });
 
 /* =========================================================
-   ROLES ROUTES (all static path segments first)
+   ROLES
 ========================================================= */
 
-// GET /api/v1/team/roles
 router.get(
   "/roles",
   requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.listCustomRoles
 );
 
-// POST /api/v1/team/roles
 router.post(
   "/roles",
   requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.createCustomRole
 );
 
-// PATCH /api/v1/team/roles/:id  ← update role permissions
 router.patch(
   "/roles/:id",
   requirePermission(PERMISSIONS.ROLES_MANAGE),
   teamController.updateRolePermissions
 );
 
-// DELETE /api/v1/team/roles/:id
 router.delete(
   "/roles/:id",
   requirePermission(PERMISSIONS.ROLES_MANAGE),
@@ -247,7 +239,6 @@ router.delete(
    INVITE
 ========================================================= */
 
-// POST /api/v1/team/invite
 router.post(
   "/invite",
   requirePermission(PERMISSIONS.TEAM_INVITE),
@@ -255,24 +246,21 @@ router.post(
 );
 
 /* =========================================================
-   DYNAMIC MEMBER ROUTES (must come AFTER all static routes)
+   DYNAMIC MEMBER ROUTES (AFTER static routes)
 ========================================================= */
 
-// PATCH /api/v1/team/:id/permissions  ← extra permissions for one member
 router.patch(
   "/:id/permissions",
   requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
   teamController.updateTeamMemberPermissions
 );
 
-// PATCH /api/v1/team/:id/role
 router.patch(
   "/:id/role",
   requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
   teamController.updateTeamMemberRole
 );
 
-// DELETE /api/v1/team/:id
 router.delete(
   "/:id",
   requirePermission(PERMISSIONS.TEAM_REMOVE_MEMBER),
