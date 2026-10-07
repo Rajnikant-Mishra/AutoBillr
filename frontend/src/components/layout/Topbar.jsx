@@ -202,13 +202,32 @@ const fetchUser = useCallback(async () => {
         cache: "no-store",
       });
 
+      // if (teamRes.ok) {
+      //   const teamData = await teamRes.json();
+      //   teamRole =
+      //     teamData?.role ||
+      //     teamData?.data?.role ||
+      //     null;
+      // }
+
       if (teamRes.ok) {
-        const teamData = await teamRes.json();
-        teamRole =
-          teamData?.role ||
-          teamData?.data?.role ||
-          null;
-      }
+  const teamData = await teamRes.json();
+
+  console.log("TEAM ME RESPONSE:", teamData);
+
+  teamRole =
+    teamData?.role ||
+    teamData?.data?.role ||
+    teamData?.teamMember?.role ||
+    teamData?.data?.teamMember?.role ||
+    teamData?.member?.role ||
+    teamData?.data?.member?.role ||
+    teamData?.roleName ||
+    teamData?.data?.roleName ||
+    null;
+
+  console.log("TEAM ROLE:", teamRole);
+}
     } catch (err) {
       console.warn("Could not load team role:", err);
     }
