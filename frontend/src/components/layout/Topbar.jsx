@@ -110,23 +110,90 @@ export default function Topbar() {
     };
   }, [currencies, selectedCurrency, selectedCurrencyCode]);
 
+ 
+  // const fetchUser = useCallback(async () => {
+  //   try {
+  //     const token = getAuthToken();
+
+  //     if (!token) {
+  //       if (isMountedRef.current) {
+  //         setUser(null);
+  //         setLoading(false);
+  //       }
+  //       return null;
+  //     }
+
+  //     const response = await fetch(`${API_URL}/users/me`, {
+  //       method: "GET",
+  //       headers: {
+  //         Authorization: `Bearer ${token}`,
+  //         Accept: "application/json",
+  //       },
+  //       cache: "no-store",
+  //     });
+
+  //     const data = await response.json();
+
+  //     if (!response.ok) {
+  //       throw new Error(data?.message || "Failed to fetch user");
+  //     }
+
+  //     const databaseUser = data?.user || null;
+  //     if (isMountedRef.current) {
+  //       setUser(databaseUser);
+  //     }
+  //     return databaseUser;
+  //   } catch (error) {
+  //     console.error("TOPBAR USER FETCH ERROR:", error);
+  //     if (isMountedRef.current) {
+  //       setUser(null);
+  //     }
+  //     return null;
+  //   } finally {
+  //     if (isMountedRef.current) {
+  //       setLoading(false);
+  //     }
+  //   }
+  // }, []);
+
   /* =======================================================
-     FETCH USER FROM DATABASE (SAFE CLEANUP)
-  ======================================================= */
+   FETCH USER + TEAM ROLE
+======================================================= */
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const token = getAuthToken();
+const fetchUser = useCallback(async () => {
+  try {
+    const token = getAuthToken();
 
-      if (!token) {
-        if (isMountedRef.current) {
-          setUser(null);
-          setLoading(false);
-        }
-        return null;
+    if (!token) {
+      if (isMountedRef.current) {
+        setUser(null);
+        setLoading(false);
       }
+      return null;
+    }
 
-      const response = await fetch(`${API_URL}/users/me`, {
+    // 1. Profile data
+    const userRes = await fetch(`${API_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    const userData = await userRes.json();
+
+    if (!userRes.ok) {
+      throw new Error(userData?.message || "Failed to fetch user");
+    }
+
+    const databaseUser = userData?.user || null;
+
+    // 2. Real workspace role (TeamMember)
+    let teamRole = null;
+    try {
+      const teamRes = await fetch(`${API_URL}/team/me`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -135,30 +202,42 @@ export default function Topbar() {
         cache: "no-store",
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Failed to fetch user");
+      if (teamRes.ok) {
+        const teamData = await teamRes.json();
+        teamRole =
+          teamData?.role ||
+          teamData?.data?.role ||
+          null;
       }
-
-      const databaseUser = data?.user || null;
-      if (isMountedRef.current) {
-        setUser(databaseUser);
-      }
-      return databaseUser;
-    } catch (error) {
-      console.error("TOPBAR USER FETCH ERROR:", error);
-      if (isMountedRef.current) {
-        setUser(null);
-      }
-      return null;
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+    } catch (err) {
+      console.warn("Could not load team role:", err);
     }
-  }, []);
 
+    // Prefer team role when available
+    const mergedUser = databaseUser
+      ? {
+          ...databaseUser,
+          role: teamRole || databaseUser.role || "Viewer",
+        }
+      : null;
+
+    if (isMountedRef.current) {
+      setUser(mergedUser);
+    }
+
+    return mergedUser;
+  } catch (error) {
+    console.error("TOPBAR USER FETCH ERROR:", error);
+    if (isMountedRef.current) {
+      setUser(null);
+    }
+    return null;
+  } finally {
+    if (isMountedRef.current) {
+      setLoading(false);
+    }
+  }
+}, []);
   /* =======================================================
      MOUNT EFFECT (RUNS ONCE WITHOUT LOOPING)
   ======================================================= */
