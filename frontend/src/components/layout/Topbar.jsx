@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AdminDrawer from "../topbar/AdminDrawer";
 import Breadcrumb from "../ui/Breadcrumb";
@@ -10,6 +8,7 @@ import { showToast, showErrorToast } from "../../components/ui/CustomToast";
 import { getAuthToken } from "../../utils/auth";
 import CommandPalette from "../topbar/CommandPalette";
 import CurrencyModal from "../topbar/CurrencyModal";
+import Avatar from "../ui/Avatar"; // ← make sure this path is correct
 
 /* =========================================================
    API CONFIG
@@ -194,10 +193,6 @@ export default function Topbar() {
   const displayName =
     `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User";
 
-  const initials =
-    `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() ||
-    "U";
-
   const avatarUrl = getAvatarUrl(user?.avatar);
 
   const openCommandPalette = () => {
@@ -260,10 +255,6 @@ export default function Topbar() {
       console.error("CURRENCY CHANGE ERROR:", error);
       showErrorToast("Failed to change currency");
     }
-  };
-
-  const handleAvatarError = (event) => {
-    event.currentTarget.style.display = "none";
   };
 
   return (
@@ -356,7 +347,7 @@ export default function Topbar() {
             </svg>
           </button>
 
-          {/* CURRENCY SELECTOR (ANCHORED RELATIVE CONTAINER) */}
+          {/* CURRENCY SELECTOR */}
           <div className="relative">
             <button
               type="button"
@@ -375,7 +366,6 @@ export default function Topbar() {
               </span>
             </button>
 
-            {/* CURRENCY MODAL RENDERED EXACTLY UNDER THE BUTTON */}
             <CurrencyModal
               isOpen={showCurrencyModal}
               currencies={currencies}
@@ -442,7 +432,7 @@ export default function Topbar() {
 
           <div className="hidden sm:block w-px h-8 bg-border mx-1" />
 
-          {/* USER PROFILE */}
+          {/* USER PROFILE – FIXED */}
           <button
             type="button"
             onClick={() => setShowAdminDrawer(true)}
@@ -459,45 +449,13 @@ export default function Topbar() {
             "
             aria-label="Open profile menu"
           >
-            {avatarUrl ? (
-              <img
-                key={avatarUrl}
-                src={avatarUrl}
-                alt={displayName}
-                className="
-                  w-8
-                  h-8
-                  rounded-full
-                  object-cover
-                  border-2
-                  border-surface
-                  shadow-sm
-                  flex-shrink-0
-                "
-                onError={handleAvatarError}
-              />
-            ) : (
-              <div
-                className="
-                  w-8
-                  h-8
-                  rounded-full
-                  flex
-                  items-center
-                  justify-center
-                  bg-primary
-                  text-white
-                  text-xs
-                  font-semibold
-                  border-2
-                  border-surface
-                  shadow-sm
-                  flex-shrink-0
-                "
-              >
-                {initials}
-              </div>
-            )}
+            {/* ✅ Always shows photo OR initials */}
+            <Avatar
+              src={avatarUrl}
+              firstName={user?.firstName}
+              lastName={user?.lastName}
+              size="sm"
+            />
 
             <div className="hidden lg:block text-left min-w-0">
               <p className="text-sm font-medium text-text truncate max-w-[140px]">
