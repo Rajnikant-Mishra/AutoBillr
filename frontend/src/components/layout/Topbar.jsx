@@ -8,7 +8,7 @@ import { showToast, showErrorToast } from "../../components/ui/CustomToast";
 import { getAuthToken } from "../../utils/auth";
 import CommandPalette from "../topbar/CommandPalette";
 import CurrencyModal from "../topbar/CurrencyModal";
-import Avatar from "../ui/Avatar"; // ← make sure this path is correct
+import Avatar from "../ui/Avatar";
 
 /* =========================================================
    API CONFIG
@@ -110,90 +110,24 @@ export default function Topbar() {
     };
   }, [currencies, selectedCurrency, selectedCurrencyCode]);
 
- 
-  // const fetchUser = useCallback(async () => {
-  //   try {
-  //     const token = getAuthToken();
-
-  //     if (!token) {
-  //       if (isMountedRef.current) {
-  //         setUser(null);
-  //         setLoading(false);
-  //       }
-  //       return null;
-  //     }
-
-  //     const response = await fetch(`${API_URL}/users/me`, {
-  //       method: "GET",
-  //       headers: {
-  //         Authorization: `Bearer ${token}`,
-  //         Accept: "application/json",
-  //       },
-  //       cache: "no-store",
-  //     });
-
-  //     const data = await response.json();
-
-  //     if (!response.ok) {
-  //       throw new Error(data?.message || "Failed to fetch user");
-  //     }
-
-  //     const databaseUser = data?.user || null;
-  //     if (isMountedRef.current) {
-  //       setUser(databaseUser);
-  //     }
-  //     return databaseUser;
-  //   } catch (error) {
-  //     console.error("TOPBAR USER FETCH ERROR:", error);
-  //     if (isMountedRef.current) {
-  //       setUser(null);
-  //     }
-  //     return null;
-  //   } finally {
-  //     if (isMountedRef.current) {
-  //       setLoading(false);
-  //     }
-  //   }
-  // }, []);
-
   /* =======================================================
-   FETCH USER + TEAM ROLE
-======================================================= */
+     FETCH USER + TEAM ROLE  (FIXED)
+  ======================================================= */
 
-const fetchUser = useCallback(async () => {
-  try {
-    const token = getAuthToken();
-
-    if (!token) {
-      if (isMountedRef.current) {
-        setUser(null);
-        setLoading(false);
-      }
-      return null;
-    }
-
-    // 1. Profile data
-    const userRes = await fetch(`${API_URL}/users/me`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
-
-    const userData = await userRes.json();
-
-    if (!userRes.ok) {
-      throw new Error(userData?.message || "Failed to fetch user");
-    }
-
-    const databaseUser = userData?.user || null;
-
-    // 2. Real workspace role (TeamMember)
-    let teamRole = null;
+  const fetchUser = useCallback(async () => {
     try {
-      const teamRes = await fetch(`${API_URL}/team/me`, {
+      const token = getAuthToken();
+
+      if (!token) {
+        if (isMountedRef.current) {
+          setUser(null);
+          setLoading(false);
+        }
+        return null;
+      }
+
+      // 1. Profile data
+      const userRes = await fetch(`${API_URL}/users/me`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -202,63 +136,84 @@ const fetchUser = useCallback(async () => {
         cache: "no-store",
       });
 
-      // if (teamRes.ok) {
-      //   const teamData = await teamRes.json();
-      //   teamRole =
-      //     teamData?.role ||
-      //     teamData?.data?.role ||
-      //     null;
-      // }
+      const userData = await userRes.json();
 
-      if (teamRes.ok) {
-  const teamData = await teamRes.json();
+      if (!userRes.ok) {
+        throw new Error(userData?.message || "Failed to fetch user");
+      }
 
-  console.log("TEAM ME RESPONSE:", teamData);
+      const databaseUser = userData?.user || null;
 
-  teamRole =
-    teamData?.role ||
-    teamData?.data?.role ||
-    teamData?.teamMember?.role ||
-    teamData?.data?.teamMember?.role ||
-    teamData?.member?.role ||
-    teamData?.data?.member?.role ||
-    teamData?.roleName ||
-    teamData?.data?.roleName ||
-    null;
+      // 2. Real workspace role (TeamMember)
+      let teamRole = null;
 
-  console.log("TEAM ROLE:", teamRole);
-}
-    } catch (err) {
-      console.warn("Could not load team role:", err);
-    }
+      try {
+        const teamRes = await fetch(`${API_URL}/team/me`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        });
 
-    // Prefer team role when available
-    const mergedUser = databaseUser
-      ? {
-          ...databaseUser,
-          role: teamRole || databaseUser.role || "Viewer",
+        if (teamRes.ok) {
+          const teamData = await teamRes.json();
+
+          console.log("TEAM ME RESPONSE:", teamData); // keep for debugging
+
+          // Try every common location
+          const rawRole =
+            teamData?.role ||
+            teamData?.data?.role ||
+            teamData?.teamMember?.role ||
+            teamData?.data?.teamMember?.role ||
+            teamData?.member?.role ||
+            teamData?.data?.member?.role ||
+            teamData?.roleName ||
+            teamData?.data?.roleName ||
+            null;
+
+          // Handle both string and object roles
+          teamRole =
+            typeof rawRole === "string"
+              ? rawRole
+              : rawRole?.name || rawRole?.roleName || rawRole?.title || null;
+
+          console.log("TEAM ROLE:", teamRole); // keep for debugging
         }
-      : null;
+      } catch (err) {
+        console.warn("Could not load team role:", err);
+      }
 
-    if (isMountedRef.current) {
-      setUser(mergedUser);
-    }
+      // Prefer team role when available
+      const mergedUser = databaseUser
+        ? {
+            ...databaseUser,
+            role: teamRole || databaseUser.role || "Viewer",
+          }
+        : null;
 
-    return mergedUser;
-  } catch (error) {
-    console.error("TOPBAR USER FETCH ERROR:", error);
-    if (isMountedRef.current) {
-      setUser(null);
+      if (isMountedRef.current) {
+        setUser(mergedUser);
+      }
+
+      return mergedUser;
+    } catch (error) {
+      console.error("TOPBAR USER FETCH ERROR:", error);
+      if (isMountedRef.current) {
+        setUser(null);
+      }
+      return null;
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-    return null;
-  } finally {
-    if (isMountedRef.current) {
-      setLoading(false);
-    }
-  }
-}, []);
+  }, []);
+
   /* =======================================================
-     MOUNT EFFECT (RUNS ONCE WITHOUT LOOPING)
+     MOUNT EFFECT
   ======================================================= */
 
   useEffect(() => {
@@ -530,7 +485,7 @@ const fetchUser = useCallback(async () => {
 
           <div className="hidden sm:block w-px h-8 bg-border mx-1" />
 
-          {/* USER PROFILE – FIXED */}
+          {/* USER PROFILE */}
           <button
             type="button"
             onClick={() => setShowAdminDrawer(true)}
@@ -547,7 +502,6 @@ const fetchUser = useCallback(async () => {
             "
             aria-label="Open profile menu"
           >
-            {/* ✅ Always shows photo OR initials */}
             <Avatar
               src={avatarUrl}
               firstName={user?.firstName}
