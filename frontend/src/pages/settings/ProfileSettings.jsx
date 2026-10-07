@@ -6,7 +6,6 @@ import React, {
 
 import Button from "../../components/ui/Button";
 import ProfileEditModal from "../../components/profile/ProfileEditModal";
-
 import { getProfile } from "../../services/userService";
 
 const API_URL =
@@ -19,69 +18,111 @@ const API_ORIGIN = API_URL.replace(
 );
 
 export default function ProfileSettings() {
-  const [editOpen, setEditOpen] =
-    useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const [user, setUser] =
-    useState(null);
+  // ============================================================
+  // NORMALIZE AVATAR URL
+  // ============================================================
 
-  const [loading, setLoading] =
-    useState(true);
+  const normalizeAvatar = useCallback((avatar) => {
+    if (!avatar) {
+      return null;
+    }
 
-  const loadProfile = useCallback(
-    async () => {
-      try {
-        setLoading(true);
+    // Full URL
+    if (
+      avatar.startsWith("http://") ||
+      avatar.startsWith("https://")
+    ) {
+      return avatar;
+    }
 
-        const response =
-          await getProfile();
+    // Backend uploads path
+    if (avatar.startsWith("/uploads")) {
+      return `${API_ORIGIN}${avatar}`;
+    }
 
-        console.log(
-          "REGISTERED USER:",
-          response
-        );
+    // Other relative paths
+    if (avatar.startsWith("/")) {
+      return `${API_ORIGIN}${avatar}`;
+    }
 
-        const profile =
-          response?.user;
+    return avatar;
+  }, []);
 
-        if (!profile) {
-          throw new Error(
-            "User profile not found"
-          );
-        }
+  // ============================================================
+  // LOAD PROFILE FROM DATABASE
+  // ============================================================
 
-        const normalizedProfile = {
-          ...profile,
+  const loadProfile = useCallback(async () => {
+    try {
+      setLoading(true);
 
-          avatar:
-            profile.avatar &&
-            profile.avatar.startsWith(
-              "/uploads"
-            )
-              ? `${API_ORIGIN}${profile.avatar}`
-              : profile.avatar,
-        };
+      const response = await getProfile();
 
-        setUser(
-          normalizedProfile
-        );
-      } catch (error) {
-        console.error(
-          "LOAD PROFILE ERROR:",
-          error
-        );
+      console.log("REGISTERED USER:", response);
 
-        setUser(null);
-      } finally {
-        setLoading(false);
+      const profile =
+        response?.user ||
+        response?.data?.user ||
+        response?.data ||
+        response;
+
+      if (!profile) {
+        throw new Error("User profile not found");
       }
-    },
-    []
-  );
+
+      const normalizedProfile = {
+        ...profile,
+
+        // IMPORTANT:
+        // If avatar is null/empty -> keep null
+        // so default icon is displayed.
+        avatar: normalizeAvatar(profile.avatar),
+      };
+
+      console.log(
+        "PROFILE FROM DATABASE:",
+        normalizedProfile
+      );
+
+      setUser(normalizedProfile);
+    } catch (error) {
+      console.error(
+        "LOAD PROFILE ERROR:",
+        error
+      );
+
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizeAvatar]);
+
+  // ============================================================
+  // INITIAL LOAD
+  // ============================================================
 
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // ============================================================
+  // CLOSE EDIT MODAL + RELOAD DATABASE PROFILE
+  // ============================================================
+
+  const handleClose = async () => {
+    setEditOpen(false);
+
+    // Reload latest saved profile from backend
+    await loadProfile();
+  };
+
+  // ============================================================
+  // LOADING
+  // ============================================================
 
   if (loading) {
     return (
@@ -90,6 +131,10 @@ export default function ProfileSettings() {
       </div>
     );
   }
+
+  // ============================================================
+  // ERROR
+  // ============================================================
 
   if (!user) {
     return (
@@ -114,15 +159,14 @@ export default function ProfileSettings() {
     );
   }
 
+  // ============================================================
+  // USER DATA
+  // ============================================================
+
   const displayName =
     `${user.firstName || ""} ${
       user.lastName || ""
     }`.trim() || "User";
-
-  const initials =
-    `${user.firstName?.[0] || ""}${
-      user.lastName?.[0] || ""
-    }`.toUpperCase() || "U";
 
   const role =
     user.role
@@ -132,18 +176,11 @@ export default function ProfileSettings() {
         letter.toUpperCase()
       ) || "Member";
 
-  const handleClose = () => {
-    setEditOpen(false);
-
-    /*
-     * Get the newly registered/edited values
-     * from backend again.
-     */
-    loadProfile();
-  };
-
   return (
     <div>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <h1 className="text-2xl font-bold mb-1">
         Personal Info
@@ -153,24 +190,69 @@ export default function ProfileSettings() {
         Update your name and profile photo.
       </p>
 
-      {/* PROFILE */}
+      {/* ======================================================
+          PROFILE CARD
+      ====================================================== */}
 
       <div className="flex items-center gap-5 p-5 border border-border rounded-2xl max-w-md">
+
+        {/* ====================================================
+            PROFILE IMAGE / DEFAULT ICON
+        ==================================================== */}
 
         {user.avatar ? (
           <img
             src={user.avatar}
             alt={displayName}
             className="w-16 h-16 rounded-2xl object-cover border border-border"
+            onError={(event) => {
+              // If image URL is invalid,
+              // replace it with default icon.
+              event.currentTarget.style.display =
+                "none";
+
+              const fallback =
+                event.currentTarget
+                  .nextElementSibling;
+
+              if (fallback) {
+                fallback.style.display = "grid";
+              }
+            }}
           />
-        ) : (
-          <div className="w-16 h-16 rounded-2xl bg-primary-soft text-primary-dark grid place-items-center text-xl font-bold">
-            {initials}
-          </div>
-        )}
+        ) : null}
+
+        {/* ====================================================
+            DEFAULT PROFILE ICON
+
+            This appears when:
+            user.avatar === null
+            user.avatar === ""
+            user.avatar === undefined
+
+            It disappears automatically after image upload.
+        ==================================================== */}
+
+        <div
+          className={`w-16 h-16 rounded-2xl bg-gray-100 border border-border place-items-center ${
+            user.avatar ? "hidden" : "grid"
+          }`}
+        >
+          <span
+            className="material-symbols-outlined text-gray-500"
+            style={{
+              fontSize: "32px",
+            }}
+          >
+            person
+          </span>
+        </div>
+
+        {/* ====================================================
+            USER INFORMATION
+        ==================================================== */}
 
         <div className="flex-1 min-w-0">
-
           <h3 className="font-bold text-text truncate">
             {displayName}
           </h3>
@@ -182,26 +264,28 @@ export default function ProfileSettings() {
           <p className="text-xs text-text-light mt-1 uppercase tracking-wider">
             {role}
           </p>
-
         </div>
+
+        {/* ====================================================
+            EDIT BUTTON
+        ==================================================== */}
 
         <Button
           size="sm"
-          onClick={() =>
-            setEditOpen(true)
-          }
+          onClick={() => setEditOpen(true)}
         >
           Edit
         </Button>
-
       </div>
 
-      {/* EMAIL */}
+      {/* ======================================================
+          EMAIL / NAME / ROLE
+      ====================================================== */}
 
       <div className="mt-8 max-w-md space-y-4">
 
+        {/* EMAIL */}
         <div className="p-4 border border-border rounded-xl">
-
           <p className="text-xs text-text-muted mb-1">
             Email
           </p>
@@ -213,13 +297,10 @@ export default function ProfileSettings() {
           <p className="text-xs text-text-light mt-1">
             Email cannot be changed
           </p>
-
         </div>
 
-        {/* NAME */}
-
+        {/* FULL NAME */}
         <div className="p-4 border border-border rounded-xl">
-
           <p className="text-xs text-text-muted mb-1">
             Full name
           </p>
@@ -227,13 +308,10 @@ export default function ProfileSettings() {
           <p className="text-sm font-medium">
             {displayName}
           </p>
-
         </div>
 
         {/* ROLE */}
-
         <div className="p-4 border border-border rounded-xl">
-
           <p className="text-xs text-text-muted mb-1">
             Role
           </p>
@@ -241,16 +319,17 @@ export default function ProfileSettings() {
           <p className="text-sm font-medium">
             {role}
           </p>
-
         </div>
-
       </div>
+
+      {/* ======================================================
+          EDIT MODAL
+      ====================================================== */}
 
       <ProfileEditModal
         isOpen={editOpen}
         onClose={handleClose}
       />
-
     </div>
   );
 }
