@@ -1,6 +1,109 @@
+// const PERMISSIONS = {
+//   DASHBOARD_VIEW: "dashboard:view",
+
+//   INVOICES_VIEW: "invoices:view",
+//   INVOICES_CREATE: "invoices:create",
+//   INVOICES_EDIT: "invoices:edit",
+//   INVOICES_DELETE: "invoices:delete",
+//   INVOICES_SEND: "invoices:send",
+//   INVOICES_REMIND: "invoices:remind",
+//   INVOICES_EXPORT: "invoices:export",
+
+//   CLIENTS_VIEW: "clients:view",
+//   CLIENTS_CREATE: "clients:create",
+//   CLIENTS_EDIT: "clients:edit",
+//   CLIENTS_DELETE: "clients:delete",
+
+//   PROJECTS_VIEW: "projects:view",
+//   PROJECTS_CREATE: "projects:create",
+//   PROJECTS_EDIT: "projects:edit",
+//   PROJECTS_DELETE: "projects:delete",
+//   PROJECTS_MILESTONES: "projects:milestones",
+
+//   ANALYTICS_VIEW: "analytics:view",
+//   ANALYTICS_EXPORT: "analytics:export",
+
+//   AUTOMATION_VIEW: "automation:view",
+//   AUTOMATION_MANAGE: "automation:manage",
+
+//   TEAM_VIEW: "team:view",
+//   TEAM_INVITE: "team:invite",
+//   TEAM_EDIT_MEMBER: "team:edit_member",
+//   TEAM_REMOVE_MEMBER: "team:remove_member",
+//   ROLES_MANAGE: "roles:manage",
+
+//   SETTINGS_VIEW: "settings:view",
+//   SETTINGS_BUSINESS: "settings:business",
+//   SETTINGS_BRANDING: "settings:branding",
+//   SETTINGS_TAX: "settings:tax",
+//   SETTINGS_PAYMENTS: "settings:payments",
+//   SETTINGS_INTEGRATIONS: "settings:integrations",
+//   SETTINGS_API: "settings:api",
+
+//   BILLING_VIEW: "billing:view",
+// };
+
+// const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+
+// const DEFAULT_ROLE_PERMISSIONS = {
+//   // Full access
+//   Owner: ALL_PERMISSIONS,
+//   Admin: ALL_PERMISSIONS,
+
+//   Manager: [
+//     PERMISSIONS.DASHBOARD_VIEW,
+//     PERMISSIONS.INVOICES_VIEW,
+//     PERMISSIONS.INVOICES_CREATE,
+//     PERMISSIONS.INVOICES_EDIT,
+//     PERMISSIONS.INVOICES_SEND,
+//     PERMISSIONS.INVOICES_REMIND,
+//     PERMISSIONS.CLIENTS_VIEW,
+//     PERMISSIONS.CLIENTS_CREATE,
+//     PERMISSIONS.CLIENTS_EDIT,
+//     PERMISSIONS.PROJECTS_VIEW,
+//     PERMISSIONS.PROJECTS_CREATE,
+//     PERMISSIONS.PROJECTS_EDIT,
+//     PERMISSIONS.PROJECTS_MILESTONES,
+//     PERMISSIONS.ANALYTICS_VIEW,
+//     PERMISSIONS.AUTOMATION_VIEW,
+//     PERMISSIONS.TEAM_VIEW,
+//   ],
+
+//   Analyst: [
+//     PERMISSIONS.DASHBOARD_VIEW,
+//     PERMISSIONS.INVOICES_VIEW,
+//     PERMISSIONS.CLIENTS_VIEW,
+//     PERMISSIONS.PROJECTS_VIEW,
+//     PERMISSIONS.ANALYTICS_VIEW,
+//     PERMISSIONS.ANALYTICS_EXPORT,
+//     PERMISSIONS.TEAM_VIEW,
+//   ],
+
+//   Viewer: [
+//     PERMISSIONS.DASHBOARD_VIEW,
+//     PERMISSIONS.INVOICES_VIEW,
+//     PERMISSIONS.CLIENTS_VIEW,
+//     PERMISSIONS.PROJECTS_VIEW,
+//     PERMISSIONS.TEAM_VIEW,
+//   ],
+// };
+
+// module.exports = {
+//   PERMISSIONS,
+//   DEFAULT_ROLE_PERMISSIONS,
+//   ALL_PERMISSIONS,
+// };
+
+
+
+
+// backend/src/constants/permissions.js
+
 const PERMISSIONS = {
+  // Dashboard
   DASHBOARD_VIEW: "dashboard:view",
 
+  // Invoices
   INVOICES_VIEW: "invoices:view",
   INVOICES_CREATE: "invoices:create",
   INVOICES_EDIT: "invoices:edit",
@@ -9,29 +112,37 @@ const PERMISSIONS = {
   INVOICES_REMIND: "invoices:remind",
   INVOICES_EXPORT: "invoices:export",
 
+  // Clients
   CLIENTS_VIEW: "clients:view",
   CLIENTS_CREATE: "clients:create",
   CLIENTS_EDIT: "clients:edit",
   CLIENTS_DELETE: "clients:delete",
 
+  // Projects
   PROJECTS_VIEW: "projects:view",
   PROJECTS_CREATE: "projects:create",
   PROJECTS_EDIT: "projects:edit",
   PROJECTS_DELETE: "projects:delete",
   PROJECTS_MILESTONES: "projects:milestones",
 
+  // Analytics
   ANALYTICS_VIEW: "analytics:view",
   ANALYTICS_EXPORT: "analytics:export",
 
+  // Automation
   AUTOMATION_VIEW: "automation:view",
   AUTOMATION_MANAGE: "automation:manage",
 
+  // Team
   TEAM_VIEW: "team:view",
   TEAM_INVITE: "team:invite",
   TEAM_EDIT_MEMBER: "team:edit_member",
   TEAM_REMOVE_MEMBER: "team:remove_member",
+
+  // Roles
   ROLES_MANAGE: "roles:manage",
 
+  // Settings
   SETTINGS_VIEW: "settings:view",
   SETTINGS_BUSINESS: "settings:business",
   SETTINGS_BRANDING: "settings:branding",
@@ -40,56 +151,89 @@ const PERMISSIONS = {
   SETTINGS_INTEGRATIONS: "settings:integrations",
   SETTINGS_API: "settings:api",
 
+  // Billing
   BILLING_VIEW: "billing:view",
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
+const unique = (permissions) => [...new Set(permissions)];
+
 const DEFAULT_ROLE_PERMISSIONS = {
-  // Full access
+  // ============================================================
+  // OWNER
+  // ============================================================
   Owner: ALL_PERMISSIONS,
+
+  // ============================================================
+  // ADMIN
+  // ============================================================
   Admin: ALL_PERMISSIONS,
 
-  Manager: [
+  // ============================================================
+  // MANAGER
+  // ============================================================
+  Manager: unique([
     PERMISSIONS.DASHBOARD_VIEW,
+
     PERMISSIONS.INVOICES_VIEW,
     PERMISSIONS.INVOICES_CREATE,
     PERMISSIONS.INVOICES_EDIT,
     PERMISSIONS.INVOICES_SEND,
     PERMISSIONS.INVOICES_REMIND,
+
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_EDIT,
+
     PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.PROJECTS_CREATE,
     PERMISSIONS.PROJECTS_EDIT,
     PERMISSIONS.PROJECTS_MILESTONES,
-    PERMISSIONS.ANALYTICS_VIEW,
-    PERMISSIONS.AUTOMATION_VIEW,
-    PERMISSIONS.TEAM_VIEW,
-  ],
 
-  Analyst: [
+    PERMISSIONS.ANALYTICS_VIEW,
+
+    PERMISSIONS.AUTOMATION_VIEW,
+
+    PERMISSIONS.TEAM_VIEW,
+  ]),
+
+  // ============================================================
+  // ANALYST
+  // ============================================================
+  Analyst: unique([
     PERMISSIONS.DASHBOARD_VIEW,
+
     PERMISSIONS.INVOICES_VIEW,
+
     PERMISSIONS.CLIENTS_VIEW,
+
     PERMISSIONS.PROJECTS_VIEW,
+
     PERMISSIONS.ANALYTICS_VIEW,
     PERMISSIONS.ANALYTICS_EXPORT,
-    PERMISSIONS.TEAM_VIEW,
-  ],
 
-  Viewer: [
-    PERMISSIONS.DASHBOARD_VIEW,
-    PERMISSIONS.INVOICES_VIEW,
-    PERMISSIONS.CLIENTS_VIEW,
-    PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.TEAM_VIEW,
-  ],
+  ]),
+
+  // ============================================================
+  // VIEWER
+  // ============================================================
+  Viewer: unique([
+    PERMISSIONS.DASHBOARD_VIEW,
+
+    PERMISSIONS.INVOICES_VIEW,
+
+    PERMISSIONS.CLIENTS_VIEW,
+
+    PERMISSIONS.PROJECTS_VIEW,
+
+    PERMISSIONS.TEAM_VIEW,
+  ]),
 };
 
 module.exports = {
   PERMISSIONS,
-  DEFAULT_ROLE_PERMISSIONS,
   ALL_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
 };
