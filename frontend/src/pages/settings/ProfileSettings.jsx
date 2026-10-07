@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -27,29 +28,31 @@ export default function ProfileSettings() {
   // ============================================================
 
   const normalizeAvatar = useCallback((avatar) => {
-    if (!avatar) {
+    if (!avatar || typeof avatar !== "string") {
       return null;
     }
 
-    // Full URL
+    const cleanAvatar = avatar.trim();
+
+    if (!cleanAvatar) {
+      return null;
+    }
+
+    // Already a complete URL
     if (
-      avatar.startsWith("http://") ||
-      avatar.startsWith("https://")
+      cleanAvatar.startsWith("http://") ||
+      cleanAvatar.startsWith("https://")
     ) {
-      return avatar;
+      return cleanAvatar;
     }
 
-    // Backend uploads path
-    if (avatar.startsWith("/uploads")) {
-      return `${API_ORIGIN}${avatar}`;
+    // Backend relative path
+    if (cleanAvatar.startsWith("/")) {
+      return `${API_ORIGIN}${cleanAvatar}`;
     }
 
-    // Other relative paths
-    if (avatar.startsWith("/")) {
-      return `${API_ORIGIN}${avatar}`;
-    }
-
-    return avatar;
+    // Relative path without /
+    return `${API_ORIGIN}/${cleanAvatar}`;
   }, []);
 
   // ============================================================
@@ -76,10 +79,6 @@ export default function ProfileSettings() {
 
       const normalizedProfile = {
         ...profile,
-
-        // IMPORTANT:
-        // If avatar is null/empty -> keep null
-        // so default icon is displayed.
         avatar: normalizeAvatar(profile.avatar),
       };
 
@@ -110,13 +109,13 @@ export default function ProfileSettings() {
   }, [loadProfile]);
 
   // ============================================================
-  // CLOSE EDIT MODAL + RELOAD DATABASE PROFILE
+  // CLOSE EDIT MODAL + RELOAD PROFILE
   // ============================================================
 
   const handleClose = async () => {
     setEditOpen(false);
 
-    // Reload latest saved profile from backend
+    // Reload latest profile from database
     await loadProfile();
   };
 
@@ -168,6 +167,23 @@ export default function ProfileSettings() {
       user.lastName || ""
     }`.trim() || "User";
 
+  // ============================================================
+  // INITIALS
+  //
+  // John Smith -> JS
+  // John -> J
+  // No name -> U
+  // ============================================================
+
+  const initials =
+    `${user.firstName?.[0] || ""}${
+      user.lastName?.[0] || ""
+    }`.toUpperCase() || "U";
+
+  // ============================================================
+  // ROLE
+  // ============================================================
+
   const role =
     user.role
       ?.replaceAll("_", " ")
@@ -175,6 +191,10 @@ export default function ProfileSettings() {
       ?.replace(/\b\w/g, (letter) =>
         letter.toUpperCase()
       ) || "Member";
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div>
@@ -197,20 +217,25 @@ export default function ProfileSettings() {
       <div className="flex items-center gap-5 p-5 border border-border rounded-2xl max-w-md">
 
         {/* ====================================================
-            PROFILE IMAGE / DEFAULT ICON
+            PROFILE AVATAR
         ==================================================== */}
 
         {user.avatar ? (
           <img
             src={user.avatar}
             alt={displayName}
-            className="w-16 h-16 rounded-2xl object-cover border border-border"
+            className="w-16 h-16 rounded-full object-cover border border-border"
             onError={(event) => {
-              // If image URL is invalid,
-              // replace it with default icon.
+              console.error(
+                "PROFILE AVATAR ERROR:",
+                user.avatar
+              );
+
+              // Hide broken image
               event.currentTarget.style.display =
                 "none";
 
+              // Show initials fallback
               const fallback =
                 event.currentTarget
                   .nextElementSibling;
@@ -223,29 +248,15 @@ export default function ProfileSettings() {
         ) : null}
 
         {/* ====================================================
-            DEFAULT PROFILE ICON
-
-            This appears when:
-            user.avatar === null
-            user.avatar === ""
-            user.avatar === undefined
-
-            It disappears automatically after image upload.
+            DEFAULT INITIAL AVATAR
         ==================================================== */}
 
         <div
-          className={`w-16 h-16 rounded-2xl bg-gray-100 border border-border place-items-center ${
+          className={`w-16 h-16 rounded-full bg-primary text-white place-items-center text-xl font-bold border border-border ${
             user.avatar ? "hidden" : "grid"
           }`}
         >
-          <span
-            className="material-symbols-outlined text-gray-500"
-            style={{
-              fontSize: "32px",
-            }}
-          >
-            person
-          </span>
+          {initials}
         </div>
 
         {/* ====================================================
@@ -258,7 +269,7 @@ export default function ProfileSettings() {
           </h3>
 
           <p className="text-sm text-text-muted truncate">
-            {user.email}
+            {user.email || "No email"}
           </p>
 
           <p className="text-xs text-text-light mt-1 uppercase tracking-wider">
@@ -285,13 +296,14 @@ export default function ProfileSettings() {
       <div className="mt-8 max-w-md space-y-4">
 
         {/* EMAIL */}
+
         <div className="p-4 border border-border rounded-xl">
           <p className="text-xs text-text-muted mb-1">
             Email
           </p>
 
           <p className="text-sm font-medium">
-            {user.email}
+            {user.email || "—"}
           </p>
 
           <p className="text-xs text-text-light mt-1">
@@ -300,6 +312,7 @@ export default function ProfileSettings() {
         </div>
 
         {/* FULL NAME */}
+
         <div className="p-4 border border-border rounded-xl">
           <p className="text-xs text-text-muted mb-1">
             Full name
@@ -311,6 +324,7 @@ export default function ProfileSettings() {
         </div>
 
         {/* ROLE */}
+
         <div className="p-4 border border-border rounded-xl">
           <p className="text-xs text-text-muted mb-1">
             Role
@@ -333,3 +347,5 @@ export default function ProfileSettings() {
     </div>
   );
 }
+
+
