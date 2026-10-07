@@ -1156,9 +1156,7 @@ const PERMISSION_GROUPS = [
   {
     key: "dashboard",
     label: "Dashboard",
-    items: [
-      { key: "dashboard:view", label: "View dashboard" },
-    ],
+    items: [{ key: "dashboard:view", label: "View dashboard" }],
   },
   {
     key: "invoices",
@@ -1231,23 +1229,17 @@ const PERMISSION_GROUPS = [
   {
     key: "billing",
     label: "Billing",
-    items: [
-      { key: "billing:view", label: "View billing" },
-    ],
+    items: [{ key: "billing:view", label: "View billing" }],
   },
   {
     key: "clientPortal",
     label: "Client Portal",
-    items: [
-      { key: "clientportal:view", label: "View client portal" },
-    ],
+    items: [{ key: "clientportal:view", label: "View client portal" }],
   },
   {
     key: "pricing",
     label: "Pricing",
-    items: [
-      { key: "pricing:view", label: "View pricing" },
-    ],
+    items: [{ key: "pricing:view", label: "View pricing" }],
   },
 ];
 
@@ -1434,24 +1426,29 @@ export default function TeamPermissions() {
     return [...systemRoles, ...custom];
   }, [databaseRoles, customRoles]);
 
+  // ========== FIXED fetchTeamData ==========
   const fetchTeamData = useCallback(async () => {
     setLoading(true);
 
     try {
-      const data = await apiRequest(TEAM_API);
+      // 1. Load members
+      const membersRes = await apiRequest(TEAM_API);
 
-      const roles = Array.isArray(data?.roles)
-        ? data.roles
-        : Array.isArray(data?.data?.roles)
-        ? data.data.roles
+      const teamMembers = Array.isArray(membersRes?.data)
+        ? membersRes.data
+        : Array.isArray(membersRes?.members)
+        ? membersRes.members
+        : Array.isArray(membersRes?.data?.members)
+        ? membersRes.data.members
         : [];
 
-      const teamMembers = Array.isArray(data?.members)
-        ? data.members
-        : Array.isArray(data?.teamMembers)
-        ? data.teamMembers
-        : Array.isArray(data?.data?.members)
-        ? data.data.members
+      // 2. Load roles (THIS WAS MISSING)
+      const rolesRes = await apiRequest(`${TEAM_API}/roles`);
+
+      const roles = Array.isArray(rolesRes?.data)
+        ? rolesRes.data
+        : Array.isArray(rolesRes?.roles)
+        ? rolesRes.roles
         : [];
 
       const systemRoleNames = ["Owner", "Admin", "Manager", "Analyst", "Viewer"];
@@ -1482,6 +1479,7 @@ export default function TeamPermissions() {
 
       setMembers(teamMembers);
 
+      // Auto-select Owner if nothing selected yet
       if (!selectedRoleId && normalizedRoles.length > 0) {
         const owner = normalizedRoles.find(
           (role) => String(role.name || "").toLowerCase() === "owner"
@@ -1497,6 +1495,7 @@ export default function TeamPermissions() {
       setLoading(false);
     }
   }, [selectedRoleId]);
+  // ========== END FIXED fetchTeamData ==========
 
   useEffect(() => {
     fetchTeamData();
@@ -1567,9 +1566,9 @@ export default function TeamPermissions() {
       return;
     }
 
-    // Don't send system-xxx fake IDs to the backend
+    // Prevent saving with fake system-* IDs
     if (String(selectedRoleMeta.id).startsWith("system-")) {
-      showError("This system role is not saved in the database yet.");
+      showError("This system role is not fully loaded. Please refresh the page.");
       return;
     }
 
@@ -1901,7 +1900,6 @@ export default function TeamPermissions() {
                   <div className="space-y-2">
                     {group.items.map((item) => {
                       const checked = editingPermissions.includes(item.key);
-
                       return (
                         <PermissionCheckbox
                           key={item.key}
