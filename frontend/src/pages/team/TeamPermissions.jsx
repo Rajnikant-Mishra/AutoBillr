@@ -1122,6 +1122,11 @@
 
 
 
+
+
+
+
+
 import React, {
   useCallback,
   useEffect,
@@ -1141,8 +1146,7 @@ import TeamRoles from "../../components/team/TeamRoles";
 import { showError, showSuccess } from "../../utils/toast";
 
 const API_BASE = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api/v1"
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
 ).replace(/\/$/, "");
 
 const TEAM_API = `${API_BASE}/team`;
@@ -1288,8 +1292,8 @@ const SYSTEM_ROLE_DEFAULTS = {
 
 const normalizePermissions = (permissions) => {
   if (!Array.isArray(permissions)) return [];
-  return [...new Set(permissions.filter(Boolean))].filter((permission) =>
-    ALL_PERMISSION_KEYS.includes(permission)
+  return [...new Set(permissions.filter(Boolean))].filter((p) =>
+    ALL_PERMISSION_KEYS.includes(p)
   );
 };
 
@@ -1357,7 +1361,6 @@ export default function TeamPermissions() {
   const [saving, setSaving] = useState(false);
 
   const [permissionMode, setPermissionMode] = useState("role");
-
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState("");
 
@@ -1368,22 +1371,18 @@ export default function TeamPermissions() {
 
   const selectedRoleMeta = useMemo(() => {
     if (!selectedRoleId) return null;
-
     return (
-      databaseRoles.find((role) => role.id === selectedRoleId) ||
-      customRoles.find((role) => role.id === selectedRoleId) ||
+      databaseRoles.find((r) => r.id === selectedRoleId) ||
+      customRoles.find((r) => r.id === selectedRoleId) ||
       null
     );
   }, [selectedRoleId, databaseRoles, customRoles]);
 
   const selectedMember = useMemo(() => {
     if (!selectedMemberId) return null;
-
     return (
       members.find(
-        (member) =>
-          member.id === selectedMemberId ||
-          member.userId === selectedMemberId
+        (m) => m.id === selectedMemberId || m.userId === selectedMemberId
       ) || null
     );
   }, [selectedMemberId, members]);
@@ -1393,8 +1392,7 @@ export default function TeamPermissions() {
 
     const systemRoles = systemRoleNames.map((name) => {
       const dbRole = databaseRoles.find(
-        (role) =>
-          String(role.name || "").toLowerCase() === name.toLowerCase()
+        (r) => String(r.name || "").toLowerCase() === name.toLowerCase()
       );
 
       return {
@@ -1411,27 +1409,26 @@ export default function TeamPermissions() {
 
     const custom = customRoles
       .filter(
-        (role) =>
+        (r) =>
           !systemRoleNames.some(
-            (name) =>
-              String(role.name || "").toLowerCase() === name.toLowerCase()
+            (n) => String(r.name || "").toLowerCase() === n.toLowerCase()
           )
       )
-      .map((role) => ({
-        ...role,
-        permissions: normalizePermissions(role.permissions),
+      .map((r) => ({
+        ...r,
+        permissions: normalizePermissions(r.permissions),
         isSystem: false,
       }));
 
     return [...systemRoles, ...custom];
   }, [databaseRoles, customRoles]);
 
-  // ========== FIXED fetchTeamData ==========
+  // ========== FIXED: Load members + roles separately ==========
   const fetchTeamData = useCallback(async () => {
     setLoading(true);
 
     try {
-      // 1. Load members
+      // 1. Load team members
       const membersRes = await apiRequest(TEAM_API);
 
       const teamMembers = Array.isArray(membersRes?.data)
@@ -1442,7 +1439,7 @@ export default function TeamPermissions() {
         ? membersRes.data.members
         : [];
 
-      // 2. Load roles (THIS WAS MISSING)
+      // 2. Load roles (separate endpoint)
       const rolesRes = await apiRequest(`${TEAM_API}/roles`);
 
       const roles = Array.isArray(rolesRes?.data)
@@ -1461,8 +1458,7 @@ export default function TeamPermissions() {
       setDatabaseRoles(
         normalizedRoles.filter((role) =>
           systemRoleNames.some(
-            (name) =>
-              String(role.name || "").toLowerCase() === name.toLowerCase()
+            (n) => String(role.name || "").toLowerCase() === n.toLowerCase()
           )
         )
       );
@@ -1471,18 +1467,17 @@ export default function TeamPermissions() {
         normalizedRoles.filter(
           (role) =>
             !systemRoleNames.some(
-              (name) =>
-                String(role.name || "").toLowerCase() === name.toLowerCase()
+              (n) => String(role.name || "").toLowerCase() === n.toLowerCase()
             )
         )
       );
 
       setMembers(teamMembers);
 
-      // Auto-select Owner if nothing selected yet
+      // Auto-select Owner role on first load
       if (!selectedRoleId && normalizedRoles.length > 0) {
         const owner = normalizedRoles.find(
-          (role) => String(role.name || "").toLowerCase() === "owner"
+          (r) => String(r.name || "").toLowerCase() === "owner"
         );
         if (owner?.id) {
           setSelectedRoleId(owner.id);
@@ -1495,12 +1490,12 @@ export default function TeamPermissions() {
       setLoading(false);
     }
   }, [selectedRoleId]);
-  // ========== END FIXED fetchTeamData ==========
 
   useEffect(() => {
     fetchTeamData();
   }, [fetchTeamData]);
 
+  // Sync editing permissions when role changes
   useEffect(() => {
     if (permissionMode !== "role") return;
 
@@ -1510,8 +1505,7 @@ export default function TeamPermissions() {
       return;
     }
 
-    const role = allRoleOptions.find((item) => item.id === selectedRoleId);
-
+    const role = allRoleOptions.find((r) => r.id === selectedRoleId);
     if (!role) {
       setEditingPermissions([]);
       setPermissionsDirty(false);
@@ -1522,6 +1516,7 @@ export default function TeamPermissions() {
     setPermissionsDirty(false);
   }, [selectedRoleId, permissionMode, allRoleOptions]);
 
+  // Sync editing permissions when member changes
   useEffect(() => {
     if (permissionMode !== "member") return;
 
@@ -1531,11 +1526,10 @@ export default function TeamPermissions() {
       return;
     }
 
-    const extraPermissions = normalizePermissions(
+    const extra = normalizePermissions(
       selectedMember.extraPermissions || selectedMember.permissions || []
     );
-
-    setEditingPermissions(extraPermissions);
+    setEditingPermissions(extra);
     setPermissionsDirty(false);
   }, [selectedMember, permissionMode]);
 
@@ -1543,7 +1537,7 @@ export default function TeamPermissions() {
     setEditingPermissions((current) => {
       const exists = current.includes(permissionKey);
       const next = exists
-        ? current.filter((permission) => permission !== permissionKey)
+        ? current.filter((p) => p !== permissionKey)
         : [...current, permissionKey];
       return normalizePermissions(next);
     });
@@ -1566,9 +1560,11 @@ export default function TeamPermissions() {
       return;
     }
 
-    // Prevent saving with fake system-* IDs
+    // Prevent saving fake system-* IDs
     if (String(selectedRoleMeta.id).startsWith("system-")) {
-      showError("This system role is not fully loaded. Please refresh the page.");
+      showError(
+        "This system role is not fully loaded from the database. Please refresh the page."
+      );
       return;
     }
 
@@ -1709,6 +1705,7 @@ export default function TeamPermissions() {
       </div>
 
       <div className="rounded-xl border border-border-light bg-white">
+        {/* Header + Mode Switcher */}
         <div className="border-b border-border-light px-5 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1754,6 +1751,7 @@ export default function TeamPermissions() {
           </div>
         </div>
 
+        {/* Role / Member selector */}
         <div className="border-b border-border-light px-5 py-4">
           {permissionMode === "role" ? (
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
@@ -1763,8 +1761,8 @@ export default function TeamPermissions() {
                 </label>
                 <select
                   value={selectedRoleId}
-                  onChange={(event) => {
-                    setSelectedRoleId(event.target.value);
+                  onChange={(e) => {
+                    setSelectedRoleId(e.target.value);
                     setPermissionsDirty(false);
                   }}
                   className="w-full rounded-lg border border-border-light bg-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
@@ -1798,8 +1796,8 @@ export default function TeamPermissions() {
               </label>
               <select
                 value={selectedMemberId}
-                onChange={(event) => {
-                  setSelectedMemberId(event.target.value);
+                onChange={(e) => {
+                  setSelectedMemberId(e.target.value);
                   setPermissionsDirty(false);
                 }}
                 className="w-full rounded-lg border border-border-light bg-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
@@ -1830,6 +1828,7 @@ export default function TeamPermissions() {
           )}
         </div>
 
+        {/* Permissions grid */}
         <div className="px-5 py-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1898,24 +1897,22 @@ export default function TeamPermissions() {
                   </div>
 
                   <div className="space-y-2">
-                    {group.items.map((item) => {
-                      const checked = editingPermissions.includes(item.key);
-                      return (
-                        <PermissionCheckbox
-                          key={item.key}
-                          checked={checked}
-                          disabled={saving}
-                          label={item.label}
-                          onChange={() => togglePermission(item.key)}
-                        />
-                      );
-                    })}
+                    {group.items.map((item) => (
+                      <PermissionCheckbox
+                        key={item.key}
+                        checked={editingPermissions.includes(item.key)}
+                        disabled={saving}
+                        label={item.label}
+                        onChange={() => togglePermission(item.key)}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
           )}
 
+          {/* Save bar */}
           <div className="mt-6 flex flex-col gap-3 border-t border-border-light pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs text-text-secondary">
               {permissionsDirty
