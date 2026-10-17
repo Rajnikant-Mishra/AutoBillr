@@ -1,8 +1,13 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import LandingNavbar from "../../components/landing/LandingNavbar";
 import LandingFooter from "../../components/landing/LandingFooter";
+
+import {
+  showSuccessToast,
+  showErrorToast,
+} from "../../components/ui/CustomToast";
 
 import "../../styles/theme.css";
 
@@ -29,7 +34,7 @@ const plans = [
     highlighted: false,
   },
   {
-    id: "pro",
+    id: "professional",
     name: "Pro",
     description: "Perfect for growing organizations.",
     monthlyPrice: 129,
@@ -91,13 +96,143 @@ const faqs = [
 
 /* =========================================================
    PRICING PAGE
-   variant="landing" → navbar + footer (public)
-   variant="app"     → content only (from dashboard, no chrome)
+   variant="landing" → navbar + footer
+   variant="app"     → content only
 ========================================================= */
 export default function PricingPage({ variant = "landing" }) {
   const isLanding = variant === "landing";
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [isAnnual, setIsAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState(0);
+  const [loadingPlan, setLoadingPlan] = useState(false);
+
+  // Set this query parameter when an existing subscription expires:
+  // /pricing?changePlan=true
+  const isChangingPlan = searchParams.get("changePlan") === "true";
+
+  const API_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+
+  /* =====================================================
+     SELECT PLAN
+  ===================================================== */
+  const handleSelectPlan = async (plan) => {
+    if (loadingPlan) return;
+
+    // Enterprise uses the contact-sales flow.
+    if (plan.id === "enterprise") {
+      navigate("/contact");
+      return;
+    }
+
+    const billingCycle = isAnnual ? "YEARLY" : "MONTHLY";
+
+    // New registration: save the chosen plan in the registration URL.
+    if (!isChangingPlan) {
+      navigate(
+        `/register?plan=${encodeURIComponent(
+          plan.id
+        )}&billing=${isAnnual ? "yearly" : "monthly"}`
+      );
+      return;
+    }
+
+    // Existing user changing an expired subscription.
+    try {
+      const authData = JSON.parse(
+        localStorage.getItem("autobiller-auth") || "{}"
+      );
+
+      const token =
+        authData.token ||
+        authData.state?.token ||
+        localStorage.getItem("token");
+
+      if (!token) {
+        showErrorToast(
+          "Your login session is unavailable. Please sign in again."
+        );
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      setLoadingPlan(true);
+
+      const response = await fetch(`${API_URL}/auth/change-plan`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          planId: plan.id,
+          billingCycle,
+        }),
+      });
+
+      const responseText = await response.text();
+
+      let data = {};
+
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error("Invalid response from the subscription API.");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || data.error || "Unable to update your subscription."
+        );
+      }
+
+      // Update the cached subscription when the API returns one.
+      const updatedSubscription =
+        data.subscription ||
+        data.data?.subscription ||
+        data.data ||
+        null;
+
+      if (updatedSubscription) {
+        try {
+          const currentAuth = JSON.parse(
+            localStorage.getItem("autobiller-auth") || "{}"
+          );
+
+          currentAuth.subscription = updatedSubscription;
+
+          if (currentAuth.state) {
+            currentAuth.state.subscription = updatedSubscription;
+          }
+
+          localStorage.setItem(
+            "autobiller-auth",
+            JSON.stringify(currentAuth)
+          );
+        } catch (storageError) {
+          console.warn(
+            "Could not update cached subscription:",
+            storageError
+          );
+        }
+      }
+
+      showSuccessToast("Subscription updated successfully!");
+
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      console.error("Plan change failed:", error);
+
+      showErrorToast(
+        error.message || "Unable to update your subscription."
+      );
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
 
   return (
     <div className="landing-page min-h-screen bg-background font-body-md text-text antialiased">
@@ -118,19 +253,28 @@ export default function PricingPage({ variant = "landing" }) {
                 payments
               </span>
               <span className="text-xs font-semibold text-primary tracking-wide">
-                SIMPLE & TRANSPARENT PRICING
+                SIMPLE &amp; TRANSPARENT PRICING
               </span>
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text mb-6 leading-tight tracking-tight">
-              Predictable Pricing for{" "}
-              <br className="hidden sm:block" />
-              <span className="text-primary">Modern Automation.</span>
+              {isChangingPlan
+                ? "Choose Your Subscription Plan"
+                : "Predictable Pricing for"}
+              {!isChangingPlan && (
+                <>
+                  <br className="hidden sm:block" />
+                  <span className="text-primary">
+                    Modern Automation.
+                  </span>
+                </>
+              )}
             </h1>
 
             <p className="text-lg text-text-muted max-w-2xl mx-auto mb-10 leading-relaxed">
-              Scale your billing infrastructure without the headache. Choose a
-              plan that grows with your transaction volume and team size.
+              {isChangingPlan
+                ? "Choose a plan to reactivate your existing AutoBillr subscription."
+                : "Scale your billing infrastructure without the headache. Choose a plan that grows with your transaction volume and team size."}
             </p>
 
             {/* BILLING TOGGLE */}
@@ -145,10 +289,11 @@ export default function PricingPage({ variant = "landing" }) {
 
               <button
                 type="button"
-                onClick={() => setIsAnnual((v) => !v)}
+                onClick={() => setIsAnnual((value) => !value)}
                 className="w-14 h-7 bg-primary rounded-full relative p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 aria-label="Toggle annual pricing"
                 aria-pressed={isAnnual}
+                disabled={loadingPlan}
               >
                 <span
                   className={`block w-5 h-5 bg-surface rounded-full absolute top-1 shadow-sm transition-all duration-200 ${
@@ -165,6 +310,7 @@ export default function PricingPage({ variant = "landing" }) {
                 >
                   Annual
                 </span>
+
                 <span className="bg-success-light text-success px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider">
                   SAVE 20%
                 </span>
@@ -201,7 +347,9 @@ export default function PricingPage({ variant = "landing" }) {
                   <h3 className="text-xl font-bold text-text mb-2">
                     {plan.name}
                   </h3>
-                  <p className="text-sm text-text-muted">{plan.description}</p>
+                  <p className="text-sm text-text-muted">
+                    {plan.description}
+                  </p>
                 </div>
 
                 <div className="mb-8 min-h-[60px] flex items-end">
@@ -214,37 +362,50 @@ export default function PricingPage({ variant = "landing" }) {
                       <span className="text-4xl md:text-5xl font-extrabold text-text tracking-tighter">
                         ${isAnnual ? plan.annualPrice : plan.monthlyPrice}
                       </span>
-                      <span className="text-text-muted font-medium">/mo</span>
+                      <span className="text-text-muted font-medium">
+                        /mo
+                      </span>
                     </div>
                   )}
                 </div>
 
-             <Link
-  to={
-    plan.id === "enterprise"
-      ? "/contact"
-      : `/register?plan=${plan.id === "pro" ? "professional" : plan.id}&billing=${isAnnual ? "yearly" : "monthly"}`
-  }
-  className={`
-    w-full min-h-[48px] px-5 py-3 rounded-lg font-semibold text-sm
-    text-center inline-flex items-center justify-center gap-2
-    transition-all duration-200 mb-10
-    ${plan.ctaClass}
-  `}
->
-  <span className="material-symbols-outlined text-lg">
-    {plan.id === "enterprise" ? "contact_page" : "rocket_launch"}
-  </span>
-  {plan.cta}
-</Link>
+                {/* PLAN ACTION */}
+                <button
+                  type="button"
+                  disabled={loadingPlan}
+                  onClick={() => handleSelectPlan(plan)}
+                  className={`
+                    w-full min-h-[48px] px-5 py-3 rounded-lg font-semibold text-sm
+                    text-center inline-flex items-center justify-center gap-2
+                    transition-all duration-200 mb-10
+                    disabled:opacity-60 disabled:cursor-not-allowed
+                    ${plan.ctaClass}
+                  `}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {plan.id === "enterprise"
+                      ? "contact_page"
+                      : "rocket_launch"}
+                  </span>
+
+                  {loadingPlan
+                    ? "Updating plan..."
+                    : isChangingPlan && plan.id !== "enterprise"
+                    ? `Select ${plan.name}`
+                    : plan.cta}
+                </button>
 
                 <div className="space-y-4 flex-grow">
                   <p className="text-sm font-bold text-text">
                     {plan.featuresTitle}
                   </p>
+
                   {plan.features.map((feature, index) => {
                     const text =
-                      typeof feature === "string" ? feature : feature.text;
+                      typeof feature === "string"
+                        ? feature
+                        : feature.text;
+
                     const highlight =
                       typeof feature === "object" && feature.highlight;
 
@@ -259,6 +420,7 @@ export default function PricingPage({ variant = "landing" }) {
                         >
                           check_circle
                         </span>
+
                         <span
                           className={`text-sm leading-6 ${
                             highlight
@@ -280,11 +442,15 @@ export default function PricingPage({ variant = "landing" }) {
           <section className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary-light text-primary mb-5">
-                <span className="material-symbols-outlined text-2xl">help</span>
+                <span className="material-symbols-outlined text-2xl">
+                  help
+                </span>
               </div>
+
               <h2 className="text-2xl md:text-3xl font-bold text-text mb-4">
                 Frequently Asked Questions
               </h2>
+
               <p className="text-text-muted">
                 Everything you need to know about AutoBillr pricing and billing.
               </p>
@@ -293,6 +459,7 @@ export default function PricingPage({ variant = "landing" }) {
             <div className="space-y-4">
               {faqs.map((faq, index) => {
                 const isOpen = openFaq === index;
+
                 return (
                   <div
                     key={index}
@@ -304,7 +471,9 @@ export default function PricingPage({ variant = "landing" }) {
                           : "border-border hover:border-border-dark hover:shadow-sm"
                       }
                     `}
-                    onClick={() => setOpenFaq(isOpen ? null : index)}
+                    onClick={() =>
+                      setOpenFaq(isOpen ? null : index)
+                    }
                   >
                     <div className="flex justify-between items-center gap-4 p-6">
                       <h4
@@ -314,15 +483,21 @@ export default function PricingPage({ variant = "landing" }) {
                       >
                         {faq.q}
                       </h4>
+
                       <span
                         className={`
                           material-symbols-outlined shrink-0 transition-all duration-200
-                          ${isOpen ? "text-primary rotate-180" : "text-text-light"}
+                          ${
+                            isOpen
+                              ? "text-primary rotate-180"
+                              : "text-text-light"
+                          }
                         `}
                       >
                         expand_more
                       </span>
                     </div>
+
                     {isOpen && (
                       <div className="px-6 pb-6">
                         <div className="pt-4 border-t border-border-light">
