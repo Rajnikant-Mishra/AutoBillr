@@ -77,11 +77,14 @@ function TrialExpiredModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleUpgrade = () => {
+  // const handleUpgrade = () => {
+  //   onClose();
+  //   navigate("/app/pricing");
+  // };
+const handleUpgrade = () => {
   onClose();
   navigate("/register?step=3", { replace: true });
 };
-
   const handleSignOut = () => {
     localStorage.clear();
     sessionStorage.clear();
