@@ -219,20 +219,24 @@ export default function PricingPage({ variant = "landing" }) {
                   )}
                 </div>
 
-                <Link
-                  to={plan.id === "enterprise" ? "/contact" : "/register"}
-                  className={`
-                    w-full min-h-[48px] px-5 py-3 rounded-lg font-semibold text-sm
-                    text-center inline-flex items-center justify-center gap-2
-                    transition-all duration-200 mb-10
-                    ${plan.ctaClass}
-                  `}
-                >
-                  <span className="material-symbols-outlined text-lg">
-                    {plan.id === "enterprise" ? "contact_page" : "rocket_launch"}
-                  </span>
-                  {plan.cta}
-                </Link>
+             <Link
+  to={
+    plan.id === "enterprise"
+      ? "/contact"
+      : `/register?plan=${plan.id === "pro" ? "professional" : plan.id}&billing=${isAnnual ? "yearly" : "monthly"}`
+  }
+  className={`
+    w-full min-h-[48px] px-5 py-3 rounded-lg font-semibold text-sm
+    text-center inline-flex items-center justify-center gap-2
+    transition-all duration-200 mb-10
+    ${plan.ctaClass}
+  `}
+>
+  <span className="material-symbols-outlined text-lg">
+    {plan.id === "enterprise" ? "contact_page" : "rocket_launch"}
+  </span>
+  {plan.cta}
+</Link>
 
                 <div className="space-y-4 flex-grow">
                   <p className="text-sm font-bold text-text">

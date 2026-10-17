@@ -24,56 +24,6 @@ const API_URL =
 // PLAN CONFIGURATION
 // =====================================================
 
-// const PLANS = [
-//   {
-//     id: "starter",
-//     name: "Starter",
-//     monthly: { price: 0, period: "Free" },
-//     yearly: { price: 0, period: "Free" },
-//     trial: "14 days",
-//     invoiceLimit: "10 invoices",
-//     popular: false,
-//     features: [
-//       "Up to 10 invoices",
-//       "Client management",
-//       "Basic billing tools",
-//       "14-day free trial",
-//     ],
-//   },
-//   {
-//     id: "professional",
-//     name: "Professional",
-//     monthly: { price: 999, period: "/mo" },
-//     yearly: { price: 9990, period: "/year" },
-//     trial: "14 days",
-//     invoiceLimit: "Unlimited",
-//     popular: true,
-//     features: [
-//       "Unlimited invoices",
-//       "Recurring billing",
-//       "Advanced analytics",
-//       "Project billing",
-//       "14-day free trial",
-//     ],
-//   },
-//   {
-//     id: "enterprise",
-//     name: "Enterprise",
-//     monthly: { price: 2499, period: "/mo" },
-//     yearly: { price: 24990, period: "/year" },
-//     trial: "14 days",
-//     invoiceLimit: "Unlimited",
-//     popular: false,
-//     features: [
-//       "Unlimited invoices",
-//       "Advanced controls",
-//       "Team management",
-//       "Priority support",
-//       "14-day free trial",
-//     ],
-//   },
-// ];
-
 const PLANS = [
   {
     id: "starter",
@@ -95,7 +45,7 @@ const PLANS = [
     name: "Professional",
     monthly: { price: 999, period: "/mo" },
     yearly: { price: 9990, period: "/year" },
-    trial: "14 extra days",
+    trial: "14 days",
     invoiceLimit: "Unlimited",
     popular: true,
     features: [
@@ -103,7 +53,7 @@ const PLANS = [
       "Recurring billing",
       "Advanced analytics",
       "Project billing",
-      "14 extra trial days",
+      "14-day free trial",
     ],
   },
   {
@@ -111,7 +61,7 @@ const PLANS = [
     name: "Enterprise",
     monthly: { price: 2499, period: "/mo" },
     yearly: { price: 24990, period: "/year" },
-    trial: "14 extra days",
+    trial: "14 days",
     invoiceLimit: "Unlimited",
     popular: false,
     features: [
@@ -119,7 +69,7 @@ const PLANS = [
       "Advanced controls",
       "Team management",
       "Priority support",
-      "14 extra trial days",
+      "14-day free trial",
     ],
   },
 ];
@@ -333,197 +283,82 @@ export default function Register() {
     return () => stopVerificationPolling();
   }, [stopVerificationPolling]);
 
-  // // =====================================================
-  // // RESTORE STATE
-  // // =====================================================
+  // =====================================================
+  // RESTORE STATE
+  // =====================================================
 
-  // useEffect(() => {
-  //   const verifiedFromUrl = searchParams.get("verified") === "true";
-  //   const requestedStep = searchParams.get("step");
-  //   const emailFromUrl = searchParams.get("email");
+  useEffect(() => {
+    const verifiedFromUrl = searchParams.get("verified") === "true";
+    const requestedStep = searchParams.get("step");
+    const emailFromUrl = searchParams.get("email");
 
-  //   let savedDraft = {};
-  //   const storedDraft = sessionStorage.getItem(REGISTRATION_STORAGE_KEY);
+    let savedDraft = {};
+    const storedDraft = sessionStorage.getItem(REGISTRATION_STORAGE_KEY);
 
-  //   if (storedDraft) {
-  //     try {
-  //       savedDraft = JSON.parse(storedDraft);
-  //     } catch (error) {
-  //       console.error("Unable to restore draft:", error);
-  //       sessionStorage.removeItem(REGISTRATION_STORAGE_KEY);
-  //     }
-  //   }
-
-  //   const storedEmail = sessionStorage.getItem(REGISTRATION_EMAIL_KEY);
-  //   const registrationEmail = (
-  //     emailFromUrl ||
-  //     storedEmail ||
-  //     savedDraft.email ||
-  //     ""
-  //   )
-  //     .trim()
-  //     .toLowerCase();
-
-  //   if (Object.keys(savedDraft).length > 0) {
-  //     setFormData((prev) => ({
-  //       ...prev,
-  //       ...savedDraft,
-  //       // migrate old "role" draft key → jobTitle
-  //       jobTitle:
-  //         savedDraft.jobTitle ||
-  //         savedDraft.role ||
-  //         prev.jobTitle,
-  //       email: registrationEmail || savedDraft.email || prev.email,
-  //     }));
-  //   }
-
-  //   if (registrationEmail) {
-  //     setFormData((prev) => ({
-  //       ...prev,
-  //       email: registrationEmail,
-  //     }));
-  //     sessionStorage.setItem(REGISTRATION_EMAIL_KEY, registrationEmail);
-  //   }
-
-  //   if (verifiedFromUrl && requestedStep === "2" && registrationEmail) {
-  //     setEmailVerified(true);
-  //     setEmailVerificationSent(false);
-  //     stopVerificationPolling();
-  //     setStep(2);
-
-  //     saveDraft({
-  //       ...savedDraft,
-  //       email: registrationEmail,
-  //     });
-
-  //     navigate("/register", { replace: true });
-  //     return;
-  //   }
-
-  //   if (registrationEmail && !verifiedFromUrl) {
-  //     checkEmailVerification(registrationEmail);
-  //   }
-  // }, [
-  //   searchParams,
-  //   navigate,
-  //   checkEmailVerification,
-  //   stopVerificationPolling,
-  // ]);
-
-
-
-  
-useEffect(() => {
-  const verifiedFromUrl = searchParams.get("verified") === "true";
-  const requestedStep = searchParams.get("step");
-  const emailFromUrl = searchParams.get("email");
-
-  let savedDraft = {};
-
-  const storedDraft = sessionStorage.getItem(REGISTRATION_STORAGE_KEY);
-
-  if (storedDraft) {
-    try {
-      savedDraft = JSON.parse(storedDraft);
-    } catch (error) {
-      console.error("Unable to restore registration draft:", error);
-      sessionStorage.removeItem(REGISTRATION_STORAGE_KEY);
+    if (storedDraft) {
+      try {
+        savedDraft = JSON.parse(storedDraft);
+      } catch (error) {
+        console.error("Unable to restore draft:", error);
+        sessionStorage.removeItem(REGISTRATION_STORAGE_KEY);
+      }
     }
-  }
 
-  const storedEmail = sessionStorage.getItem(REGISTRATION_EMAIL_KEY);
+    const storedEmail = sessionStorage.getItem(REGISTRATION_EMAIL_KEY);
+    const registrationEmail = (
+      emailFromUrl ||
+      storedEmail ||
+      savedDraft.email ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
 
-  const registrationEmail = (
-    emailFromUrl ||
-    storedEmail ||
-    savedDraft.email ||
-    ""
-  ).trim().toLowerCase();
-
-  // Restore saved registration fields.
-  if (Object.keys(savedDraft).length > 0) {
-    setFormData((previous) => ({
-      ...previous,
-      ...savedDraft,
-      jobTitle:
-        savedDraft.jobTitle ||
-        savedDraft.role ||
-        previous.jobTitle,
-      email: registrationEmail || previous.email,
-    }));
-
-    if (savedDraft.password) {
-      calculateStrength(savedDraft.password);
+    if (Object.keys(savedDraft).length > 0) {
+      setFormData((prev) => ({
+        ...prev,
+        ...savedDraft,
+        // migrate old "role" draft key → jobTitle
+        jobTitle:
+          savedDraft.jobTitle ||
+          savedDraft.role ||
+          prev.jobTitle,
+        email: registrationEmail || savedDraft.email || prev.email,
+      }));
     }
-  }
 
-  // Restore email.
-  if (registrationEmail) {
-    setFormData((previous) => ({
-      ...previous,
-      email: registrationEmail,
-    }));
+    if (registrationEmail) {
+      setFormData((prev) => ({
+        ...prev,
+        email: registrationEmail,
+      }));
+      sessionStorage.setItem(REGISTRATION_EMAIL_KEY, registrationEmail);
+    }
 
-    sessionStorage.setItem(
-      REGISTRATION_EMAIL_KEY,
-      registrationEmail
-    );
-  }
+    if (verifiedFromUrl && requestedStep === "2" && registrationEmail) {
+      setEmailVerified(true);
+      setEmailVerificationSent(false);
+      stopVerificationPolling();
+      setStep(2);
 
-  // Restore selected plan.
-  const storedPlan = sessionStorage.getItem(REGISTRATION_PLAN_KEY);
+      saveDraft({
+        ...savedDraft,
+        email: registrationEmail,
+      });
 
-  if (storedPlan && VALID_PLAN_IDS.includes(storedPlan)) {
-    setSelectedPlan(storedPlan);
-  }
+      navigate("/register", { replace: true });
+      return;
+    }
 
-  // Restore billing interval.
-  const storedBilling = sessionStorage.getItem(REGISTRATION_BILLING_KEY);
-
-  if (
-    storedBilling &&
-    VALID_BILLING_INTERVALS.includes(storedBilling)
-  ) {
-    setBillingInterval(storedBilling);
-  }
-
-  // Email verification callback: continue to Company step.
-  if (verifiedFromUrl && registrationEmail) {
-    setEmailVerified(true);
-    setEmailVerificationSent(false);
-    stopVerificationPolling();
-    setStep(2);
-
-    saveDraft({
-      ...savedDraft,
-      email: registrationEmail,
-    });
-
-    navigate("/register", { replace: true });
-    return;
-  }
-
-  // Direct navigation to the requested registration step.
-  if (requestedStep === "3") {
-    setStep(3);
-    return;
-  }
-
-  if (requestedStep === "2") {
-    setStep(2);
-    return;
-  }
-
-  // Check verification status for normal registration.
-  if (registrationEmail) {
-    checkEmailVerification(registrationEmail);
-  }
-}, [
-  searchParams,
-  navigate,
-  checkEmailVerification,
-  stopVerificationPolling,
-]);
+    if (registrationEmail && !verifiedFromUrl) {
+      checkEmailVerification(registrationEmail);
+    }
+  }, [
+    searchParams,
+    navigate,
+    checkEmailVerification,
+    stopVerificationPolling,
+  ]);
 
   // =====================================================
   // VALIDATION
