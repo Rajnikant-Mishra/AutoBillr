@@ -61,3 +61,4 @@ router.post("/verify-reset-otp", verifyResetOtp);
 router.post("/reset-password", resetPassword);
 
 module.exports = router;
+
