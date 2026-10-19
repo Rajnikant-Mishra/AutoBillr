@@ -66,12 +66,20 @@ const handleLogin = async (e) => {
 
     // Invalid credentials or other login errors.
     if (!response.ok) {
-      if (data?.code === "SUBSCRIPTION_EXPIRED") {
-        showErrorToast(
-          "Your trial or subscription has expired. Please sign in again after updating the backend login flow."
-        );
-        return;
-      }
+  if (data?.code === "SUBSCRIPTION_EXPIRED") {
+    showErrorToast(
+      data.message ||
+        "Your trial or subscription has expired. Select a plan to continue."
+    );
+
+    setTimeout(() => {
+      navigate("/pricing?changePlan=true", {
+        replace: true,
+      });
+    }, 1200);
+
+    return;
+  }
 
       showErrorToast(
         data?.message || `Login failed (${response.status}).`
