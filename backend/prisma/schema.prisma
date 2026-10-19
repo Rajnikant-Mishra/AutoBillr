@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,17 +8,21 @@ datasource db {
 }
 
 model Company {
-  id                   String                @id @default(cuid())
+  id                   String   @id @default(cuid())
   name                 String
   companySize          String?
   industry             String?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  ownerId              String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
   brandColor           String?
   logo                 String?
-  showFooter           Boolean               @default(false)
-  showQr               Boolean               @default(false)
-  showThumbnails       Boolean               @default(false)
+  showFooter           Boolean  @default(false)
+  showQr               Boolean  @default(false)
+  showThumbnails       Boolean  @default(false)
+
+  owner                User     @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
   clients              Client[]
   invoices             Invoice[]
   notifications        Notification[]
@@ -26,7 +31,6 @@ model Company {
   subscriptions        Subscription[]
   subscriptionPayments SubscriptionPayment[]
   teamMembers          TeamMember[]
-  users                User[]
 
   @@index([name])
 }
@@ -37,14 +41,15 @@ model User {
   lastName     String
   email        String   @unique
   passwordHash String
-  role         UserRole @default(OWNER)
-  companyId    String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   avatar       String?
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@index([companyId])
+  // A user can own at most one organization.
+  ownedCompany    Company?     @relation("CompanyOwner")
+
+  // A user can be an employee in multiple organizations.
+  teamMemberships TeamMember[]
 }
 
 model Plan {
@@ -64,17 +69,17 @@ model Plan {
 }
 
 model Subscription {
-  id                 String                @id @default(cuid())
+  id                 String             @id @default(cuid())
   companyId          String
   planId             String
-  status             SubscriptionStatus    @default(TRIALING)
+  status             SubscriptionStatus @default(TRIALING)
   trialEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan               Plan                  @relation(fields: [planId], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan               Plan               @relation(fields: [planId], references: [id])
   payments           SubscriptionPayment[]
 
   @@index([companyId])
@@ -88,7 +93,7 @@ model SubscriptionPayment {
   subscriptionId String
   planId         String
   amount         Decimal      @db.Decimal(10, 2)
-  currency       String       @default("USD")
+  currency       String       @default("INR")
   status         String       @default("PAID")
   paymentMethod  String       @default("TEST_CARD")
   transactionId  String       @unique
@@ -147,22 +152,22 @@ model Client {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
+  id            String      @id @default(cuid())
   companyId     String
   clientId      String
   invoiceNumber String
-  status        String        @default("draft")
-  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
-  tax           Decimal       @default(0) @db.Decimal(12, 2)
-  total         Decimal       @default(0) @db.Decimal(12, 2)
-  issueDate     DateTime      @default(now())
+  status        String      @default("draft")
+  subtotal      Decimal     @default(0) @db.Decimal(12, 2)
+  tax           Decimal     @default(0) @db.Decimal(12, 2)
+  total         Decimal     @default(0) @db.Decimal(12, 2)
+  issueDate     DateTime    @default(now())
   dueDate       DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   projectId     String?
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  project       Project?      @relation(fields: [projectId], references: [id])
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project       Project?    @relation(fields: [projectId], references: [id])
   items         InvoiceItem[]
   payments      Payment[]
 
@@ -190,7 +195,7 @@ model Payment {
   id            String    @id @default(cuid())
   invoiceId     String
   amount        Decimal   @db.Decimal(12, 2)
-  currency      String    @default("USD")
+  currency      String    @default("INR")
   status        String    @default("pending")
   paymentMethod String?
   paidAt        DateTime?
@@ -249,16 +254,16 @@ model Project {
 }
 
 model Milestone {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
   title     String
   dueDate   DateTime
-  amount    Decimal   @db.Decimal(15, 2)
-  status    String    @default("scheduled")
+  amount    Decimal  @db.Decimal(15, 2)
+  status    String   @default("scheduled")
   paidAt    DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }
@@ -296,9 +301,8 @@ model Role {
   name        String
   description String?
   companyId   String
-  permissions String[] @default([])
+  permissions String[]     @default([])
   isSystem    Boolean      @default(false)
-
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -310,45 +314,51 @@ model Role {
 }
 
 model TeamMember {
-  id                String           @id @default(cuid())
-  companyId         String
-  name              String
-  email             String
-  avatar            String?
-  status            TeamMemberStatus @default(PENDING)
+  id               String           @id @default(cuid())
+  companyId        String
+  userId           String?
+  name             String
+  email            String
+  avatar           String?
+  status           TeamMemberStatus @default(PENDING)
 
-  channels          String[]
-  whatsapp          String?
-  github            String?
-  discord           String?
+  // Role assignment
+  role             String           @default("VIEWER")
+  roleId           String?
+  extraPermissions String[]         @default([])
 
-  invitationToken   String?          @unique
+  // Invitation tracking
+  invitationToken   String?         @unique
   invitationMessage String?
   invitedById       String?
-  invitedAt         DateTime         @default(now())
+  invitedAt         DateTime        @default(now())
   acceptedAt        DateTime?
-  lastActivityAt    DateTime?
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  role              String           @default("VIEWER")
-  roleId            String?
-  extraPermissions  String[]         @default([])
+  company Company @relation(
+    fields: [companyId],
+    references: [id],
+    onDelete: Cascade
+  )
 
-  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user User? @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: SetNull
+  )
 
-  roleRef           Role?            @relation( fields: [roleId],references: [id],onDelete: SetNull )
-
-  temporaryPassword     String?
-  temporaryPasswordHash String?
+  roleRef Role? @relation(
+    fields: [roleId],
+    references: [id],
+    onDelete: SetNull
+  )
 
   @@unique([companyId, email])
   @@index([companyId])
+  @@index([userId])
   @@index([roleId])
-  @@index([companyId, status])
-  @@index([companyId, role])
-  @@index([invitationToken])
 }
 
 model Currency {
@@ -413,14 +423,6 @@ enum TeamMemberStatus {
   PENDING
   ACTIVE
   INACTIVE
-}
-
-enum UserRole {
-  OWNER
-  ADMIN
-  MANAGER
-  ANALYST
-  VIEWER
 }
 
 enum SubscriptionStatus {

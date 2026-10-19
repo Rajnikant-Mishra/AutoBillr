@@ -10,6 +10,7 @@ import {
   showErrorToast,
 } from "../../components/ui/CustomToast";
 
+import { setAuthData } from "../../utils/auth";
 import { formatAmount } from "../../utils/currency";
 
 import "../../styles/theme.css";
@@ -77,12 +78,12 @@ const FAQS = [
   {
     question: "Is there a free trial?",
     answer:
-      "The plans listed here include a 14-day free trial. Confirm that your backend subscription logic applies the trial to the selected plan.",
+      "The Starter plan includes a 14-day free trial. Trial eligibility is validated by the server.",
   },
   {
     question: "What payment methods do you accept?",
     answer:
-      "Available payment methods depend on the payment gateway configured for your account.",
+      "Plan selection currently does not require a payment step.",
   },
   {
     question: "Do you offer discounts for non-profits?",
@@ -91,9 +92,10 @@ const FAQS = [
   },
 ];
 
-const API_URL =
+const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api/v1";
+  "http://localhost:5000/api/v1"
+).replace(/\/+$/, "");
 
 const INR_CURRENCY = {
   code: "INR",
@@ -101,6 +103,8 @@ const INR_CURRENCY = {
   symbol: "₹",
   decimalDigits: 0,
 };
+
+const EXPIRED_STATUSES = ["EXPIRED", "PAST_DUE", "CANCELED"];
 
 const formatPrice = (price) => {
   const amount = Number(price);
@@ -113,36 +117,31 @@ const formatPrice = (price) => {
     return "Free";
   }
 
-  return formatAmount(
-    amount,
-    INR_CURRENCY,
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }
-  );
+  return formatAmount(amount, INR_CURRENCY, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 };
 
-function getStoredToken() {
-  // Check the application's persisted authentication state.
+function getStoredAuth() {
   try {
-    const storedAuth = JSON.parse(
+    return JSON.parse(
       localStorage.getItem("autobiller-auth") || "{}"
     );
-
-    const token =
-      storedAuth.token ||
-      storedAuth.state?.token;
-
-    if (token) {
-      return token;
-    }
-  } catch (error) {
-    console.warn("Could not read saved authentication state.");
+  } catch {
+    return {};
   }
+}
 
-  // Support the legacy token key if it is still used by the app.
-  return localStorage.getItem("token") || "";
+function getStoredToken() {
+  const auth = getStoredAuth();
+
+  return (
+    auth.token ||
+    auth.state?.token ||
+    localStorage.getItem("token") ||
+    ""
+  );
 }
 
 export default function PricingPage({ variant = "landing" }) {
@@ -165,7 +164,7 @@ export default function PricingPage({ variant = "landing" }) {
 
     const billingCycle = isAnnual ? "YEARLY" : "MONTHLY";
 
-    // New registration: pass the selected plan and billing period.
+    // New users continue to registration with their selected plan.
     if (!isChangingPlan) {
       navigate(
         `/register?plan=${encodeURIComponent(
@@ -175,18 +174,18 @@ export default function PricingPage({ variant = "landing" }) {
       return;
     }
 
-    // Existing account: request a subscription change from the backend.
+    // Existing users must be authenticated to change their plan.
     const token = getStoredToken();
 
     if (!token) {
       showErrorToast("Please sign in again to change your plan.");
-      navigate("/login");
+      navigate("/login", { replace: true });
       return;
     }
 
-    setLoadingPlan(true);
-
     try {
+      setLoadingPlan(true);
+
       const response = await fetch(`${API_URL}/auth/change-plan`, {
         method: "PUT",
         headers: {
@@ -202,14 +201,46 @@ export default function PricingPage({ variant = "landing" }) {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
+        // Keep this exact message for expired Starter trials.
+        if (result.code === "TRIAL_EXPIRED") {
+          showErrorToast("Your 14-day free trial has ended.");
+          return;
+        }
+
+        showErrorToast(
           result.message ||
             result.error ||
             "Unable to update your subscription."
         );
+        return;
       }
 
-      showSuccessToast("Subscription updated successfully.");
+      // Keep the existing authentication token and user information.
+      const existingAuth = getStoredAuth();
+      const existingUser =
+        existingAuth.user ||
+        existingAuth.state?.user ||
+        null;
+      const existingCompany =
+        existingAuth.company ||
+        existingAuth.state?.company ||
+        null;
+
+      setAuthData({
+        token,
+        user: result.user || existingUser,
+        company: result.company || existingCompany,
+        subscription:
+          result.subscription ||
+          existingAuth.subscription ||
+          existingAuth.state?.subscription ||
+          null,
+      });
+
+      showSuccessToast(
+        result.message || "Plan selected successfully."
+      );
+
       navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Subscription change failed:", error);
@@ -261,7 +292,7 @@ export default function PricingPage({ variant = "landing" }) {
 
             <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-text-muted">
               {isChangingPlan
-                ? "Choose the plan that best fits your business."
+                ? "Choose the plan that best fits your business. No payment step is required to select a plan."
                 : "Scale your billing infrastructure without the headache. Choose a plan that grows with your business."}
             </p>
 
@@ -363,7 +394,7 @@ export default function PricingPage({ variant = "landing" }) {
                     )}
                   </div>
 
-                  {/* Choose plan */}
+                  {/* Select plan */}
                   <button
                     type="button"
                     onClick={() => handleSelectPlan(plan)}
@@ -381,7 +412,7 @@ export default function PricingPage({ variant = "landing" }) {
                     </span>
 
                     {loadingPlan
-                      ? "Updating plan..."
+                      ? "Selecting plan..."
                       : isChangingPlan
                       ? `Select ${plan.name}`
                       : plan.buttonText}

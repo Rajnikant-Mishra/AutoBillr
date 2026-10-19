@@ -157,58 +157,7 @@ export default function Register() {
     setBillingInterval(interval);
     sessionStorage.setItem(REGISTRATION_BILLING_KEY, interval);
   };
-const handleExistingPlanChange = async (planId) => {
-  if (!VALID_PLAN_IDS.includes(planId)) {
-    showErrorToast("Please select a valid plan");
-    return;
-  }
 
-  const token =
-    localStorage.getItem("token") ||
-    (() => {
-      try {
-        const auth = JSON.parse(
-          localStorage.getItem("autobiller-auth") || "{}"
-        );
-        return auth.token || auth.state?.token || null;
-      } catch {
-        return null;
-      }
-    })();
-
-  if (!token) {
-    showErrorToast("Please sign in again to change your plan.");
-    navigate("/login");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const response = await fetch(`${API_URL}/auth/change-plan`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ planId }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Plan selection failed");
-    }
-
-    showSuccessToast("Plan updated successfully");
-    navigate("/dashboard", { replace: true });
-  } catch (error) {
-    console.error("Change plan error:", error);
-    showErrorToast(error.message || "Unable to update plan");
-  } finally {
-    setLoading(false);
-  }
-};
   // =====================================================
   // PASSWORD STRENGTH
   // =====================================================

@@ -22,86 +22,17 @@ export default function Login() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const error = params.get("error");
-
-    // Agar user registered nahi hai -> Toast dikha kar /register bhej do
-    if (error === "account_not_found") {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showErrorToast("Account not found! Redirecting to registration...");
-      setTimeout(() => {
-        navigate("/register");
-      }, 1200);
-      return;
-    }
-
-    // Koi doosra OAuth failure error
-    if (error) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showErrorToast("Google login failed. Please try again.");
-      return;
-    }
-
-    // Successful OAuth Login -> Session set karke dashboard redirect
-    if (token) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      const userId = params.get("userId");
-      const companyId = params.get("companyId");
-      const firstName = params.get("firstName") || "Google";
-      const lastName = params.get("lastName") || "User";
-      const userEmail = params.get("email") || "";
-
-           setAuthData({
-        token,
-        user: { id: userId, firstName, lastName, email: userEmail },
-        company: { id: companyId },
-        subscription: null,
-      });
-
-      // Load real permissions from backend
-      (async () => {
-        try {
-          const me = await getTeamMe();
-          if (me && me.success !== false) {
-            setCurrentUser({
-              id: userId,
-              firstName,
-              lastName,
-              email: userEmail,
-              role: me.role || me.data?.role,
-              roleId: me.roleId || me.data?.roleId || null,
-              permissions: me.permissions || me.data?.permissions || [],
-              extraPermissions: me.extraPermissions || me.data?.extraPermissions || [],
-            });
-          }
-        } catch (err) {
-          console.error("Failed to load permissions after Google login:", err);
-        }
-      })();
-
-      showSuccessToast("Welcome Back", firstName);
-      navigate("/dashboard", { replace: true });
-    }
-  }, [navigate]);
-
-  // =====================================================
-  // MANUAL LOGIN
-  // =====================================================
- const handleLogin = async (e) => {
+ 
+const handleLogin = async (e) => {
   e.preventDefault();
 
   if (!email.trim() || !password) {
-    showErrorToast("Please enter email and password");
+    showErrorToast("Please enter email and password.");
     return;
   }
 
   try {
     setLoading(true);
-
-   
 
     const response = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
@@ -118,7 +49,7 @@ export default function Login() {
 
     if (!rawResponse.trim()) {
       showErrorToast(
-        `Server returned an empty response (${response.status})`
+        `Server returned an empty response (${response.status}).`
       );
       return;
     }
@@ -127,55 +58,50 @@ export default function Login() {
 
     try {
       data = JSON.parse(rawResponse);
-    } catch (error) {
+    } catch (parseError) {
       console.error("Invalid JSON response:", rawResponse);
-
-      showErrorToast(
-        "Server returned an invalid response"
-      );
+      showErrorToast("Server returned an invalid response.");
       return;
     }
 
-    /* =========================
-       LOGIN ERROR
-    ========================= */
-
+    // Invalid credentials or other login errors.
     if (!response.ok) {
+      if (data?.code === "SUBSCRIPTION_EXPIRED") {
+        showErrorToast(
+          "Your trial or subscription has expired. Please sign in again after updating the backend login flow."
+        );
+        return;
+      }
+
       showErrorToast(
-        data?.message ||
-          `Login failed (${response.status})`
+        data?.message || `Login failed (${response.status}).`
       );
 
       if (
-        response.status === 401 ||
-        response.status === 404
+        response.status === 401 &&
+        !["TOKEN_EXPIRED", "INVALID_TOKEN"].includes(data?.code)
       ) {
-        setTimeout(() => {
-          navigate("/register");
-        }, 800);
+        // Invalid login credentials should not automatically
+        // send existing users into the registration flow.
+        return;
+      }
+
+      if (data?.code === "SUBSCRIPTION_REQUIRED") {
+        navigate("/pricing?changePlan=true", { replace: true });
       }
 
       return;
     }
 
-    /* =========================
-       TOKEN CHECK
-    ========================= */
-
     if (!data?.token) {
-      console.error("Login response:", data);
-
-      showErrorToast(
-        data?.message ||
-          "Login succeeded but token was not returned"
-      );
-
+      console.error("Login response did not include a token:", data);
+      showErrorToast("Login succeeded but no authentication token was returned.");
       return;
     }
 
-    /* =========================
-       SAVE AUTH DATA
-    ========================= */
+    const subscriptionStatus = String(
+      data.subscription?.status || ""
+    ).toUpperCase();
 
     setAuthData({
       token: data.token,
@@ -184,66 +110,51 @@ export default function Login() {
       subscription: data.subscription || null,
     });
 
-    /*
-     * Verify token was actually stored.
-     */
     const storedToken = getAuthToken();
 
-    console.log("========== LOGIN SUCCESS ==========");
-    console.log("API token:", data.token);
-    console.log("Stored token:", storedToken);
-    console.log(
-      "Stored user:",
-      localStorage.getItem("user")
-    );
-    console.log(
-      "Stored company:",
-      localStorage.getItem("company")
-    );
-    console.log("===================================");
-
     if (!storedToken) {
-      console.error(
-        "Authentication token was not saved."
-      );
-
+      console.error("Authentication token was not saved.");
       showErrorToast(
         "Login succeeded but authentication could not be saved."
       );
-
       return;
     }
 
-    /* =========================
-       LOAD USER PERMISSIONS
-    ========================= */
+    const expiredStatuses = ["EXPIRED", "PAST_DUE", "CANCELED"];
 
+    // Route expired/inactive subscriptions directly to pricing.
+    if (expiredStatuses.includes(subscriptionStatus)) {
+      showErrorToast(
+        subscriptionStatus === "EXPIRED"
+          ? "Your trial or subscription has expired. Please select a plan."
+          : "Your subscription is inactive. Please select a plan."
+      );
+
+      navigate("/pricing?changePlan=true", { replace: true });
+      return;
+    }
+
+    // Load permissions only when the account can access the app.
     try {
       const me = await getTeamMe();
-
-      console.log("getTeamMe result:", me);
 
       if (me && me.success !== false) {
         setCurrentUser({
           ...(data.user || {}),
-
           role:
             me.role ||
             me.data?.role ||
             data.user?.role ||
             null,
-
           roleId:
             me.roleId ||
             me.data?.roleId ||
             data.user?.roleId ||
             null,
-
           permissions:
             me.permissions ||
             me.data?.permissions ||
             [],
-
           extraPermissions:
             me.extraPermissions ||
             me.data?.extraPermissions ||
@@ -251,19 +162,12 @@ export default function Login() {
         });
       }
     } catch (err) {
-      /*
-       * Permission loading failure should NOT
-       * prevent the user from entering dashboard.
-       */
+      // A permission-loading error must not crash login.
       console.error(
         "Failed to load permissions after login:",
         err
       );
     }
-
-    /* =========================
-       WELCOME MESSAGE
-    ========================= */
 
     const userName =
       `${data.user?.firstName || ""} ${
@@ -272,29 +176,17 @@ export default function Login() {
       data.user?.email?.split("@")[0] ||
       "User";
 
-    showSuccessToast(
-      "Welcome Back",
-      userName
-    );
+    showSuccessToast("Welcome Back", userName);
 
-    /* =========================
-       DASHBOARD REDIRECT
-    ========================= */
-
-    navigate("/dashboard", {
-      replace: true,
-    });
+    navigate("/dashboard", { replace: true });
   } catch (err) {
     console.error("Login error:", err);
-
-    showErrorToast(
-      err?.message ||
-        "Unable to connect to the server"
-    );
+    showErrorToast(err?.message || "Unable to connect to the server.");
   } finally {
     setLoading(false);
   }
 };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f5faf8] font-[Inter] relative">

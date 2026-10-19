@@ -84,99 +84,109 @@ const ensureSystemRoles = async (companyId) => {
   }
 };
 
+
 /*
 |--------------------------------------------------------------------------
 | GET AUTHENTICATED USER / COMPANY CONTEXT
 |--------------------------------------------------------------------------
-| Never trust a hard-coded companyId or companyId from the frontend.
-|
-| The authentication middleware should provide req.user.id.
-| We then fetch the current User record from PostgreSQL and use the
-| companyId stored on that User.
+| User has no companyId or role column.
+| Company access comes from Company.ownerId or TeamMember membership.
 |--------------------------------------------------------------------------
 */
 
 const getCompanyContext = async (req) => {
-  /*
-   * Different auth implementations sometimes use:
-   * req.user.id
-   * req.user.userId
-   * req.user._id
-   */
-  const authenticatedUserId =
-    req.user?.id ||
-    req.user?.userId ||
-    req.user?._id ||
-    null;
+  const userId = req.user?.userId || req.user?.id;
+  const companyId = req.user?.companyId;
 
-  if (!authenticatedUserId) {
+  if (!userId) {
     const error = new Error(
-      "Authenticated user not found. Please login again."
+      "Authenticated user not found. Please log in again."
     );
-
     error.statusCode = 401;
     throw error;
   }
 
-  /*
-   * Always get companyId from the database.
-   */
-  const user = await prisma.user.findUnique({
-    where: {
-      id: authenticatedUserId,
-    },
-    select: {
-      id: true,
-      companyId: true,
-      role: true,
-    },
-  });
+  if (!companyId) {
+    const error = new Error(
+      "No active company selected for this account."
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [user, company] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+      },
+    }),
+
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        ownerId: true,
+      },
+    }),
+  ]);
 
   if (!user) {
-    const error = new Error(
-      "User account was not found. Please login again."
-    );
-
+    const error = new Error("User account was not found.");
     error.statusCode = 401;
     throw error;
   }
 
-  if (!user.companyId) {
-    const error = new Error(
-      "No company is associated with this account. Please login again."
-    );
-
-    error.statusCode = 400;
+  if (!company) {
+    const error = new Error("Company was not found.");
+    error.statusCode = 404;
     throw error;
   }
 
-  /*
-   * Verify that the company actually exists.
-   */
-  const company = await prisma.company.findUnique({
-    where: {
-      id: user.companyId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  // The company owner does not need a TeamMember record.
+  const isOwner = company.ownerId === user.id;
 
-  if (!company) {
-    const error = new Error(
-      "Company associated with this account was not found. Please login again."
-    );
+  if (!isOwner) {
+    // Verify that this user has an active membership in this company.
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        companyId: company.id,
+        status: "ACTIVE",
+        OR: [
+          { userId: user.id },
+          {
+            email: {
+              equals: user.email,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        role: true,
+        roleId: true,
+      },
+    });
 
-    error.statusCode = 400;
-    throw error;
+    if (!membership) {
+      const error = new Error(
+        "You do not have an active membership in this company."
+      );
+      error.statusCode = 403;
+      throw error;
+    }
   }
 
   return {
     companyId: company.id,
     userId: user.id,
-    role: user.role,
+    role: isOwner ? "OWNER" : req.user.role,
+    isOwner,
   };
 };
+
 
 /*
 |--------------------------------------------------------------------------

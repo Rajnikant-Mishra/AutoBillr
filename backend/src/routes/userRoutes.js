@@ -1,239 +1,129 @@
+
 const express = require("express");
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
-
-const prisma = require("../../config/prisma");
-const authMiddleware = require("../middleware/authMiddleware");
-
 const router = express.Router();
 
+const teamController = require("../controllers/teamController");
+const authMiddleware = require("../middleware/authMiddleware");
+const requirePermission = require("../middleware/requirePermission");
+const { PERMISSIONS } = require("../constants/permissions");
+
 // =====================================================
-// MULTER - AVATAR UPLOAD
+// PUBLIC ROUTES
 // =====================================================
 
-const uploadDir = path.join(
-  __dirname,
-  "../../uploads/avatars"
+router.post(
+  "/accept-invitation",
+  teamController.acceptTeamInvitation
 );
 
-// Create upload directory if it does not exist
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, {
-    recursive: true,
+// =====================================================
+// AUTHENTICATION
+// =====================================================
+
+router.use(authMiddleware);
+
+// =====================================================
+// CURRENT AUTHENTICATED ORGANIZATION CONTEXT
+// GET /api/v1/team/me
+// =====================================================
+
+router.get("/me", (req, res) => {
+  return res.status(200).json({
+    success: true,
+    role: req.user.role,
+    roleId: req.user.roleId || null,
+    isOwner: Boolean(req.user.isOwner),
+    permissions: req.user.permissions || [],
+    extraPermissions: req.user.extraPermissions || [],
+    data: {
+      role: req.user.role,
+      roleId: req.user.roleId || null,
+      isOwner: Boolean(req.user.isOwner),
+      permissions: req.user.permissions || [],
+      extraPermissions: req.user.extraPermissions || [],
+      user: {
+        userId: req.user.userId,
+        companyId: req.user.companyId,
+        email: req.user.email,
+      },
+    },
   });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(
-      Math.random() * 1e9
-    )}`;
-
-    cb(
-      null,
-      `${unique}${path.extname(file.originalname)}`
-    );
-  },
-});
-
-const upload = multer({
-  storage,
-
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-  },
-
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error("Only image files are allowed"),
-        false
-      );
-    }
-  },
 });
 
 // =====================================================
-// GET CURRENT USER
-// GET /api/v1/users/me
+// TEAM MEMBERS
 // =====================================================
 
 router.get(
-  "/me",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const userId = req.user?.userId;
+  "/",
+  requirePermission(PERMISSIONS.TEAM_VIEW),
+  teamController.getTeamMembers
+);
 
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "Authentication required",
-        });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          role: true,
-          avatar: true,
-          companyId: true,
-
-          company: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-
-          // This comes directly from PostgreSQL
-          avatar: user.avatar || null,
-
-          companyId: user.companyId || null,
-        },
-
-        company: user.company || null,
-      });
-    } catch (error) {
-      console.error("GET ME ERROR:", error);
-
-      return res.status(500).json({
-        success: false,
-        message: "Failed to fetch user",
-      });
-    }
-  }
+router.get(
+  "/stats",
+  requirePermission(PERMISSIONS.TEAM_VIEW),
+  teamController.getTeamStats
 );
 
 // =====================================================
-// UPDATE PROFILE
-// PUT /api/v1/users/profile
+// CUSTOM ROLES
 // =====================================================
 
-router.put(
-  "/profile",
-  authMiddleware,
-  upload.single("avatar"),
+router.get(
+  "/roles",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.listCustomRoles
+);
 
-  async (req, res) => {
-    try {
-      const userId = req.user?.userId;
+router.post(
+  "/roles",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.createCustomRole
+);
 
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "Authentication required",
-        });
-      }
+router.patch(
+  "/roles/:id",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.updateRolePermissions
+);
 
-      const {
-        firstName,
-        lastName,
-      } = req.body;
+router.delete(
+  "/roles/:id",
+  requirePermission(PERMISSIONS.ROLES_MANAGE),
+  teamController.deleteCustomRole
+);
 
-      if (!firstName?.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "First name is required",
-        });
-      }
+// =====================================================
+// INVITE TEAM MEMBER
+// =====================================================
 
-      const data = {
-        firstName: firstName.trim(),
-        lastName: lastName?.trim() || "",
-      };
+router.post(
+  "/invite",
+  requirePermission(PERMISSIONS.TEAM_INVITE),
+  teamController.inviteTeamMember
+);
 
-      // =================================================
-      // SAVE AVATAR PATH IN DATABASE
-      // =================================================
+// =====================================================
+// MEMBER MANAGEMENT
+// =====================================================
 
-      if (req.file) {
-        data.avatar = `/uploads/avatars/${req.file.filename}`;
+router.patch(
+  "/:id/permissions",
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
+  teamController.updateTeamMemberPermissions
+);
 
-        console.log(
-          "NEW AVATAR:",
-          data.avatar
-        );
-      }
+router.patch(
+  "/:id/role",
+  requirePermission(PERMISSIONS.TEAM_EDIT_MEMBER),
+  teamController.updateTeamMemberRole
+);
 
-      // =================================================
-      // UPDATE USER
-      // =================================================
-
-      const updatedUser =
-        await prisma.user.update({
-          where: {
-            id: userId,
-          },
-
-          data,
-
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            role: true,
-            avatar: true,
-            companyId: true,
-          },
-        });
-
-      console.log(
-        "PROFILE UPDATED:",
-        updatedUser
-      );
-
-      return res.status(200).json({
-        success: true,
-
-        message:
-          "Profile updated successfully",
-
-        user: updatedUser,
-      });
-    } catch (error) {
-      console.error(
-        "UPDATE PROFILE ERROR:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          error.message ||
-          "Failed to update profile",
-      });
-    }
-  }
+router.delete(
+  "/:id",
+  requirePermission(PERMISSIONS.TEAM_REMOVE_MEMBER),
+  teamController.deleteTeamMember
 );
 
 module.exports = router;

@@ -1,19 +1,58 @@
 
 const jwt = require("jsonwebtoken");
 const prisma = require("../../config/prisma");
+
 const {
   DEFAULT_ROLE_PERMISSIONS,
+  PERMISSIONS,
 } = require("../constants/permissions");
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+const getDefaultRole = (role) => {
+  const roleName = String(role || "VIEWER").toUpperCase();
+
+  return (
+    Object.keys(DEFAULT_ROLE_PERMISSIONS).find(
+      (key) => key.toUpperCase() === roleName
+    ) || "VIEWER"
+  );
+};
+
+const getDefaultPermissions = (role) => {
+  const key = getDefaultRole(role);
+
+  return [
+    ...(DEFAULT_ROLE_PERMISSIONS[key] || []),
+  ];
+};
+
+const getOwnerPermissions = () => {
+  // An owner has all permissions defined by the application.
+  return [
+    ...new Set(
+      Object.values(PERMISSIONS).filter(
+        (permission) => typeof permission === "string"
+      )
+    ),
+  ];
+};
+
+// =====================================================
+// AUTH MIDDLEWARE
+// =====================================================
 
 const authMiddleware = async (req, res, next) => {
   try {
-    console.log("========================================");
-    console.log("[AUTH] Request:", req.method, req.originalUrl);
+    console.log(
+      "[AUTH] Request:",
+      req.method,
+      req.originalUrl
+    );
 
-    // =====================================================
-    // 1. AUTHORIZATION HEADER
-    // =====================================================
-
+    // 1. Validate authorization header.
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -34,10 +73,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // =====================================================
-    // 2. VERIFY JWT
-    // =====================================================
-
+    // 2. Verify JWT.
     const secret = process.env.JWT_SECRET;
 
     if (!secret) {
@@ -54,10 +90,8 @@ const authMiddleware = async (req, res, next) => {
 
     try {
       decoded = jwt.verify(token, secret);
-    } catch (jwtError) {
-      console.error("[AUTH] JWT verification failed:", jwtError.message);
-
-      if (jwtError.name === "TokenExpiredError") {
+    } catch (error) {
+      if (error.name === "TokenExpiredError") {
         return res.status(401).json({
           success: false,
           code: "TOKEN_EXPIRED",
@@ -72,10 +106,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // =====================================================
-    // 3. GET USER ID
-    // =====================================================
-
+    // 3. Resolve user ID from the token.
     const userId =
       decoded?.userId ||
       decoded?.id ||
@@ -89,17 +120,19 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // =====================================================
-    // 4. GET USER FROM DATABASE
-    // =====================================================
-
+    // 4. Fetch only fields and relations present in User.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
         email: true,
-        companyId: true,
-        role: true,
+
+        ownedCompany: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -111,135 +144,157 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    const companyId = user.companyId || decoded?.companyId;
+    // 5. Find this user's organization memberships.
+    // Do not read role/companyId from User.
+    const memberships = await prisma.teamMember.findMany({
+      where: {
+        OR: [
+          { userId: user.id },
+          { email: user.email },
+        ],
+      },
+      select: {
+        id: true,
+        userId: true,
+        companyId: true,
+        email: true,
+        role: true,
+        roleId: true,
+        status: true,
+        extraPermissions: true,
 
-    if (!companyId) {
-      return res.status(400).json({
-        success: false,
-        code: "NO_COMPANY",
-        message: "No company is associated with this account.",
-      });
-    }
-
-    // =====================================================
-    // 5. TEAM MEMBER
-    // =====================================================
-
-    let teamMember = null;
-
-    try {
-      teamMember = await prisma.teamMember.findFirst({
-        where: {
-          companyId,
-          email: user.email,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          roleId: true,
-          extraPermissions: true,
-          roleRef: {
-            select: {
-              id: true,
-              name: true,
-              permissions: true,
-              isSystem: true,
-            },
+        company: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-      });
-    } catch (teamError) {
-      // Keep the existing fallback if a team-member lookup fails.
-      console.error(
-        "[AUTH] Team member lookup failed:",
-        teamError.message
-      );
-    }
 
-    // =====================================================
-    // 6. ROLE + PERMISSIONS
-    // =====================================================
-
-    let role = user.role || "Viewer";
-    let rolePermissions = [];
-
-    if (teamMember?.roleRef) {
-      role = teamMember.roleRef.name;
-
-      rolePermissions = Array.isArray(
-        teamMember.roleRef.permissions
-      )
-        ? teamMember.roleRef.permissions
-        : [];
-    } else {
-      try {
-        const databaseRole = await prisma.role.findFirst({
-          where: {
-            companyId,
-            name: {
-              equals: role,
-              mode: "insensitive",
-            },
-          },
+        roleRef: {
           select: {
             id: true,
             name: true,
             permissions: true,
           },
+        },
+      },
+    });
+
+    // Only accepted/active memberships grant organization access.
+    const activeMemberships = memberships.filter(
+      (membership) =>
+        membership.status === "ACTIVE" &&
+        (
+          membership.userId === user.id ||
+          membership.email.toLowerCase() === user.email.toLowerCase()
+        )
+    );
+
+    // 6. Determine the active organization.
+    const ownedCompany = user.ownedCompany;
+    const requestedCompanyId = decoded?.companyId || null;
+
+    let companyId = null;
+    let teamMember = null;
+    let isOwner = false;
+
+    if (
+      ownedCompany &&
+      (
+        !requestedCompanyId ||
+        requestedCompanyId === ownedCompany.id
+      )
+    ) {
+      companyId = ownedCompany.id;
+      isOwner = true;
+    } else if (requestedCompanyId) {
+      // A token's company ID is accepted only when the user
+      // owns that company or has an active membership in it.
+      teamMember =
+        activeMemberships.find(
+          (membership) =>
+            membership.companyId === requestedCompanyId
+        ) || null;
+
+      if (!teamMember) {
+        return res.status(403).json({
+          success: false,
+          code: "COMPANY_ACCESS_DENIED",
+          message: "You do not have active access to this company.",
         });
-
-        if (databaseRole) {
-          role = databaseRole.name;
-
-          rolePermissions = Array.isArray(
-            databaseRole.permissions
-          )
-            ? databaseRole.permissions
-            : [];
-        } else {
-          const roleKey =
-            Object.keys(DEFAULT_ROLE_PERMISSIONS).find(
-              (key) =>
-                key.toLowerCase() ===
-                String(role).toLowerCase()
-            ) || "Viewer";
-
-          role = roleKey;
-          rolePermissions = [
-            ...(DEFAULT_ROLE_PERMISSIONS[roleKey] || []),
-          ];
-        }
-      } catch (roleError) {
-        console.error(
-          "[AUTH] Role lookup failed:",
-          roleError.message
-        );
-
-        const roleKey =
-          Object.keys(DEFAULT_ROLE_PERMISSIONS).find(
-            (key) =>
-              key.toLowerCase() ===
-              String(role).toLowerCase()
-          ) || "Viewer";
-
-        role = roleKey;
-        rolePermissions = [
-          ...(DEFAULT_ROLE_PERMISSIONS[roleKey] || []),
-        ];
       }
+
+      companyId = teamMember.companyId;
+    } else if (ownedCompany) {
+      companyId = ownedCompany.id;
+      isOwner = true;
+    } else if (activeMemberships.length === 1) {
+      teamMember = activeMemberships[0];
+      companyId = teamMember.companyId;
+    } else if (activeMemberships.length > 1) {
+      return res.status(400).json({
+        success: false,
+        code: "COMPANY_SELECTION_REQUIRED",
+        message: "Select an organization before continuing.",
+      });
     }
 
-    // =====================================================
-    // 7. EXTRA PERMISSIONS
-    // =====================================================
+    if (!companyId) {
+      return res.status(403).json({
+        success: false,
+        code: "NO_COMPANY_ACCESS",
+        message: "No active company is associated with this account.",
+      });
+    }
 
-    const extraPermissions = Array.isArray(
-      teamMember?.extraPermissions
-    )
-      ? teamMember.extraPermissions
-      : [];
+    // Resolve membership if the user owns this company.
+    if (!isOwner && !teamMember) {
+      teamMember =
+        activeMemberships.find(
+          (membership) => membership.companyId === companyId
+        ) || null;
+    }
+
+    // 7. Resolve role and permissions for this company.
+    let role;
+    let roleId = null;
+    let rolePermissions = [];
+    let extraPermissions = [];
+
+    if (isOwner) {
+      role = "OWNER";
+      rolePermissions = getOwnerPermissions();
+    } else {
+      if (!teamMember) {
+        return res.status(403).json({
+          success: false,
+          code: "MEMBERSHIP_REQUIRED",
+          message: "An active membership is required.",
+        });
+      }
+
+      role = teamMember.role || "VIEWER";
+      roleId = teamMember.roleId || null;
+
+      if (teamMember.roleRef) {
+        role = teamMember.roleRef.name;
+        roleId = teamMember.roleRef.id;
+
+        rolePermissions = Array.isArray(
+          teamMember.roleRef.permissions
+        )
+          ? teamMember.roleRef.permissions
+          : [];
+      } else {
+        rolePermissions = getDefaultPermissions(role);
+      }
+
+      extraPermissions = Array.isArray(
+        teamMember.extraPermissions
+      )
+        ? teamMember.extraPermissions
+        : [];
+    }
 
     const permissions = [
       ...new Set([
@@ -248,32 +303,25 @@ const authMiddleware = async (req, res, next) => {
       ]),
     ];
 
-    // =====================================================
-    // 8. SET req.user
-    // =====================================================
-
+    // 8. Attach verified identity and organization context.
     req.user = {
       id: user.id,
       userId: user.id,
-      companyId,
       email: user.email,
+      companyId,
       role,
-      roleId:
-        teamMember?.roleId ||
-        teamMember?.roleRef?.id ||
-        null,
+      roleId,
+      isOwner,
       rolePermissions,
       extraPermissions,
       permissions,
     };
 
-    console.log("[AUTH] User authenticated:", user.id);
+    console.log("[AUTH] User:", user.id);
     console.log("[AUTH] Company:", companyId);
+    console.log("[AUTH] Role:", role);
 
-    // =====================================================
-    // 9. IDENTIFY PLAN-CHANGE REQUEST
-    // =====================================================
-
+    // 9. Identify the plan-change endpoint.
     const requestPath = (req.originalUrl || req.path || "")
       .split("?")[0]
       .replace(/\/+$/, "");
@@ -282,10 +330,7 @@ const authMiddleware = async (req, res, next) => {
       req.method === "PUT" &&
       requestPath.endsWith("/auth/change-plan");
 
-    // =====================================================
-    // 10. SUBSCRIPTION VALIDATION
-    // =====================================================
-
+    // 10. Check subscription for the resolved company.
     let subscription;
 
     try {
@@ -293,10 +338,10 @@ const authMiddleware = async (req, res, next) => {
         where: { companyId },
         orderBy: { createdAt: "desc" },
       });
-    } catch (subscriptionError) {
+    } catch (error) {
       console.error(
         "[AUTH] Subscription lookup failed:",
-        subscriptionError.message
+        error.message
       );
 
       return res.status(500).json({
@@ -306,8 +351,6 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // No subscription: only let the plan-change controller handle
-    // the request. Other protected routes remain blocked.
     if (!subscription) {
       if (isPlanChangeRequest) {
         return next();
@@ -338,17 +381,16 @@ const authMiddleware = async (req, res, next) => {
       "CANCELED",
     ].includes(subscription.status);
 
-    // Persist expiration when a trial or paid period has elapsed.
     if (trialExpired || paidPeriodExpired) {
       try {
         await prisma.subscription.update({
           where: { id: subscription.id },
           data: { status: "EXPIRED" },
         });
-      } catch (updateError) {
+      } catch (error) {
         console.error(
           "[AUTH] Failed to mark subscription expired:",
-          updateError.message
+          error.message
         );
 
         return res.status(500).json({
@@ -364,18 +406,8 @@ const authMiddleware = async (req, res, next) => {
       Boolean(paidPeriodExpired) ||
       subscriptionInactive;
 
-    // =====================================================
-    // 11. EXPIRED SUBSCRIPTION ACCESS RULE
-    // =====================================================
-
     if (isExpired) {
       if (isPlanChangeRequest) {
-        // Allow only this authenticated renewal endpoint.
-        // Other protected APIs remain blocked.
-        console.log(
-          "[AUTH] Expired subscription: allowing plan-change endpoint."
-        );
-
         return next();
       }
 
@@ -387,18 +419,9 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // =====================================================
-    // 12. CONTINUE
-    // =====================================================
-
     return next();
   } catch (error) {
-    console.error("========================================");
-    console.error("[AUTH FATAL ERROR]");
-    console.error("Name:", error?.name);
-    console.error("Message:", error?.message);
-    console.error("Stack:", error?.stack);
-    console.error("========================================");
+    console.error("[AUTH FATAL ERROR]", error);
 
     return res.status(500).json({
       success: false,

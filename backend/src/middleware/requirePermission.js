@@ -11,7 +11,6 @@ const requirePermission = (permission) => {
 
     const permissions = user.permissions || [];
 
-    // Owner can have "*" or all permissions
     if (
       permissions.includes("*") ||
       permissions.includes(permission)
