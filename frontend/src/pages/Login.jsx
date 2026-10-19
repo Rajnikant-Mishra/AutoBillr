@@ -65,21 +65,37 @@ const handleLogin = async (e) => {
     }
 
     // Invalid credentials or other login errors.
+  
+    // Handle login errors
     if (!response.ok) {
-  if (data?.code === "SUBSCRIPTION_EXPIRED") {
-    showErrorToast(
-      data.message ||
-        "Your trial or subscription has expired. Select a plan to continue."
-    );
+      if (data?.code === "SUBSCRIPTION_EXPIRED") {
+        showErrorToast(
+          "Your trial or subscription has expired. Select a plan to continue."
+        );
 
-   
-      navigate("/pricing?changePlan=true", {
-        replace: true,
-      });
-    
+        // Show the toast, then redirect to pricing.
+        window.setTimeout(() => {
+          navigate("/pricing?changePlan=true", {
+            replace: true,
+          });
+        }, 1500);
 
-    return;
-  }
+        return;
+      }
+
+      if (data?.code === "SUBSCRIPTION_REQUIRED") {
+        showErrorToast(
+          "Your trial or subscription has expired. Select a plan to continue."
+        );
+
+        window.setTimeout(() => {
+          navigate("/pricing?changePlan=true", {
+            replace: true,
+          });
+        }, 1500);
+
+        return;
+      }
 
       showErrorToast(
         data?.message || `Login failed (${response.status}).`
@@ -89,13 +105,7 @@ const handleLogin = async (e) => {
         response.status === 401 &&
         !["TOKEN_EXPIRED", "INVALID_TOKEN"].includes(data?.code)
       ) {
-        // Invalid login credentials should not automatically
-        // send existing users into the registration flow.
         return;
-      }
-
-      if (data?.code === "SUBSCRIPTION_REQUIRED") {
-        navigate("/pricing?changePlan=true", { replace: true });
       }
 
       return;
