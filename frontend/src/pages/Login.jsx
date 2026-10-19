@@ -72,11 +72,11 @@ const handleLogin = async (e) => {
         "Your trial or subscription has expired. Select a plan to continue."
     );
 
-    setTimeout(() => {
+   
       navigate("/pricing?changePlan=true", {
         replace: true,
       });
-    }, 1200);
+    
 
     return;
   }
