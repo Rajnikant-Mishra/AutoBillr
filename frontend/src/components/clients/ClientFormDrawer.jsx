@@ -2200,6 +2200,13 @@ const asString = (value, fallback = "") =>
       ? fallback
       : String(value);
 
+/**
+ * Accept tags stored as:
+ * ["VIP", "Regular"]
+ * [{ label: "VIP" }, { label: "Regular" }]
+ * '["VIP","Regular"]'
+ * "VIP"
+ */
 const normalizeTags = (tags) => {
   let parsedTags = tags;
 
@@ -2230,8 +2237,7 @@ const normalizeTags = (tags) => {
   ];
 };
 
-const getClientId = (client) =>
-  client?.id ?? client?._id ?? null;
+const getClientId = (client) => client?.id ?? client?._id ?? null;
 
 const getInitials = (companyName) => {
   const words = asString(companyName)
@@ -2240,7 +2246,10 @@ const getInitials = (companyName) => {
     .filter(Boolean);
 
   if (!words.length) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
 
   return words
     .slice(0, 2)
@@ -2334,6 +2343,7 @@ const SelectField = ({
       {options.map((option) => {
         const optionValue =
           typeof option === "string" ? option : option.value;
+
         const optionLabel =
           typeof option === "string" ? option : option.label;
 
@@ -2499,6 +2509,8 @@ const ClientFormDrawer = ({
       reminders: Boolean(formData.automation?.reminders),
       portalAccess: Boolean(formData.automation?.portalAccess),
       welcomeEmail: Boolean(formData.automation?.welcomeEmail),
+
+      // Send tags as an array of strings to the API.
       tags: normalizeTags(formData.selectedTags),
     };
   }, [formData]);
@@ -2528,6 +2540,7 @@ const ClientFormDrawer = ({
       }
 
       const payload = buildPayload();
+
       setIsSaving(true);
 
       try {
@@ -2543,15 +2556,19 @@ const ClientFormDrawer = ({
           }
 
           response = await updateClient(clientId, payload);
-          showSuccessToast("Client updated successfully.");
         } else {
           response = await createClient(payload);
-          showSuccessToast("Client created successfully.");
         }
 
         if (typeof onSuccess === "function") {
           await onSuccess(response);
         }
+
+        showSuccessToast(
+          isEditing
+            ? "Client updated successfully."
+            : "Client created successfully."
+        );
 
         onClose?.();
       } catch (error) {
@@ -3042,7 +3059,6 @@ const ClientFormDrawer = ({
                           }`}
                         >
                           <span>{tag.label}</span>
-
                           <span className="shrink-0 text-sm">
                             {isSelected ? "✓" : "+"}
                           </span>
@@ -3054,9 +3070,14 @@ const ClientFormDrawer = ({
 
                 {/* SELECTED TAGS PREVIEW */}
                 <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Selected client tags
-                  </p>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Selected client tags
+                    </p>
+                    <span className="text-xs text-slate-500">
+                      {selectedTags.length} total
+                    </span>
+                  </div>
 
                   {selectedTags.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
@@ -3068,18 +3089,19 @@ const ClientFormDrawer = ({
                         return (
                           <span
                             key={tagLabel}
-                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset ${
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${
                               tagConfig?.color ||
-                              "bg-teal-100 text-teal-800 ring-teal-200"
+                              "bg-slate-100 text-slate-700 ring-slate-200"
                             }`}
                           >
-                            {tagLabel}
+                            <span>{tagLabel}</span>
 
                             <button
                               type="button"
                               onClick={() => removeTag(tagLabel)}
                               aria-label={`Remove ${tagLabel}`}
-                              className="font-bold hover:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                              title={`Remove ${tagLabel}`}
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-sm leading-none opacity-70 transition hover:bg-black/10 hover:opacity-100"
                             >
                               ×
                             </button>
@@ -3089,8 +3111,8 @@ const ClientFormDrawer = ({
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">
-                      No tags selected. Select VIP, Important,
-                      High Priority, or any other tags above.
+                      No tags selected. Select VIP, Regular, Premium,
+                      or another tag above.
                     </p>
                   )}
                 </div>
