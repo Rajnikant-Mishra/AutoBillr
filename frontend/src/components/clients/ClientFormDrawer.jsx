@@ -1998,6 +1998,7 @@
 
 
 
+
 import React, {
   useCallback,
   useEffect,
@@ -2206,7 +2207,6 @@ const normalizeTags = (tags) => {
     try {
       parsedTags = JSON.parse(tags);
     } catch {
-      // Support a single legacy tag string.
       parsedTags = tags.trim() ? [tags.trim()] : [];
     }
   }
@@ -2219,7 +2219,6 @@ const normalizeTags = (tags) => {
         .map((tag) => {
           if (typeof tag === "string") return tag.trim();
 
-          // Support APIs that return tags as { label: "VIP" }.
           if (tag && typeof tag.label === "string") {
             return tag.label.trim();
           }
@@ -2235,7 +2234,10 @@ const getClientId = (client) =>
   client?.id ?? client?._id ?? null;
 
 const getInitials = (companyName) => {
-  const words = asString(companyName).trim().split(/\s+/).filter(Boolean);
+  const words = asString(companyName)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
   if (!words.length) return "?";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
@@ -2283,10 +2285,18 @@ const normalizeClientToForm = (client) => {
     taxId: asString(client.taxId),
     notes: asString(client.notes),
     automation: {
-      autoCharge: Boolean(client.autoCharge ?? defaults.automation.autoCharge),
-      reminders: Boolean(client.reminders ?? defaults.automation.reminders),
-      portalAccess: Boolean(client.portalAccess ?? defaults.automation.portalAccess),
-      welcomeEmail: Boolean(client.welcomeEmail ?? defaults.automation.welcomeEmail),
+      autoCharge: Boolean(
+        client.autoCharge ?? defaults.automation.autoCharge
+      ),
+      reminders: Boolean(
+        client.reminders ?? defaults.automation.reminders
+      ),
+      portalAccess: Boolean(
+        client.portalAccess ?? defaults.automation.portalAccess
+      ),
+      welcomeEmail: Boolean(
+        client.welcomeEmail ?? defaults.automation.welcomeEmail
+      ),
     },
     selectedTags: normalizeTags(client.tags),
   };
@@ -2386,6 +2396,7 @@ const ClientFormDrawer = ({
   const toggleTag = useCallback((tagLabel) => {
     setFormData((previous) => {
       const currentTags = normalizeTags(previous.selectedTags);
+
       const nextTags = currentTags.includes(tagLabel)
         ? currentTags.filter((tag) => tag !== tagLabel)
         : [...currentTags, tagLabel];
@@ -2422,7 +2433,9 @@ const ClientFormDrawer = ({
         if (!formData.contactEmail.trim()) {
           nextErrors.contactEmail = "Email address is required.";
         } else if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail.trim())
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+            formData.contactEmail.trim()
+          )
         ) {
           nextErrors.contactEmail = "Enter a valid email address.";
         } else if (isDummyEmail(formData.contactEmail)) {
@@ -2486,8 +2499,6 @@ const ClientFormDrawer = ({
       reminders: Boolean(formData.automation?.reminders),
       portalAccess: Boolean(formData.automation?.portalAccess),
       welcomeEmail: Boolean(formData.automation?.welcomeEmail),
-
-      // Send tags as an array of strings.
       tags: normalizeTags(formData.selectedTags),
     };
   }, [formData]);
@@ -2526,7 +2537,9 @@ const ClientFormDrawer = ({
           const clientId = getClientId(client);
 
           if (!clientId) {
-            throw new Error("Could not identify the client to update.");
+            throw new Error(
+              "Could not identify the client to update."
+            );
           }
 
           response = await updateClient(clientId, payload);
@@ -2547,7 +2560,14 @@ const ClientFormDrawer = ({
         setIsSaving(false);
       }
     },
-    [validateStep, buildPayload, isEditing, client, onSuccess, onClose]
+    [
+      validateStep,
+      buildPayload,
+      isEditing,
+      client,
+      onSuccess,
+      onClose,
+    ]
   );
 
   const initials = useMemo(
@@ -2578,7 +2598,7 @@ const ClientFormDrawer = ({
         onSubmit={handleSubmit}
         className="flex h-full min-h-0 flex-col"
       >
-        {/* Step navigation */}
+        {/* STEP NAVIGATION */}
         <div className="mb-6 grid grid-cols-3 gap-2">
           {STEPS.map((item) => {
             const active = step === item.id;
@@ -2615,6 +2635,7 @@ const ClientFormDrawer = ({
                   >
                     {completed ? "✓" : item.id}
                   </span>
+
                   <span className="text-xs font-semibold text-text">
                     {item.label}
                   </span>
@@ -2629,12 +2650,15 @@ const ClientFormDrawer = ({
           {step === 1 && (
             <section className="space-y-5">
               <section>
-                <h4 className={sectionTitleClass}>Company information</h4>
+                <h4 className={sectionTitleClass}>
+                  Company information
+                </h4>
 
                 <div className="mb-4 flex items-center gap-3 rounded-xl border border-border-light bg-surface-secondary p-3">
                   <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-sm font-bold text-white">
                     {initials}
                   </div>
+
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-text">
                       {formData.companyName || "Company name"}
@@ -2647,7 +2671,10 @@ const ClientFormDrawer = ({
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="client-company-name" className={labelClass}>
+                    <label
+                      htmlFor="client-company-name"
+                      className={labelClass}
+                    >
                       Company name *
                     </label>
                     <FormInput
@@ -2662,7 +2689,10 @@ const ClientFormDrawer = ({
                   </div>
 
                   <div>
-                    <label htmlFor="client-contact-name" className={labelClass}>
+                    <label
+                      htmlFor="client-contact-name"
+                      className={labelClass}
+                    >
                       Contact person *
                     </label>
                     <FormInput
@@ -2696,6 +2726,7 @@ const ClientFormDrawer = ({
                     <label htmlFor="client-phone" className={labelClass}>
                       Phone number *
                     </label>
+
                     <div className="flex gap-2">
                       <select
                         value={formData.countryCode}
@@ -2728,7 +2759,10 @@ const ClientFormDrawer = ({
                   </div>
 
                   <div>
-                    <label htmlFor="client-website" className={labelClass}>
+                    <label
+                      htmlFor="client-website"
+                      className={labelClass}
+                    >
                       Website
                     </label>
                     <FormInput
@@ -2767,7 +2801,9 @@ const ClientFormDrawer = ({
                       label: color
                         .replace("bg-", "")
                         .replace(/-/g, " ")
-                        .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+                        .replace(/\b\w/g, (letter) =>
+                          letter.toUpperCase()
+                        ),
                     }))}
                     onChange={(value) => updateForm("selectedColor", value)}
                   />
@@ -2784,7 +2820,10 @@ const ClientFormDrawer = ({
 
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="client-billing-address" className={labelClass}>
+                    <label
+                      htmlFor="client-billing-address"
+                      className={labelClass}
+                    >
                       Street address *
                     </label>
                     <FormInput
@@ -2829,7 +2868,10 @@ const ClientFormDrawer = ({
                     </div>
 
                     <div>
-                      <label htmlFor="client-postal-code" className={labelClass}>
+                      <label
+                        htmlFor="client-postal-code"
+                        className={labelClass}
+                      >
                         Postal code
                       </label>
                       <FormInput
@@ -2851,7 +2893,10 @@ const ClientFormDrawer = ({
                     />
 
                     <div>
-                      <label htmlFor="client-tax-id" className={labelClass}>
+                      <label
+                        htmlFor="client-tax-id"
+                        className={labelClass}
+                      >
                         Tax ID / GSTIN
                       </label>
                       <FormInput
@@ -2874,13 +2919,15 @@ const ClientFormDrawer = ({
                       receipt_long
                     </span>
                   </div>
+
                   <div>
                     <h4 className="text-[13px] font-bold text-text">
                       Billing belongs to Projects
                     </h4>
                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-muted">
-                      MRR, billing cycle, payment terms, payment method and
-                      invoice scheduling are managed at the Project level.
+                      MRR, billing cycle, payment terms, payment method
+                      and invoice scheduling are managed at the Project
+                      level.
                     </p>
                   </div>
                 </div>
@@ -2891,7 +2938,7 @@ const ClientFormDrawer = ({
           {/* STEP 3: PREFERENCES */}
           {step === 3 && (
             <section className="space-y-5">
-              {/* Automation */}
+              {/* AUTOMATION */}
               <section aria-labelledby="automation-section">
                 <h4 id="automation-section" className={sectionTitleClass}>
                   Automation
@@ -2899,7 +2946,9 @@ const ClientFormDrawer = ({
 
                 <div className="space-y-3">
                   {AUTOMATION_ITEMS.map((item) => {
-                    const enabled = Boolean(formData.automation?.[item.key]);
+                    const enabled = Boolean(
+                      formData.automation?.[item.key]
+                    );
 
                     return (
                       <div
@@ -2912,6 +2961,7 @@ const ClientFormDrawer = ({
                               {item.icon}
                             </span>
                           </div>
+
                           <div className="min-w-0">
                             <div className="text-[13px] font-bold text-text">
                               {item.title}
@@ -2934,7 +2984,7 @@ const ClientFormDrawer = ({
                         >
                           <span
                             aria-hidden="true"
-                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow-sm transition-all ${
+                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
                               enabled ? "right-0.5" : "left-0.5"
                             }`}
                           />
@@ -2945,58 +2995,66 @@ const ClientFormDrawer = ({
                 </div>
               </section>
 
-              {/* Tags */}
+              {/* TAGS & NOTES */}
               <section
                 aria-labelledby="tags-notes-section"
                 className="border-t border-border-light pt-5"
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <h4 id="tags-notes-section" className={sectionTitleClass}>
+                    <h4
+                      id="tags-notes-section"
+                      className={sectionTitleClass}
+                    >
                       Tags & Notes
                     </h4>
                     <p className="text-xs text-text-muted">
-                      Categorize clients by importance, relationship, status,
-                      or payment follow-up.
+                      Categorize clients by importance, relationship,
+                      status, or payment follow-up.
                     </p>
                   </div>
 
-                  <span className="shrink-0 rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-bold text-primary">
+                  <span className="shrink-0 rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-800">
                     {selectedTags.length} selected
                   </span>
                 </div>
 
-                {/* Selectable tag buttons */}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {CLIENT_TAGS.map((tag) => {
-                    const isSelected = selectedTags.includes(tag.label);
+                {/* AVAILABLE TAGS */}
+                <div className="mb-5">
+                  <p className="mb-3 text-sm font-semibold text-text">
+                    Choose client tags
+                  </p>
 
-                    return (
-                      <button
-                        key={tag.label}
-                        type="button"
-                        onClick={() => toggleTag(tag.label)}
-                        aria-pressed={isSelected}
-                        className={`flex min-h-10 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary/30 ${
-                          isSelected
-                            ? `ring-1 ${tag.color} border-transparent`
-                            : "border-border-light bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary-soft/30"
-                        }`}
-                      >
-                        <span>{tag.label}</span>
-                        {isSelected && (
-                          <span className="material-symbols-outlined text-[16px]">
-                            check_circle
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {CLIENT_TAGS.map((tag) => {
+                      const isSelected = selectedTags.includes(tag.label);
+
+                      return (
+                        <button
+                          key={tag.label}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => toggleTag(tag.label)}
+                          className={`flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-teal-300 ${
+                            isSelected
+                              ? "border-teal-600 bg-teal-50 text-teal-800 ring-2 ring-teal-200"
+                              : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:bg-teal-50"
+                          }`}
+                        >
+                          <span>{tag.label}</span>
+
+                          <span className="shrink-0 text-sm">
+                            {isSelected ? "✓" : "+"}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Selected tags preview */}
-                <div className="mt-4 rounded-xl border border-border-light bg-surface-secondary p-3">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-secondary">
+                {/* SELECTED TAGS PREVIEW */}
+                <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600">
                     Selected client tags
                   </p>
 
@@ -3010,39 +3068,39 @@ const ClientFormDrawer = ({
                         return (
                           <span
                             key={tagLabel}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset ${
                               tagConfig?.color ||
-                              "bg-primary-soft text-primary ring-primary/20"
+                              "bg-teal-100 text-teal-800 ring-teal-200"
                             }`}
                           >
                             {tagLabel}
+
                             <button
                               type="button"
                               onClick={() => removeTag(tagLabel)}
                               aria-label={`Remove ${tagLabel}`}
-                              className="rounded-full opacity-75 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              className="font-bold hover:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-400"
                             >
-                              <span className="material-symbols-outlined text-[13px]">
-                                close
-                              </span>
+                              ×
                             </button>
                           </span>
                         );
                       })}
                     </div>
                   ) : (
-                    <p className="text-xs text-text-muted">
-                      No tags selected. Select VIP, Important, High Priority,
-                      or any other tags above.
+                    <p className="text-xs text-slate-500">
+                      No tags selected. Select VIP, Important,
+                      High Priority, or any other tags above.
                     </p>
                   )}
                 </div>
 
-                {/* Internal notes */}
-                <div className="mt-5">
+                {/* INTERNAL NOTES */}
+                <div>
                   <label htmlFor="client-notes" className={labelClass}>
                     Internal notes
                   </label>
+
                   <textarea
                     id="client-notes"
                     rows={4}
@@ -3052,9 +3110,10 @@ const ClientFormDrawer = ({
                       updateForm("notes", event.target.value)
                     }
                     placeholder="Add internal notes about this client..."
-                    className="w-full resize-none rounded-lg border border-border bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   />
-                  <div className="mt-1 text-right text-[10px] text-text-light">
+
+                  <div className="mt-1 text-right text-xs text-slate-500">
                     {formData.notes.length}/2000
                   </div>
                 </div>
@@ -3063,7 +3122,7 @@ const ClientFormDrawer = ({
           )}
         </div>
 
-        {/* Footer */}
+        {/* FOOTER */}
         <div className="mt-5 flex items-center justify-between gap-3 border-t border-border-light pt-4">
           <Button
             type="button"
@@ -3075,7 +3134,11 @@ const ClientFormDrawer = ({
           </Button>
 
           {step < STEPS.length ? (
-            <Button type="button" onClick={handleNext} disabled={isSaving}>
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={isSaving}
+            >
               Continue
             </Button>
           ) : (
