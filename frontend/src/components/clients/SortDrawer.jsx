@@ -140,7 +140,7 @@ export default function SortDrawer({
       width="max-w-md"
       footer={footer}
     >
-      chal hat
+      
       <div
         className="space-y-6"
         aria-label="Client sorting options"
@@ -161,7 +161,7 @@ export default function SortDrawer({
               text-text-muted
             "
           >
-            chal hat
+            
             Sort By
           </label>
 
