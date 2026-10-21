@@ -10,9 +10,9 @@ import Modal from "../../components/ui/Modal";
 import PermissionCheckbox from "../../components/team/PermissionCheckbox";
 
 import {
-  showError,
-  showSuccess,
-} from "../../utils/toast";
+  showErrorToast,
+  showSuccessToast,
+} from "../../components/ui/CustomToast";
 
 const API_BASE = (
   import.meta.env.VITE_API_URL ||
@@ -351,7 +351,7 @@ export default function CreateRoleModal({
     }
 
     if (!normalizedName) {
-      showError("Role name is required.");
+      showErrorToast("Role name is required.");
       return;
     }
 
@@ -359,14 +359,14 @@ export default function CreateRoleModal({
       normalizedName.length < 2 ||
       normalizedName.length > 50
     ) {
-      showError(
+      showErrorToast(
         "Role name must be between 2 and 50 characters."
       );
       return;
     }
 
     if (duplicateRole) {
-      showError(
+      showErrorToast(
         "A role with this name already exists."
       );
       return;
@@ -425,7 +425,7 @@ export default function CreateRoleModal({
         responseData;
 
       if (isEditMode) {
-        showSuccess(
+        showSuccessToast(
           "Role updated successfully."
         );
 
@@ -433,7 +433,7 @@ export default function CreateRoleModal({
           await onUpdated(savedRole);
         }
       } else {
-        showSuccess(
+        showSuccessToast(
           "Custom role created successfully."
         );
 
@@ -451,7 +451,7 @@ export default function CreateRoleModal({
         error
       );
 
-      showError(
+      showErrorToast(
         error.message ||
           (isEditMode
             ? "Failed to update role."
