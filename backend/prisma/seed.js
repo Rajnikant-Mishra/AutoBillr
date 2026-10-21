@@ -6,51 +6,36 @@ const plans = [
   {
     id: "starter",
     name: "Starter",
-
     monthlyPrice: "0.00",
     yearlyPrice: "0.00",
-
     currency: "INR",
-
     description: "Up to 10 invoices",
-
     trialDays: 14,
     invoiceLimit: 10,
-
     isActive: true,
   },
 
   {
     id: "professional",
     name: "Professional",
-
     monthlyPrice: "2599.00",
     yearlyPrice: "25990.00",
-
     currency: "INR",
-
     description: "Unlimited invoices",
-
     trialDays: 14,
     invoiceLimit: null,
-
     isActive: true,
   },
 
   {
     id: "enterprise",
     name: "Enterprise",
-
     monthlyPrice: null,
     yearlyPrice: null,
-
     currency: "INR",
-
     description: "Everything + SSO + SLA",
-
     trialDays: 14,
     invoiceLimit: null,
-
     isActive: true,
   },
 ];
