@@ -3285,121 +3285,89 @@ const ClientFormDrawer = ({
               </div>
             </section>
 
-            {/* TAGS & NOTES */}
+            
+{/* TAGS & NOTES */}
 
-            <section
-              aria-labelledby="tags-notes-section"
-              className="border-t border-border-light pt-5"
-            >
-              <h4 id="tags-notes-section" className={sectionTitleClass}>
-                Tags & Notes
-              </h4>
+<section
+  aria-labelledby="tags-notes-section"
+  className="border-t border-border-light pt-5"
+>
+  <h4 id="tags-notes-section" className={sectionTitleClass}>
+    Tags & Notes
+  </h4>
 
-              {/* SELECTED TAGS */}
+  {/* SINGLE TAG SELECTION SECTION */}
 
-              <div className="mb-5">
-                <label className={labelClass}>Selected client tags</label>
+  <div className="mb-5">
+    <label className={labelClass}>
+      Client tags
+    </label>
 
-                <div className="flex flex-wrap gap-2">
-                  {normalizeTags(formData.selectedTags).map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[11.5px] font-bold text-primary-dark"
-                    >
-                      {tag}
+    <div className="flex flex-wrap gap-2">
+      {AVAILABLE_CLIENT_TAGS.map((tag) => {
+        const selected = normalizeTags(
+          formData.selectedTags
+        ).includes(tag);
 
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        aria-label={`Remove ${tag}`}
-                        title={`Remove ${tag}`}
-                        className="rounded-full hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-                      >
-                        <span className="material-symbols-outlined text-[12px]">
-                          close
-                        </span>
-                      </button>
-                    </span>
-                  ))}
+        return (
+          <button
+            key={tag}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => toggleTag(tag)}
+            className={`
+              inline-flex items-center gap-1.5 rounded-full
+              border px-3 py-1.5 text-[11.5px] font-semibold
+              transition-colors duration-fast
+              focus:outline-none focus:ring-2 focus:ring-primary/25
+              ${
+                selected
+                  ? "border-primary bg-primary text-text-inverse"
+                  : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"
+              }
+            `}
+          >
+            <span className="material-symbols-outlined text-[14px]">
+              {selected ? "check_circle" : "add_circle"}
+            </span>
 
-                  {normalizeTags(formData.selectedTags).length === 0 && (
-                    <span className="text-[11.5px] text-text-light">
-                      No tags selected. Choose a tag below.
-                    </span>
-                  )}
-                </div>
-              </div>
+            {tag}
+          </button>
+        );
+      })}
+    </div>
 
-              {/* AVAILABLE TAGS */}
+    <p className="mt-2 text-[11px] text-text-muted">
+      Click a tag to select it or click it again to remove it.
+      Selected tags are saved with the client.
+    </p>
+  </div>
 
-              <div className="mb-5">
-                <label className={labelClass}>
-                  Add or remove tags
-                </label>
+  {/* INTERNAL NOTES */}
 
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_CLIENT_TAGS.map((tag) => {
-                    const selected =
-                      normalizeTags(formData.selectedTags).includes(tag);
+  <div>
+    <label htmlFor="client-notes" className={labelClass}>
+      Internal notes
+    </label>
 
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => toggleTag(tag)}
-                        className={`
-                          inline-flex items-center gap-1.5 rounded-full
-                          border px-3 py-1.5 text-[11.5px] font-semibold
-                          transition-colors duration-fast
-                          focus:outline-none focus:ring-2 focus:ring-primary/25
-                          ${
-                            selected
-                              ? "border-primary bg-primary text-text-inverse"
-                              : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"
-                          }
-                        `}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">
-                          {selected ? "check_circle" : "add_circle"}
-                        </span>
+    <textarea
+      id="client-notes"
+      rows={4}
+      maxLength={2000}
+      value={formData.notes}
+      onChange={(event) =>
+        updateForm("notes", event.target.value)
+      }
+      placeholder="Add internal notes about this client..."
+      className="w-full resize-none rounded-lg border border-border bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text outline-none transition-colors duration-fast focus:border-primary focus:ring-2 focus:ring-primary/15"
+    />
 
-                        {tag}
-                      </button>
-                    );
-                  })}
-                </div>
+    <div className="mt-1 text-right text-[10px] text-text-light">
+      {formData.notes.length}/2000
+    </div>
+  </div>
+</section>
 
-                <p className="mt-2 text-[11px] text-text-muted">
-                  Selected tags are sent with the client when you save.
-                  Click a selected tag to remove it.
-                </p>
-              </div>
-
-              {/* NOTES */}
-
-              <div>
-                <label htmlFor="client-notes" className={labelClass}>
-                  Internal notes
-                </label>
-
-                <textarea
-                  id="client-notes"
-                  rows={4}
-                  maxLength={2000}
-                  value={formData.notes}
-                  onChange={(event) =>
-                    updateForm("notes", event.target.value)
-                  }
-                  placeholder="Add internal notes about this client..."
-                  className="w-full resize-none rounded-lg border border-border bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text outline-none transition-colors duration-fast focus:border-primary focus:ring-2 focus:ring-primary/15"
-                />
-
-                <div className="mt-1 text-right text-[10px] text-text-light">
-                  {formData.notes.length}/2000
-                </div>
-              </div>
-            </section>
           </section>
         )}
       </div>
