@@ -1,4 +1,2003 @@
-ClientFormDrawer.jsx
+// ClientFormDrawer.jsx
+
+// import React, {
+//   useCallback,
+//   useEffect,
+//   useMemo,
+//   useState,
+// } from "react";
+
+// import RightDrawer from "../layout/RightDrawer";
+
+// import {
+//   createClient,
+//   updateClient,
+// } from "../../services/clientService";
+
+// import {
+//   showErrorToast,
+//   showSuccessToast,
+// } from "../ui/CustomToast";
+
+// import Button from "../ui/Button";
+// import Card from "../ui/Card";
+// import FormInput from "../ui/FormInput";
+// import Badge from "../ui/Badge";
+
+// import { useNotificationStore } from "../../store/notificationStore";
+
+// /* =========================================================
+//    STEPS
+// ========================================================= */
+
+// const STEPS = [
+//   { id: 1, label: "Contact" },
+//   { id: 2, label: "Address" },
+//   { id: 3, label: "Preferences" },
+// ];
+
+// /* =========================================================
+//    CLIENT OPTIONS
+// ========================================================= */
+
+// const TIERS = [
+//   "Enterprise",
+//   "Mid-Market",
+//   "SMB",
+//   "Agency",
+// ];
+
+// const COLORS = [
+//   "bg-primary",
+//   "bg-info",
+//   "bg-warning",
+//   "bg-danger",
+//   "bg-secondary",
+//   "bg-success",
+// ];
+
+// const INDUSTRIES = [
+//   "SaaS / Software",
+//   "Agency / Consulting",
+//   "Professional Services",
+//   "E-commerce",
+// ];
+
+// const COUNTRIES = [
+//   "India",
+//   "United States",
+//   "United Kingdom",
+//   "Canada",
+//   "Australia",
+//   "Germany",
+// ];
+
+// const COUNTRY_DIAL_CODES = [
+//   {
+//     code: "+91",
+//     label: "🇮🇳 +91 (IN)",
+//   },
+//   {
+//     code: "+1",
+//     label: "🇺🇸 +1 (US/CA)",
+//   },
+//   {
+//     code: "+44",
+//     label: "🇬🇧 +44 (UK)",
+//   },
+//   {
+//     code: "+61",
+//     label: "🇦🇺 +61 (AU)",
+//   },
+//   {
+//     code: "+49",
+//     label: "🇩🇪 +49 (DE)",
+//   },
+//   {
+//     code: "+971",
+//     label: "🇦🇪 +971 (AE)",
+//   },
+//   {
+//     code: "+65",
+//     label: "🇸🇬 +65 (SG)",
+//   },
+// ];
+
+// /* =========================================================
+//    AUTOMATION
+// ========================================================= */
+
+// const AUTOMATION_ITEMS = [
+//   {
+//     key: "autoCharge",
+//     icon: "bolt",
+//     title: "Auto-charge on due date",
+//     description:
+//       "Charge stored payment method without manual confirmation",
+//   },
+//   {
+//     key: "reminders",
+//     icon: "notifications_active",
+//     title: "Send payment reminders",
+//     description:
+//       "Automated D-7, D-1 and D+3 follow-ups",
+//   },
+//   {
+//     key: "portalAccess",
+//     icon: "dashboard",
+//     title: "Enable client portal access",
+//     description:
+//       "Let them view & pay invoices online at portal.autobillr.io",
+//   },
+//   {
+//     key: "welcomeEmail",
+//     icon: "mark_email_read",
+//     title: "Send welcome email on creation",
+//     description:
+//       "Branded onboarding email with login link",
+//   },
+// ];
+
+// const DEFAULT_AUTOMATION = {
+//   autoCharge: false,
+//   reminders: true,
+//   portalAccess: true,
+//   welcomeEmail: true,
+// };
+
+// /* =========================================================
+//    STYLES
+// ========================================================= */
+
+// const selectClassName = `
+//   w-full rounded-lg border border-border
+//   bg-[var(--input-background)] px-3.5 py-2.5
+//   text-sm text-text
+//   outline-none transition-colors duration-fast
+//   focus:border-primary focus:ring-2 focus:ring-primary/20
+// `;
+
+// const sectionTitleClass =
+//   "mb-3 text-[11.5px] font-bold uppercase tracking-widest text-text-secondary";
+
+// const labelClass =
+//   "mb-1.5 block text-[11.5px] font-semibold text-text-secondary";
+
+// /* =========================================================
+//    DUMMY DATA VALIDATION
+// ========================================================= */
+
+// const DUMMY_DOMAINS = [
+//   "example.com",
+//   "test.com",
+//   "dummy.com",
+//   "sample.com",
+//   "fake.com",
+//   "tempmail.com",
+//   "mailinator.com",
+// ];
+
+// const isDummyEmail = (email) => {
+//   const clean = email.trim().toLowerCase();
+
+//   const domain = clean.split("@")[1];
+
+//   if (!domain) return true;
+
+//   if (DUMMY_DOMAINS.includes(domain)) {
+//     return true;
+//   }
+
+//   if (
+//     clean.startsWith("test@") ||
+//     clean.startsWith("dummy@") ||
+//     clean.startsWith("fake@") ||
+//     clean.startsWith("admin@example")
+//   ) {
+//     return true;
+//   }
+
+//   return false;
+// };
+
+// const isDummyPhone = (phone) => {
+//   const digits = phone.replace(/\D/g, "");
+
+//   if (digits.length < 7 || digits.length > 15) {
+//     return true;
+//   }
+
+//   if (/^(\d)\1+$/.test(digits)) {
+//     return true;
+//   }
+
+//   const obvious = [
+//     "1234567890",
+//     "0123456789",
+//     "9876543210",
+//     "0987654321",
+//   ];
+
+//   if (obvious.includes(digits)) {
+//     return true;
+//   }
+
+//   return false;
+// };
+
+// /* =========================================================
+//    INITIAL FORM
+// ========================================================= */
+
+// const getInitialFormData = () => ({
+//   companyName: "",
+//   contactName: "",
+//   contactEmail: "",
+
+//   countryCode: "+91",
+//   phone: "",
+
+//   website: "",
+
+//   industry: INDUSTRIES[0],
+//   selectedTier: TIERS[0],
+//   selectedColor: COLORS[0],
+
+//   billingAddress: "",
+//   city: "",
+//   stateRegion: "",
+//   postalCode: "",
+//   country: "India",
+
+//   taxId: "",
+
+//   notes: "",
+
+//   automation: {
+//     ...DEFAULT_AUTOMATION,
+//   },
+
+//   selectedTags: [],
+// });
+
+// /* =========================================================
+//    HELPERS
+// ========================================================= */
+
+// const asString = (value, fallback = "") =>
+//   typeof value === "string"
+//     ? value
+//     : value == null
+//     ? fallback
+//     : String(value);
+
+// const normalizeTags = (tags) => {
+//   if (Array.isArray(tags)) {
+//     return [
+//       ...new Set(
+//         tags
+//           .map((tag) => asString(tag).trim())
+//           .filter(Boolean)
+//       ),
+//     ];
+//   }
+
+//   if (typeof tags === "string") {
+//     try {
+//       const parsed = JSON.parse(tags);
+
+//       return Array.isArray(parsed)
+//         ? normalizeTags(parsed)
+//         : [];
+//     } catch {
+//       return [];
+//     }
+//   }
+
+//   return [];
+// };
+
+// const getClientId = (client) =>
+//   client?.id ?? client?._id ?? null;
+
+// const getInitials = (companyName) => {
+//   const name = asString(companyName).trim();
+
+//   if (!name) {
+//     return "?";
+//   }
+
+//   const words = name
+//     .split(/\s+/)
+//     .filter(Boolean);
+
+//   if (words.length === 1) {
+//     return words[0]
+//       .slice(0, 2)
+//       .toUpperCase();
+//   }
+
+//   return words
+//     .slice(0, 2)
+//     .map((word) => word.charAt(0))
+//     .join("")
+//     .toUpperCase();
+// };
+
+// /* =========================================================
+//    NORMALIZE CLIENT FOR EDIT
+// ========================================================= */
+
+// const normalizeClientToForm = (client) => {
+//   const defaults = getInitialFormData();
+
+//   if (!client) {
+//     return defaults;
+//   }
+
+//   let rawPhone = asString(client.phone).trim();
+
+//   let extractedCode = "+91";
+//   let extractedNumber = rawPhone;
+
+//   for (const dial of COUNTRY_DIAL_CODES) {
+//     if (rawPhone.startsWith(dial.code)) {
+//       extractedCode = dial.code;
+
+//       extractedNumber = rawPhone
+//         .slice(dial.code.length)
+//         .trim();
+
+//       break;
+//     }
+//   }
+
+//   return {
+//     ...defaults,
+
+//     companyName: asString(client.name),
+
+//     contactName: asString(
+//       client.contactName
+//     ),
+
+//     contactEmail: asString(
+//       client.email
+//     ),
+
+//     countryCode: extractedCode,
+
+//     phone: extractedNumber,
+
+//     website: asString(
+//       client.website
+//     ),
+
+//     industry: asString(
+//       client.industry,
+//       defaults.industry
+//     ),
+
+//     selectedTier: asString(
+//       client.tier,
+//       defaults.selectedTier
+//     ),
+
+//     selectedColor: asString(
+//       client.color,
+//       defaults.selectedColor
+//     ),
+
+//     /* Address */
+
+//     billingAddress: asString(
+//       client.billingAddress
+//     ),
+
+//     city: asString(client.city),
+
+//     stateRegion: asString(
+//       client.stateRegion
+//     ),
+
+//     postalCode: asString(
+//       client.postalCode
+//     ),
+
+//     country: asString(
+//       client.country,
+//       defaults.country
+//     ),
+
+//     taxId: asString(client.taxId),
+
+//     /* Notes */
+
+//     notes: asString(client.notes),
+
+//     /* Automation */
+
+//     automation: {
+//       autoCharge: Boolean(
+//         client.autoCharge ??
+//           defaults.automation.autoCharge
+//       ),
+
+//       reminders: Boolean(
+//         client.reminders ??
+//           defaults.automation.reminders
+//       ),
+
+//       portalAccess: Boolean(
+//         client.portalAccess ??
+//           defaults.automation.portalAccess
+//       ),
+
+//       welcomeEmail: Boolean(
+//         client.welcomeEmail ??
+//           defaults.automation.welcomeEmail
+//       ),
+//     },
+
+//     /* Tags */
+
+//     selectedTags: normalizeTags(
+//       client.tags
+//     ),
+//   };
+// };
+
+// /* =========================================================
+//    API ERROR
+// ========================================================= */
+
+// const getApiErrorMessage = (error) =>
+//   error?.response?.data?.message ||
+//   error?.response?.data?.error ||
+//   error?.message ||
+//   "Unable to save the client. Please try again.";
+
+// /* =========================================================
+//    SELECT FIELD
+// ========================================================= */
+
+// const SelectField = ({
+//   id,
+//   label,
+//   value,
+//   options,
+//   onChange,
+// }) => (
+//   <div>
+//     <label
+//       htmlFor={id}
+//       className={labelClass}
+//     >
+//       {label}
+//     </label>
+
+//     <select
+//       id={id}
+//       value={value}
+//       onChange={(event) =>
+//         onChange(event.target.value)
+//       }
+//       className={selectClassName}
+//     >
+//       {options.map((option) => (
+//         <option
+//           key={option.value}
+//           value={option.value}
+//         >
+//           {option.label}
+//         </option>
+//       ))}
+//     </select>
+//   </div>
+// );
+
+// /* =========================================================
+//    COMPONENT
+// ========================================================= */
+
+// const ClientFormDrawer = ({
+//   isOpen,
+//   onClose,
+//   client = null,
+// }) => {
+//   const { addNotification } =
+//     useNotificationStore();
+
+//   const isEditing = Boolean(client);
+
+//   const clientId = getClientId(client);
+
+//   const [step, setStep] = useState(1);
+
+//   const [formData, setFormData] =
+//     useState(getInitialFormData);
+
+//   const [isSubmitting, setIsSubmitting] =
+//     useState(false);
+
+//   /* =======================================================
+//      FORM UPDATE
+//   ======================================================= */
+
+//   const updateForm = useCallback(
+//     (key, value) => {
+//       setFormData((previous) => ({
+//         ...previous,
+//         [key]: value,
+//       }));
+//     },
+//     []
+//   );
+
+//   /* =======================================================
+//      AUTOMATION
+//   ======================================================= */
+
+//   const updateAutomation = useCallback(
+//     (key) => {
+//       setFormData((previous) => ({
+//         ...previous,
+
+//         automation: {
+//           ...previous.automation,
+
+//           [key]: !Boolean(
+//             previous.automation?.[key]
+//           ),
+//         },
+//       }));
+//     },
+//     []
+//   );
+
+//   /* =======================================================
+//      TAGS
+//   ======================================================= */
+
+//   const toggleTag = useCallback(
+//     (tag) => {
+//       setFormData((previous) => {
+//         const currentTags =
+//           normalizeTags(
+//             previous.selectedTags
+//           );
+
+//         const exists =
+//           currentTags.includes(tag);
+
+//         return {
+//           ...previous,
+
+//           selectedTags: exists
+//             ? currentTags.filter(
+//                 (item) => item !== tag
+//               )
+//             : [...currentTags, tag],
+//         };
+//       });
+//     },
+//     []
+//   );
+
+//   const removeTag = useCallback(
+//     (tag) => {
+//       setFormData((previous) => ({
+//         ...previous,
+
+//         selectedTags:
+//           normalizeTags(
+//             previous.selectedTags
+//           ).filter(
+//             (item) => item !== tag
+//           ),
+//       }));
+//     },
+//     []
+//   );
+
+//   /* =======================================================
+//      RESET
+//   ======================================================= */
+
+//   const resetForm = useCallback(() => {
+//     setFormData(
+//       getInitialFormData()
+//     );
+
+//     setStep(1);
+//   }, []);
+
+//   /* =======================================================
+//      LOAD EDIT DATA
+//   ======================================================= */
+
+//   useEffect(() => {
+//     if (!isOpen) {
+//       return;
+//     }
+
+//     setFormData(
+//       normalizeClientToForm(client)
+//     );
+
+//     setStep(1);
+//   }, [isOpen, client]);
+
+//   /* =======================================================
+//      VALIDATION
+//   ======================================================= */
+
+//   const validateStep = useCallback(
+//     (targetStep = step) => {
+//       const companyName =
+//         formData.companyName.trim();
+
+//       const contactEmail =
+//         formData.contactEmail.trim();
+
+//       const phone =
+//         formData.phone.trim();
+
+//       /* ---------------------------------------------------
+//          STEP 1
+//       --------------------------------------------------- */
+
+//       if (targetStep === 1) {
+//         if (!companyName) {
+//           showErrorToast(
+//             "Company name is required"
+//           );
+
+//           return false;
+//         }
+
+//         if (!contactEmail) {
+//           showErrorToast(
+//             "Contact email is required"
+//           );
+
+//           return false;
+//         }
+
+//         if (
+//           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+//             contactEmail
+//           )
+//         ) {
+//           showErrorToast(
+//             "Please enter a valid email address"
+//           );
+
+//           return false;
+//         }
+
+//         if (isDummyEmail(contactEmail)) {
+//           showErrorToast(
+//             "Dummy emails (@example, @test, etc.) are not allowed"
+//           );
+
+//           return false;
+//         }
+
+//         if (
+//           phone &&
+//           isDummyPhone(phone)
+//         ) {
+//           showErrorToast(
+//             "Please enter a valid phone number (dummy numbers not allowed)"
+//           );
+
+//           return false;
+//         }
+
+//         if (formData.website.trim()) {
+//           const website =
+//             formData.website.trim();
+
+//           if (
+//             !/^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i.test(
+//               website
+//             )
+//           ) {
+//             showErrorToast(
+//               "Please enter a valid website URL"
+//             );
+
+//             return false;
+//           }
+//         }
+//       }
+
+//       /* ---------------------------------------------------
+//          STEP 2
+//       --------------------------------------------------- */
+
+//       if (targetStep === 2) {
+//         if (
+//           formData.postalCode.trim()
+//             .length > 20
+//         ) {
+//           showErrorToast(
+//             "Postal code is too long"
+//           );
+
+//           return false;
+//         }
+//       }
+
+//       return true;
+//     },
+//     [formData, step]
+//   );
+
+//   /* =======================================================
+//      CONTINUE
+//   ======================================================= */
+
+//   const handleContinue = useCallback(() => {
+//     if (!validateStep(step)) {
+//       return;
+//     }
+
+//     setStep((current) =>
+//       Math.min(
+//         current + 1,
+//         STEPS.length
+//       )
+//     );
+//   }, [step, validateStep]);
+
+//   /* =======================================================
+//      BACK
+//   ======================================================= */
+
+//   const handleBack = useCallback(() => {
+//     setStep((current) =>
+//       Math.max(current - 1, 1)
+//     );
+//   }, []);
+
+//   /* =======================================================
+//      BUILD PAYLOAD
+//   ======================================================= */
+
+//   const buildPayload = useCallback(() => {
+//     const companyName =
+//       formData.companyName.trim();
+
+//     const rawPhone =
+//       formData.phone.trim();
+
+//     const formattedPhone = rawPhone
+//       ? `${formData.countryCode} ${rawPhone}`
+//       : "";
+
+//     return {
+//       /* Basic */
+
+//       initials:
+//         getInitials(companyName),
+
+//       name: companyName,
+
+//       contactName:
+//         formData.contactName.trim() ||
+//         null,
+
+//       email:
+//         formData.contactEmail.trim() ||
+//         null,
+
+//       phone:
+//         formattedPhone || null,
+
+//       website:
+//         formData.website.trim() ||
+//         null,
+
+//       industry:
+//         formData.industry || null,
+
+//       tier:
+//         formData.selectedTier || null,
+
+//       color:
+//         formData.selectedColor || null,
+
+//       /* Address */
+
+//       billingAddress:
+//         formData.billingAddress.trim() ||
+//         null,
+
+//       city:
+//         formData.city.trim() ||
+//         null,
+
+//       stateRegion:
+//         formData.stateRegion.trim() ||
+//         null,
+
+//       postalCode:
+//         formData.postalCode.trim() ||
+//         null,
+
+//       country:
+//         formData.country || null,
+
+//       /* Tax */
+
+//       taxId:
+//         formData.taxId.trim() ||
+//         null,
+
+//       /* Automation */
+
+//       autoCharge: Boolean(
+//         formData.automation?.autoCharge
+//       ),
+
+//       reminders: Boolean(
+//         formData.automation?.reminders
+//       ),
+
+//       portalAccess: Boolean(
+//         formData.automation?.portalAccess
+//       ),
+
+//       welcomeEmail: Boolean(
+//         formData.automation?.welcomeEmail
+//       ),
+
+//       /* Extra */
+
+//       notes:
+//         formData.notes.trim() ||
+//         null,
+
+//       tags: normalizeTags(
+//         formData.selectedTags
+//       ),
+//     };
+//   }, [formData]);
+
+//   /* =======================================================
+//      SUBMIT
+//   ======================================================= */
+
+//   const handleSubmit = useCallback(
+//     async () => {
+//       if (isSubmitting) {
+//         return;
+//       }
+
+//       /* Validate every step */
+
+//       for (const currentStep of STEPS.map(
+//         (item) => item.id
+//       )) {
+//         if (
+//           !validateStep(currentStep)
+//         ) {
+//           setStep(currentStep);
+
+//           return;
+//         }
+//       }
+
+//       /* Editing requires ID */
+
+//       if (isEditing && !clientId) {
+//         showErrorToast(
+//           "Client ID is missing"
+//         );
+
+//         return;
+//       }
+
+//       setIsSubmitting(true);
+
+//       try {
+//         const payload =
+//           buildPayload();
+
+//         const companyName =
+//           payload.name;
+
+//         /* -------------------------------------------------
+//            UPDATE
+//         ------------------------------------------------- */
+
+//         if (isEditing) {
+//           await updateClient(
+//             clientId,
+//             payload
+//           );
+
+//           showSuccessToast(
+//             "Client Updated",
+//             companyName
+//           );
+
+//           addNotification({
+//             type: "client",
+//             icon: "edit",
+//             title: "Client Updated",
+//             description: `${companyName} was updated successfully`,
+//           });
+//         }
+
+//         /* -------------------------------------------------
+//            CREATE
+//         ------------------------------------------------- */
+
+//         else {
+//           const createdClient =
+//             await createClient(
+//               payload
+//             );
+
+//           const createdId =
+//             getClientId(
+//               createdClient
+//             );
+
+//           showSuccessToast(
+//             "Client Created",
+//             companyName
+//           );
+
+//           addNotification({
+//             type: "client",
+//             icon: "person_add",
+//             title: "New Client Added",
+//             description: `${companyName} has been successfully created`,
+//           });
+
+//           window.dispatchEvent(
+//             new CustomEvent(
+//               "client-updated",
+//               {
+//                 detail: {
+//                   client: {
+//                     id:
+//                       createdId,
+//                     name:
+//                       companyName,
+//                   },
+//                 },
+//               }
+//             )
+//           );
+//         }
+
+//         /* -------------------------------------------------
+//            UPDATE EVENT
+//         ------------------------------------------------- */
+
+//         if (isEditing) {
+//           window.dispatchEvent(
+//             new CustomEvent(
+//               "client-updated",
+//               {
+//                 detail: {
+//                   client: {
+//                     id: clientId,
+//                     name: companyName,
+//                   },
+//                 },
+//               }
+//             )
+//           );
+//         }
+
+//         resetForm();
+
+//         onClose();
+//       } catch (error) {
+//         console.error(
+//           "Client save error:",
+//           error
+//         );
+
+//         showErrorToast(
+//           getApiErrorMessage(error)
+//         );
+//       } finally {
+//         setIsSubmitting(false);
+//       }
+//     },
+//     [
+//       addNotification,
+//       buildPayload,
+//       clientId,
+//       isEditing,
+//       isSubmitting,
+//       onClose,
+//       resetForm,
+//       validateStep,
+//     ]
+//   );
+
+//   /* =======================================================
+//      PREVIEW
+//   ======================================================= */
+
+//   const previewInitials =
+//     useMemo(
+//       () =>
+//         getInitials(
+//           formData.companyName
+//         ),
+//       [formData.companyName]
+//     );
+
+//   /* =======================================================
+//      FOOTER
+//   ======================================================= */
+
+//   const footer = (
+//     <div className="flex flex-wrap justify-end gap-2">
+//       <Button
+//         type="button"
+//         variant="secondary"
+//         onClick={onClose}
+//         disabled={isSubmitting}
+//       >
+//         Cancel
+//       </Button>
+
+//       {step > 1 && (
+//         <Button
+//           variant="secondary"
+//           onClick={handleBack}
+//           disabled={isSubmitting}
+//           icon={
+//             <span className="material-symbols-outlined text-sm">
+//               arrow_back
+//             </span>
+//           }
+//         >
+//           Back
+//         </Button>
+//       )}
+
+//       <Button
+//         onClick={
+//           step === 3
+//             ? handleSubmit
+//             : handleContinue
+//         }
+//         disabled={isSubmitting}
+//         icon={
+//           <span
+//             className={`material-symbols-outlined text-sm ${
+//               isSubmitting
+//                 ? "animate-spin"
+//                 : ""
+//             }`}
+//           >
+//             {isSubmitting
+//               ? "progress_activity"
+//               : step === 3
+//               ? isEditing
+//                 ? "save"
+//                 : "person_add"
+//               : "arrow_forward"}
+//           </span>
+//         }
+//       >
+//         {isSubmitting
+//           ? "Saving..."
+//           : step === 3
+//           ? isEditing
+//             ? "Save Changes"
+//             : "Add Client"
+//           : "Continue"}
+//       </Button>
+//     </div>
+//   );
+
+//   /* =======================================================
+//      RENDER
+//   ======================================================= */
+
+//   return (
+//     <RightDrawer
+//       isOpen={isOpen}
+//       onClose={
+//         isSubmitting
+//           ? undefined
+//           : onClose
+//       }
+//       title={
+//         isEditing
+//           ? "Edit Client"
+//           : "New Client"
+//       }
+//       icon={
+//         isEditing
+//           ? "edit"
+//           : "person_add"
+//       }
+//       width="max-w-2xl"
+//       footer={footer}
+//     >
+//       <div className="space-y-6">
+
+//         {/* =================================================
+//             STEPPER
+//         ================================================= */}
+
+//         <nav
+//           aria-label="Client form progress"
+//           className="mb-6 flex items-center gap-2 border-b border-border-light pb-5"
+//         >
+//           {STEPS.map(
+//             (
+//               currentStep,
+//               index
+//             ) => {
+//               const isComplete =
+//                 step >
+//                 currentStep.id;
+
+//               const isCurrent =
+//                 step ===
+//                 currentStep.id;
+
+//               return (
+//                 <React.Fragment
+//                   key={
+//                     currentStep.id
+//                   }
+//                 >
+//                   <div
+//                     className={`flex items-center gap-2 ${
+//                       step >=
+//                       currentStep.id
+//                         ? "text-primary"
+//                         : "text-text-light"
+//                     }`}
+//                     aria-current={
+//                       isCurrent
+//                         ? "step"
+//                         : undefined
+//                     }
+//                   >
+//                     <div
+//                       className={`
+//                         grid h-7 w-7 shrink-0 place-items-center
+//                         rounded-full text-xs font-bold
+//                         transition-all duration-fast
+//                         ${
+//                           isComplete
+//                             ? "bg-primary text-text-inverse"
+//                             : isCurrent
+//                             ? "bg-primary text-text-inverse ring-4 ring-primary/15"
+//                             : "bg-surface-secondary text-text-muted"
+//                         }
+//                       `}
+//                     >
+//                       {isComplete ? (
+//                         <span className="material-symbols-outlined text-sm">
+//                           check
+//                         </span>
+//                       ) : (
+//                         currentStep.id
+//                       )}
+//                     </div>
+
+//                     <span className="text-[12.5px] font-semibold">
+//                       {
+//                         currentStep.label
+//                       }
+//                     </span>
+//                   </div>
+
+//                   {index <
+//                     STEPS.length -
+//                       1 && (
+//                     <div
+//                       aria-hidden
+//                       className={`h-px flex-1 ${
+//                         step >
+//                         currentStep.id
+//                           ? "bg-primary"
+//                           : "bg-border"
+//                       }`}
+//                     />
+//                   )}
+//                 </React.Fragment>
+//               );
+//             }
+//           )}
+//         </nav>
+
+//         {/* =================================================
+//             LIVE PREVIEW
+//         ================================================= */}
+
+//         <Card
+//           bordered
+//           padding="p-4"
+//           className="flex items-center gap-3 bg-surface-secondary/50"
+//         >
+//           <div
+//             className={`
+//               grid h-12 w-12 shrink-0 place-items-center
+//               rounded-xl text-sm font-bold text-text-inverse
+//               ${
+//                 formData.selectedColor ||
+//                 COLORS[0]
+//               }
+//             `}
+//             aria-hidden
+//           >
+//             {previewInitials}
+//           </div>
+
+//           <div className="min-w-0 flex-1">
+//             <div className="truncate text-sm font-bold text-text">
+//               {formData.companyName ||
+//                 "Unnamed client"}
+//             </div>
+
+//             <div className="truncate text-[11.5px] text-text-muted">
+//               {formData.contactEmail ||
+//                 "No email"}{" "}
+//               ·{" "}
+//               {formData.selectedTier ||
+//                 TIERS[0]}
+//             </div>
+//           </div>
+
+//           <Badge
+//             label="Preview"
+//             variant="active"
+//           />
+//         </Card>
+
+//         {/* =================================================
+//             STEP 1
+//         ================================================= */}
+
+//         {step === 1 && (
+//           <div className="space-y-6">
+
+//             {/* Company */}
+
+//             <section aria-labelledby="company-section">
+//               <h4
+//                 id="company-section"
+//                 className={
+//                   sectionTitleClass
+//                 }
+//               >
+//                 Company
+//               </h4>
+
+//               <div className="space-y-4">
+//                 <FormInput
+//                   label="Company Name"
+//                   icon="business"
+//                   value={
+//                     formData.companyName
+//                   }
+//                   onChange={(event) =>
+//                     updateForm(
+//                       "companyName",
+//                       event.target.value
+//                     )
+//                   }
+//                   placeholder="Acme Dynamics Corp"
+//                   required
+//                 />
+
+//                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+//                   <FormInput
+//                     label="Website"
+//                     icon="language"
+//                     value={
+//                       formData.website
+//                     }
+//                     onChange={(event) =>
+//                       updateForm(
+//                         "website",
+//                         event.target.value
+//                       )
+//                     }
+//                     placeholder="https://company.com"
+//                     type="text"
+//                   />
+
+//                   <div>
+//                     <label
+//                       htmlFor="client-industry"
+//                       className={
+//                         labelClass
+//                       }
+//                     >
+//                       Industry
+//                     </label>
+
+//                     <select
+//                       id="client-industry"
+//                       value={
+//                         formData.industry
+//                       }
+//                       onChange={(event) =>
+//                         updateForm(
+//                           "industry",
+//                           event.target.value
+//                         )
+//                       }
+//                       className={
+//                         selectClassName
+//                       }
+//                     >
+//                       {INDUSTRIES.map(
+//                         (industry) => (
+//                           <option
+//                             key={
+//                               industry
+//                             }
+//                             value={
+//                               industry
+//                             }
+//                           >
+//                             {industry}
+//                           </option>
+//                         )
+//                       )}
+//                     </select>
+//                   </div>
+//                 </div>
+
+//                 <div>
+//                   <label
+//                     className={labelClass}
+//                   >
+//                     Account Tier
+//                   </label>
+
+//                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+//                     {TIERS.map(
+//                       (tier) => {
+//                         const selected =
+//                           formData.selectedTier ===
+//                           tier;
+
+//                         return (
+//                           <button
+//                             key={tier}
+//                             type="button"
+//                             aria-pressed={
+//                               selected
+//                             }
+//                             onClick={() =>
+//                               updateForm(
+//                                 "selectedTier",
+//                                 tier
+//                               )
+//                             }
+//                             className={`
+//                               rounded-lg border-2 px-3 py-2.5
+//                               text-[12.5px] font-bold
+//                               transition-colors duration-fast
+//                               ${
+//                                 selected
+//                                   ? "border-primary/30 bg-primary-soft text-primary-dark"
+//                                   : "border-border bg-surface text-text-secondary hover:border-border-dark"
+//                               }
+//                             `}
+//                           >
+//                             {tier}
+//                           </button>
+//                         );
+//                       }
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+//             </section>
+
+//             {/* Contact */}
+
+//             <section
+//               aria-labelledby="contact-section"
+//               className="border-t border-border-light pt-5"
+//             >
+//               <h4
+//                 id="contact-section"
+//                 className={
+//                   sectionTitleClass
+//                 }
+//               >
+//                 Primary Contact
+//               </h4>
+
+//               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+//                 <FormInput
+//                   label="Contact Name"
+//                   icon="person"
+//                   value={
+//                     formData.contactName
+//                   }
+//                   onChange={(event) =>
+//                     updateForm(
+//                       "contactName",
+//                       event.target.value
+//                     )
+//                   }
+//                   placeholder="Sarah Jenkins"
+//                 />
+
+//                 <div>
+//                   <label
+//                     className={labelClass}
+//                   >
+//                     Phone Number
+//                   </label>
+
+//                   <div className="flex gap-2">
+//                     <select
+//                       value={
+//                         formData.countryCode
+//                       }
+//                       onChange={(event) =>
+//                         updateForm(
+//                           "countryCode",
+//                           event.target.value
+//                         )
+//                       }
+//                       className="w-[120px] shrink-0 rounded-lg border border-border bg-[var(--input-background)] px-2 py-2 text-xs font-semibold text-text outline-none focus:border-primary"
+//                     >
+//                       {COUNTRY_DIAL_CODES.map(
+//                         (dial) => (
+//                           <option
+//                             key={
+//                               dial.code
+//                             }
+//                             value={
+//                               dial.code
+//                             }
+//                           >
+//                             {dial.label}
+//                           </option>
+//                         )
+//                       )}
+//                     </select>
+
+//                     <div className="flex-1">
+//                       <FormInput
+//                         value={
+//                           formData.phone
+//                         }
+//                         onChange={(
+//                           event
+//                         ) =>
+//                           updateForm(
+//                             "phone",
+//                             event.target.value
+//                           )
+//                         }
+//                         placeholder="9876543210"
+//                         type="tel"
+//                       />
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div className="mt-3">
+//                 <FormInput
+//                   label="Contact Email"
+//                   icon="mail"
+//                   type="email"
+//                   value={
+//                     formData.contactEmail
+//                   }
+//                   onChange={(event) =>
+//                     updateForm(
+//                       "contactEmail",
+//                       event.target.value
+//                     )
+//                   }
+//                   placeholder="billing@company.com"
+//                   required
+//                 />
+//               </div>
+//             </section>
+
+//             {/* Color */}
+
+//             <section
+//               aria-labelledby="color-section"
+//               className="border-t border-border-light pt-5"
+//             >
+//               <label
+//                 className={labelClass}
+//               >
+//                 Color Tag
+//               </label>
+
+//               <div className="flex flex-wrap gap-2">
+//                 {COLORS.map(
+//                   (color) => {
+//                     const selected =
+//                       formData.selectedColor ===
+//                       color;
+
+//                     return (
+//                       <button
+//                         key={color}
+//                         type="button"
+//                         aria-label={`Select ${color.replace(
+//                           "bg-",
+//                           ""
+//                         )} color`}
+//                         aria-pressed={
+//                           selected
+//                         }
+//                         onClick={() =>
+//                           updateForm(
+//                             "selectedColor",
+//                             color
+//                           )
+//                         }
+//                         className={`
+//                           h-9 w-9 rounded-lg
+//                           transition-transform duration-fast hover:scale-105
+//                           ${
+//                             selected
+//                               ? "scale-110 ring-2 ring-text ring-offset-2"
+//                               : ""
+//                           }
+//                           ${color}
+//                         `}
+//                       />
+//                     );
+//                   }
+//                 )}
+//               </div>
+//             </section>
+//           </div>
+//         )}
+
+//         {/* =================================================
+//             STEP 2
+//         ================================================= */}
+
+//         {step === 2 && (
+//           <div className="space-y-5">
+
+//             <section aria-labelledby="billing-section">
+//               <h4
+//                 id="billing-section"
+//                 className={
+//                   sectionTitleClass
+//                 }
+//               >
+//                 Billing Address
+//               </h4>
+
+//               <div className="space-y-3">
+//                 <FormInput
+//                   label="Street Address"
+//                   value={
+//                     formData.billingAddress
+//                   }
+//                   onChange={(event) =>
+//                     updateForm(
+//                       "billingAddress",
+//                       event.target.value
+//                     )
+//                   }
+//                   autoComplete="street-address"
+//                 />
+
+//                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+//                   <FormInput
+//                     label="City"
+//                     value={
+//                       formData.city
+//                     }
+//                     onChange={(event) =>
+//                       updateForm(
+//                         "city",
+//                         event.target.value
+//                       )
+//                     }
+//                     autoComplete="address-level2"
+//                   />
+
+//                   <FormInput
+//                     label="State / Region"
+//                     value={
+//                       formData.stateRegion
+//                     }
+//                     onChange={(event) =>
+//                       updateForm(
+//                         "stateRegion",
+//                         event.target.value
+//                       )
+//                     }
+//                     autoComplete="address-level1"
+//                   />
+
+//                   <FormInput
+//                     label="Postal Code"
+//                     value={
+//                       formData.postalCode
+//                     }
+//                     onChange={(event) =>
+//                       updateForm(
+//                         "postalCode",
+//                         event.target.value
+//                       )
+//                     }
+//                     autoComplete="postal-code"
+//                     inputMode="numeric"
+//                   />
+//                 </div>
+
+//                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+//                   <div>
+//                     <label
+//                       htmlFor="client-country"
+//                       className={
+//                         labelClass
+//                       }
+//                     >
+//                       Country
+//                     </label>
+
+//                     <select
+//                       id="client-country"
+//                       value={
+//                         formData.country
+//                       }
+//                       onChange={(event) =>
+//                         updateForm(
+//                           "country",
+//                           event.target.value
+//                         )
+//                       }
+//                       autoComplete="country-name"
+//                       className={
+//                         selectClassName
+//                       }
+//                     >
+//                       {COUNTRIES.map(
+//                         (country) => (
+//                           <option
+//                             key={
+//                               country
+//                             }
+//                             value={
+//                               country
+//                             }
+//                           >
+//                             {country}
+//                           </option>
+//                         )
+//                       )}
+//                     </select>
+//                   </div>
+
+//                   <FormInput
+//                     label="Tax ID / VAT"
+//                     value={
+//                       formData.taxId
+//                     }
+//                     onChange={(event) =>
+//                       updateForm(
+//                         "taxId",
+//                         event.target.value
+//                       )
+//                     }
+//                     placeholder="Optional"
+//                   />
+//                 </div>
+//               </div>
+//             </section>
+
+//             {/* Payment intentionally removed.
+//                 Billing belongs to Project. */}
+
+//             <section
+//               aria-labelledby="payment-section"
+//               className="border-t border-border-light pt-5"
+//             >
+//               <div className="rounded-lg border border-border-light bg-surface-secondary p-4">
+//                 <div className="flex items-start gap-3">
+//                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+//                     <span className="material-symbols-outlined text-[18px]">
+//                       receipt_long
+//                     </span>
+//                   </div>
+
+//                   <div>
+//                     <h4 className="text-[13px] font-bold text-text">
+//                       Billing belongs to
+//                       Projects
+//                     </h4>
+
+//                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-muted">
+//                       MRR, billing cycle,
+//                       payment terms,
+//                       payment method and
+//                       invoice scheduling are
+//                       managed at the Project
+//                       level.
+//                     </p>
+//                   </div>
+//                 </div>
+//               </div>
+//             </section>
+//           </div>
+//         )}
+
+//         {/* =================================================
+//             STEP 3
+//         ================================================= */}
+
+//         {step === 3 && (
+//           <section className="space-y-5">
+
+//             {/* Automation */}
+
+//             <section
+//               aria-labelledby="automation-section"
+//             >
+//               <h4
+//                 id="automation-section"
+//                 className={
+//                   sectionTitleClass
+//                 }
+//               >
+//                 Automation
+//               </h4>
+
+//               <div className="space-y-3">
+//                 {AUTOMATION_ITEMS.map(
+//                   (item) => {
+//                     const enabled =
+//                       Boolean(
+//                         formData.automation?.[
+//                           item.key
+//                         ]
+//                       );
+
+//                     return (
+//                       <div
+//                         key={item.key}
+//                         className="
+//                           flex items-center justify-between gap-4
+//                           rounded-lg border border-border-light
+//                           bg-surface-secondary p-3
+//                         "
+//                       >
+//                         <div className="flex min-w-0 items-center gap-3">
+//                           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+//                             <span className="material-symbols-outlined text-[18px]">
+//                               {item.icon}
+//                             </span>
+//                           </div>
+
+//                           <div className="min-w-0">
+//                             <div className="text-[13px] font-bold text-text">
+//                               {item.title}
+//                             </div>
+
+//                             <div className="leading-tight text-[11.5px] text-text-muted">
+//                               {
+//                                 item.description
+//                               }
+//                             </div>
+//                           </div>
+//                         </div>
+
+//                         <button
+//                           type="button"
+//                           role="switch"
+//                           aria-checked={
+//                             enabled
+//                           }
+//                           aria-label={`Toggle ${item.title}`}
+//                           onClick={() =>
+//                             updateAutomation(
+//                               item.key
+//                             )
+//                           }
+//                           className={`
+//                             relative h-6 w-11 shrink-0 rounded-full
+//                             transition-colors duration-fast
+//                             ${
+//                               enabled
+//                                 ? "bg-primary"
+//                                 : "bg-border-dark"
+//                             }
+//                           `}
+//                         >
+//                           <span
+//                             aria-hidden
+//                             className={`
+//                               absolute top-0.5 h-5 w-5 rounded-full
+//                               bg-surface shadow-sm
+//                               transition-all duration-fast
+//                               ${
+//                                 enabled
+//                                   ? "right-0.5"
+//                                   : "left-0.5"
+//                               }
+//                             `}
+//                           />
+//                         </button>
+//                       </div>
+//                     );
+//                   }
+//                 )}
+//               </div>
+//             </section>
+
+//             {/* Tags & Notes */}
+
+//             <section
+//               aria-labelledby="tags-notes-section"
+//               className="border-t border-border-light pt-5"
+//             >
+//               <h4
+//                 id="tags-notes-section"
+//                 className={
+//                   sectionTitleClass
+//                 }
+//               >
+//                 Tags & Notes
+//               </h4>
+
+//               <div className="mb-4">
+//                 <label
+//                   className={labelClass}
+//                 >
+//                   Tags
+//                 </label>
+
+//                 <div className="flex flex-wrap gap-2">
+//                   {normalizeTags(
+//                     formData.selectedTags
+//                   ).map((tag) => (
+//                     <span
+//                       key={tag}
+//                       className="
+//                         inline-flex items-center gap-1
+//                         rounded-full bg-primary-soft
+//                         px-2.5 py-1
+//                         text-[11.5px] font-bold
+//                         text-primary-dark
+//                       "
+//                     >
+//                       {tag}
+
+//                       <button
+//                         type="button"
+//                         onClick={() =>
+//                           removeTag(tag)
+//                         }
+//                         aria-label={`Remove ${tag}`}
+//                         className="
+//                           rounded-full
+//                           hover:text-primary
+//                           focus:outline-none
+//                           focus:ring-2
+//                           focus:ring-primary/25
+//                         "
+//                       >
+//                         <span className="material-symbols-outlined text-[12px]">
+//                           close
+//                         </span>
+//                       </button>
+//                     </span>
+//                   ))}
+
+//                   {normalizeTags(
+//                     formData.selectedTags
+//                   ).length === 0 && (
+//                     <span className="text-[11.5px] text-text-light">
+//                       No tags added
+//                     </span>
+//                   )}
+//                 </div>
+//               </div>
+
+//               <div>
+//                 <label
+//                   htmlFor="client-notes"
+//                   className={
+//                     labelClass
+//                   }
+//                 >
+//                   Internal notes
+//                 </label>
+
+//                 <textarea
+//                   id="client-notes"
+//                   rows={4}
+//                   maxLength={2000}
+//                   value={formData.notes}
+//                   onChange={(event) =>
+//                     updateForm(
+//                       "notes",
+//                       event.target.value
+//                     )
+//                   }
+//                   placeholder="Add internal notes about this client..."
+//                   className="
+//                     w-full resize-none rounded-lg
+//                     border border-border px-3.5 py-2.5
+//                     text-sm
+//                     bg-[var(--input-background)]
+//                     text-text
+//                     outline-none
+//                     transition-colors duration-fast
+//                     focus:border-primary
+//                     focus:ring-2
+//                     focus:ring-primary/15
+//                   "
+//                 />
+
+//                 <div className="mt-1 text-right text-[10px] text-text-light">
+//                   {
+//                     formData.notes.length
+//                   }
+//                   /2000
+//                 </div>
+//               </div>
+//             </section>
+//           </section>
+//         )}
+//       </div>
+//     </RightDrawer>
+//   );
+// };
+
+// export default ClientFormDrawer;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 import React, {
   useCallback,
@@ -73,34 +2072,37 @@ const COUNTRIES = [
 ];
 
 const COUNTRY_DIAL_CODES = [
-  {
-    code: "+91",
-    label: "🇮🇳 +91 (IN)",
-  },
-  {
-    code: "+1",
-    label: "🇺🇸 +1 (US/CA)",
-  },
-  {
-    code: "+44",
-    label: "🇬🇧 +44 (UK)",
-  },
-  {
-    code: "+61",
-    label: "🇦🇺 +61 (AU)",
-  },
-  {
-    code: "+49",
-    label: "🇩🇪 +49 (DE)",
-  },
-  {
-    code: "+971",
-    label: "🇦🇪 +971 (AE)",
-  },
-  {
-    code: "+65",
-    label: "🇸🇬 +65 (SG)",
-  },
+  { code: "+91", label: "🇮🇳 +91 (IN)" },
+  { code: "+1", label: "🇺🇸 +1 (US/CA)" },
+  { code: "+44", label: "🇬🇧 +44 (UK)" },
+  { code: "+61", label: "🇦🇺 +61 (AU)" },
+  { code: "+49", label: "🇩🇪 +49 (DE)" },
+  { code: "+971", label: "🇦🇪 +971 (AE)" },
+  { code: "+65", label: "🇸🇬 +65 (SG)" },
+];
+
+/* =========================================================
+   CLIENT TAGS
+========================================================= */
+
+// These tags are available to every client.
+// New clients start with the first four selected.
+const DEFAULT_CLIENT_TAGS = [
+  "VIP",
+  "Regular",
+  "Important",
+  "Medium Priority",
+];
+
+const AVAILABLE_CLIENT_TAGS = [
+  ...DEFAULT_CLIENT_TAGS,
+  "High Priority",
+  "Low Priority",
+  "At Risk",
+  "New Client",
+  "Long-Term Client",
+  "Overdue",
+  "Follow Up",
 ];
 
 /* =========================================================
@@ -127,7 +2129,7 @@ const AUTOMATION_ITEMS = [
     icon: "dashboard",
     title: "Enable client portal access",
     description:
-      "Let them view & pay invoices online at portal.autobillr.io",
+      "Let them view and pay invoices online",
   },
   {
     key: "welcomeEmail",
@@ -179,7 +2181,6 @@ const DUMMY_DOMAINS = [
 
 const isDummyEmail = (email) => {
   const clean = email.trim().toLowerCase();
-
   const domain = clean.split("@")[1];
 
   if (!domain) return true;
@@ -218,11 +2219,7 @@ const isDummyPhone = (phone) => {
     "0987654321",
   ];
 
-  if (obvious.includes(digits)) {
-    return true;
-  }
-
-  return false;
+  return obvious.includes(digits);
 };
 
 /* =========================================================
@@ -236,7 +2233,6 @@ const getInitialFormData = () => ({
 
   countryCode: "+91",
   phone: "",
-
   website: "",
 
   industry: INDUSTRIES[0],
@@ -250,14 +2246,14 @@ const getInitialFormData = () => ({
   country: "India",
 
   taxId: "",
-
   notes: "",
 
   automation: {
     ...DEFAULT_AUTOMATION,
   },
 
-  selectedTags: [],
+  // Default tags appear automatically for new clients.
+  selectedTags: [...DEFAULT_CLIENT_TAGS],
 });
 
 /* =========================================================
@@ -272,29 +2268,28 @@ const asString = (value, fallback = "") =>
     : String(value);
 
 const normalizeTags = (tags) => {
-  if (Array.isArray(tags)) {
-    return [
-      ...new Set(
-        tags
-          .map((tag) => asString(tag).trim())
-          .filter(Boolean)
-      ),
-    ];
-  }
+  let values = tags;
 
-  if (typeof tags === "string") {
+  if (typeof values === "string") {
     try {
-      const parsed = JSON.parse(tags);
-
-      return Array.isArray(parsed)
-        ? normalizeTags(parsed)
-        : [];
+      values = JSON.parse(values);
     } catch {
-      return [];
+      // Support a comma-separated tags string too.
+      values = values.split(",");
     }
   }
 
-  return [];
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      values
+        .map((tag) => asString(tag).trim())
+        .filter(Boolean)
+    ),
+  ];
 };
 
 const getClientId = (client) =>
@@ -303,18 +2298,12 @@ const getClientId = (client) =>
 const getInitials = (companyName) => {
   const name = asString(companyName).trim();
 
-  if (!name) {
-    return "?";
-  }
+  if (!name) return "?";
 
-  const words = name
-    .split(/\s+/)
-    .filter(Boolean);
+  const words = name.split(/\s+/).filter(Boolean);
 
   if (words.length === 1) {
-    return words[0]
-      .slice(0, 2)
-      .toUpperCase();
+    return words[0].slice(0, 2).toUpperCase();
   }
 
   return words
@@ -335,7 +2324,7 @@ const normalizeClientToForm = (client) => {
     return defaults;
   }
 
-  let rawPhone = asString(client.phone).trim();
+  const rawPhone = asString(client.phone).trim();
 
   let extractedCode = "+91";
   let extractedNumber = rawPhone;
@@ -343,11 +2332,9 @@ const normalizeClientToForm = (client) => {
   for (const dial of COUNTRY_DIAL_CODES) {
     if (rawPhone.startsWith(dial.code)) {
       extractedCode = dial.code;
-
       extractedNumber = rawPhone
         .slice(dial.code.length)
         .trim();
-
       break;
     }
   }
@@ -356,22 +2343,13 @@ const normalizeClientToForm = (client) => {
     ...defaults,
 
     companyName: asString(client.name),
-
-    contactName: asString(
-      client.contactName
-    ),
-
-    contactEmail: asString(
-      client.email
-    ),
+    contactName: asString(client.contactName),
+    contactEmail: asString(client.email),
 
     countryCode: extractedCode,
-
     phone: extractedNumber,
 
-    website: asString(
-      client.website
-    ),
+    website: asString(client.website),
 
     industry: asString(
       client.industry,
@@ -388,21 +2366,10 @@ const normalizeClientToForm = (client) => {
       defaults.selectedColor
     ),
 
-    /* Address */
-
-    billingAddress: asString(
-      client.billingAddress
-    ),
-
+    billingAddress: asString(client.billingAddress),
     city: asString(client.city),
-
-    stateRegion: asString(
-      client.stateRegion
-    ),
-
-    postalCode: asString(
-      client.postalCode
-    ),
+    stateRegion: asString(client.stateRegion),
+    postalCode: asString(client.postalCode),
 
     country: asString(
       client.country,
@@ -410,40 +2377,29 @@ const normalizeClientToForm = (client) => {
     ),
 
     taxId: asString(client.taxId),
-
-    /* Notes */
-
     notes: asString(client.notes),
-
-    /* Automation */
 
     automation: {
       autoCharge: Boolean(
         client.autoCharge ??
           defaults.automation.autoCharge
       ),
-
       reminders: Boolean(
         client.reminders ??
           defaults.automation.reminders
       ),
-
       portalAccess: Boolean(
         client.portalAccess ??
           defaults.automation.portalAccess
       ),
-
       welcomeEmail: Boolean(
         client.welcomeEmail ??
           defaults.automation.welcomeEmail
       ),
     },
 
-    /* Tags */
-
-    selectedTags: normalizeTags(
-      client.tags
-    ),
+    // Preserve saved tags when editing an existing client.
+    selectedTags: normalizeTags(client.tags),
   };
 };
 
@@ -458,45 +2414,6 @@ const getApiErrorMessage = (error) =>
   "Unable to save the client. Please try again.";
 
 /* =========================================================
-   SELECT FIELD
-========================================================= */
-
-const SelectField = ({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-}) => (
-  <div>
-    <label
-      htmlFor={id}
-      className={labelClass}
-    >
-      {label}
-    </label>
-
-    <select
-      id={id}
-      value={value}
-      onChange={(event) =>
-        onChange(event.target.value)
-      }
-      className={selectClassName}
-    >
-      {options.map((option) => (
-        <option
-          key={option.value}
-          value={option.value}
-        >
-          {option.label}
-        </option>
-      ))}
-    </select>
-  </div>
-);
-
-/* =========================================================
    COMPONENT
 ========================================================= */
 
@@ -505,110 +2422,76 @@ const ClientFormDrawer = ({
   onClose,
   client = null,
 }) => {
-  const { addNotification } =
-    useNotificationStore();
+  const { addNotification } = useNotificationStore();
 
   const isEditing = Boolean(client);
-
   const clientId = getClientId(client);
 
   const [step, setStep] = useState(1);
-
-  const [formData, setFormData] =
-    useState(getInitialFormData);
-
-  const [isSubmitting, setIsSubmitting] =
-    useState(false);
+  const [formData, setFormData] = useState(getInitialFormData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* =======================================================
      FORM UPDATE
   ======================================================= */
 
-  const updateForm = useCallback(
-    (key, value) => {
-      setFormData((previous) => ({
-        ...previous,
-        [key]: value,
-      }));
-    },
-    []
-  );
+  const updateForm = useCallback((key, value) => {
+    setFormData((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  }, []);
 
   /* =======================================================
      AUTOMATION
   ======================================================= */
 
-  const updateAutomation = useCallback(
-    (key) => {
-      setFormData((previous) => ({
-        ...previous,
-
-        automation: {
-          ...previous.automation,
-
-          [key]: !Boolean(
-            previous.automation?.[key]
-          ),
-        },
-      }));
-    },
-    []
-  );
+  const updateAutomation = useCallback((key) => {
+    setFormData((previous) => ({
+      ...previous,
+      automation: {
+        ...previous.automation,
+        [key]: !Boolean(previous.automation?.[key]),
+      },
+    }));
+  }, []);
 
   /* =======================================================
-     TAGS
+     TAGS: ADD / REMOVE
   ======================================================= */
 
-  const toggleTag = useCallback(
-    (tag) => {
-      setFormData((previous) => {
-        const currentTags =
-          normalizeTags(
-            previous.selectedTags
-          );
+  const toggleTag = useCallback((tag) => {
+    setFormData((previous) => {
+      const currentTags = normalizeTags(
+        previous.selectedTags
+      );
 
-        const exists =
-          currentTags.includes(tag);
+      const exists = currentTags.includes(tag);
 
-        return {
-          ...previous,
-
-          selectedTags: exists
-            ? currentTags.filter(
-                (item) => item !== tag
-              )
-            : [...currentTags, tag],
-        };
-      });
-    },
-    []
-  );
-
-  const removeTag = useCallback(
-    (tag) => {
-      setFormData((previous) => ({
+      return {
         ...previous,
+        selectedTags: exists
+          ? currentTags.filter((item) => item !== tag)
+          : [...currentTags, tag],
+      };
+    });
+  }, []);
 
-        selectedTags:
-          normalizeTags(
-            previous.selectedTags
-          ).filter(
-            (item) => item !== tag
-          ),
-      }));
-    },
-    []
-  );
+  const removeTag = useCallback((tag) => {
+    setFormData((previous) => ({
+      ...previous,
+      selectedTags: normalizeTags(
+        previous.selectedTags
+      ).filter((item) => item !== tag),
+    }));
+  }, []);
 
   /* =======================================================
      RESET
   ======================================================= */
 
   const resetForm = useCallback(() => {
-    setFormData(
-      getInitialFormData()
-    );
-
+    setFormData(getInitialFormData());
     setStep(1);
   }, []);
 
@@ -617,14 +2500,9 @@ const ClientFormDrawer = ({
   ======================================================= */
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
+    if (!isOpen) return;
 
-    setFormData(
-      normalizeClientToForm(client)
-    );
-
+    setFormData(normalizeClientToForm(client));
     setStep(1);
   }, [isOpen, client]);
 
@@ -634,33 +2512,18 @@ const ClientFormDrawer = ({
 
   const validateStep = useCallback(
     (targetStep = step) => {
-      const companyName =
-        formData.companyName.trim();
-
-      const contactEmail =
-        formData.contactEmail.trim();
-
-      const phone =
-        formData.phone.trim();
-
-      /* ---------------------------------------------------
-         STEP 1
-      --------------------------------------------------- */
+      const companyName = formData.companyName.trim();
+      const contactEmail = formData.contactEmail.trim();
+      const phone = formData.phone.trim();
 
       if (targetStep === 1) {
         if (!companyName) {
-          showErrorToast(
-            "Company name is required"
-          );
-
+          showErrorToast("Company name is required");
           return false;
         }
 
         if (!contactEmail) {
-          showErrorToast(
-            "Contact email is required"
-          );
-
+          showErrorToast("Contact email is required");
           return false;
         }
 
@@ -672,7 +2535,6 @@ const ClientFormDrawer = ({
           showErrorToast(
             "Please enter a valid email address"
           );
-
           return false;
         }
 
@@ -680,24 +2542,18 @@ const ClientFormDrawer = ({
           showErrorToast(
             "Dummy emails (@example, @test, etc.) are not allowed"
           );
-
           return false;
         }
 
-        if (
-          phone &&
-          isDummyPhone(phone)
-        ) {
+        if (phone && isDummyPhone(phone)) {
           showErrorToast(
             "Please enter a valid phone number (dummy numbers not allowed)"
           );
-
           return false;
         }
 
         if (formData.website.trim()) {
-          const website =
-            formData.website.trim();
+          const website = formData.website.trim();
 
           if (
             !/^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i.test(
@@ -707,25 +2563,14 @@ const ClientFormDrawer = ({
             showErrorToast(
               "Please enter a valid website URL"
             );
-
             return false;
           }
         }
       }
 
-      /* ---------------------------------------------------
-         STEP 2
-      --------------------------------------------------- */
-
       if (targetStep === 2) {
-        if (
-          formData.postalCode.trim()
-            .length > 20
-        ) {
-          showErrorToast(
-            "Postal code is too long"
-          );
-
+        if (formData.postalCode.trim().length > 20) {
+          showErrorToast("Postal code is too long");
           return false;
         }
       }
@@ -736,30 +2581,19 @@ const ClientFormDrawer = ({
   );
 
   /* =======================================================
-     CONTINUE
+     CONTINUE / BACK
   ======================================================= */
 
   const handleContinue = useCallback(() => {
-    if (!validateStep(step)) {
-      return;
-    }
+    if (!validateStep(step)) return;
 
     setStep((current) =>
-      Math.min(
-        current + 1,
-        STEPS.length
-      )
+      Math.min(current + 1, STEPS.length)
     );
   }, [step, validateStep]);
 
-  /* =======================================================
-     BACK
-  ======================================================= */
-
   const handleBack = useCallback(() => {
-    setStep((current) =>
-      Math.max(current - 1, 1)
-    );
+    setStep((current) => Math.max(current - 1, 1));
   }, []);
 
   /* =======================================================
@@ -767,102 +2601,44 @@ const ClientFormDrawer = ({
   ======================================================= */
 
   const buildPayload = useCallback(() => {
-    const companyName =
-      formData.companyName.trim();
-
-    const rawPhone =
-      formData.phone.trim();
+    const companyName = formData.companyName.trim();
+    const rawPhone = formData.phone.trim();
 
     const formattedPhone = rawPhone
       ? `${formData.countryCode} ${rawPhone}`
       : "";
 
     return {
-      /* Basic */
-
-      initials:
-        getInitials(companyName),
-
+      initials: getInitials(companyName),
       name: companyName,
 
-      contactName:
-        formData.contactName.trim() ||
-        null,
+      contactName: formData.contactName.trim() || null,
+      email: formData.contactEmail.trim() || null,
+      phone: formattedPhone || null,
+      website: formData.website.trim() || null,
 
-      email:
-        formData.contactEmail.trim() ||
-        null,
-
-      phone:
-        formattedPhone || null,
-
-      website:
-        formData.website.trim() ||
-        null,
-
-      industry:
-        formData.industry || null,
-
-      tier:
-        formData.selectedTier || null,
-
-      color:
-        formData.selectedColor || null,
-
-      /* Address */
+      industry: formData.industry || null,
+      tier: formData.selectedTier || null,
+      color: formData.selectedColor || null,
 
       billingAddress:
-        formData.billingAddress.trim() ||
-        null,
+        formData.billingAddress.trim() || null,
+      city: formData.city.trim() || null,
+      stateRegion: formData.stateRegion.trim() || null,
+      postalCode: formData.postalCode.trim() || null,
+      country: formData.country || null,
 
-      city:
-        formData.city.trim() ||
-        null,
+      taxId: formData.taxId.trim() || null,
 
-      stateRegion:
-        formData.stateRegion.trim() ||
-        null,
+      autoCharge: Boolean(formData.automation?.autoCharge),
+      reminders: Boolean(formData.automation?.reminders),
+      portalAccess: Boolean(formData.automation?.portalAccess),
+      welcomeEmail: Boolean(formData.automation?.welcomeEmail),
 
-      postalCode:
-        formData.postalCode.trim() ||
-        null,
+      notes: formData.notes.trim() || null,
 
-      country:
-        formData.country || null,
-
-      /* Tax */
-
-      taxId:
-        formData.taxId.trim() ||
-        null,
-
-      /* Automation */
-
-      autoCharge: Boolean(
-        formData.automation?.autoCharge
-      ),
-
-      reminders: Boolean(
-        formData.automation?.reminders
-      ),
-
-      portalAccess: Boolean(
-        formData.automation?.portalAccess
-      ),
-
-      welcomeEmail: Boolean(
-        formData.automation?.welcomeEmail
-      ),
-
-      /* Extra */
-
-      notes:
-        formData.notes.trim() ||
-        null,
-
-      tags: normalizeTags(
-        formData.selectedTags
-      ),
+      // Send selected tags to the API.
+      tags: normalizeTags(formData.selectedTags),
     };
   }, [formData]);
 
@@ -870,172 +2646,103 @@ const ClientFormDrawer = ({
      SUBMIT
   ======================================================= */
 
-  const handleSubmit = useCallback(
-    async () => {
-      if (isSubmitting) {
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitting) return;
+
+    for (const currentStep of STEPS.map((item) => item.id)) {
+      if (!validateStep(currentStep)) {
+        setStep(currentStep);
         return;
       }
+    }
 
-      /* Validate every step */
+    if (isEditing && !clientId) {
+      showErrorToast("Client ID is missing");
+      return;
+    }
 
-      for (const currentStep of STEPS.map(
-        (item) => item.id
-      )) {
-        if (
-          !validateStep(currentStep)
-        ) {
-          setStep(currentStep);
+    setIsSubmitting(true);
 
-          return;
-        }
+    try {
+      const payload = buildPayload();
+      const companyName = payload.name;
+
+      if (isEditing) {
+        await updateClient(clientId, payload);
+
+        showSuccessToast("Client Updated", companyName);
+
+        addNotification({
+          type: "client",
+          icon: "edit",
+          title: "Client Updated",
+          description: `${companyName} was updated successfully`,
+        });
+      } else {
+        const createdClient = await createClient(payload);
+        const createdId = getClientId(createdClient);
+
+        showSuccessToast("Client Created", companyName);
+
+        addNotification({
+          type: "client",
+          icon: "person_add",
+          title: "New Client Added",
+          description: `${companyName} has been successfully created`,
+        });
+
+        window.dispatchEvent(
+          new CustomEvent("client-updated", {
+            detail: {
+              client: {
+                id: createdId,
+                name: companyName,
+              },
+            },
+          })
+        );
       }
 
-      /* Editing requires ID */
-
-      if (isEditing && !clientId) {
-        showErrorToast(
-          "Client ID is missing"
+      if (isEditing) {
+        window.dispatchEvent(
+          new CustomEvent("client-updated", {
+            detail: {
+              client: {
+                id: clientId,
+                name: companyName,
+              },
+            },
+          })
         );
-
-        return;
       }
 
-      setIsSubmitting(true);
-
-      try {
-        const payload =
-          buildPayload();
-
-        const companyName =
-          payload.name;
-
-        /* -------------------------------------------------
-           UPDATE
-        ------------------------------------------------- */
-
-        if (isEditing) {
-          await updateClient(
-            clientId,
-            payload
-          );
-
-          showSuccessToast(
-            "Client Updated",
-            companyName
-          );
-
-          addNotification({
-            type: "client",
-            icon: "edit",
-            title: "Client Updated",
-            description: `${companyName} was updated successfully`,
-          });
-        }
-
-        /* -------------------------------------------------
-           CREATE
-        ------------------------------------------------- */
-
-        else {
-          const createdClient =
-            await createClient(
-              payload
-            );
-
-          const createdId =
-            getClientId(
-              createdClient
-            );
-
-          showSuccessToast(
-            "Client Created",
-            companyName
-          );
-
-          addNotification({
-            type: "client",
-            icon: "person_add",
-            title: "New Client Added",
-            description: `${companyName} has been successfully created`,
-          });
-
-          window.dispatchEvent(
-            new CustomEvent(
-              "client-updated",
-              {
-                detail: {
-                  client: {
-                    id:
-                      createdId,
-                    name:
-                      companyName,
-                  },
-                },
-              }
-            )
-          );
-        }
-
-        /* -------------------------------------------------
-           UPDATE EVENT
-        ------------------------------------------------- */
-
-        if (isEditing) {
-          window.dispatchEvent(
-            new CustomEvent(
-              "client-updated",
-              {
-                detail: {
-                  client: {
-                    id: clientId,
-                    name: companyName,
-                  },
-                },
-              }
-            )
-          );
-        }
-
-        resetForm();
-
-        onClose();
-      } catch (error) {
-        console.error(
-          "Client save error:",
-          error
-        );
-
-        showErrorToast(
-          getApiErrorMessage(error)
-        );
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [
-      addNotification,
-      buildPayload,
-      clientId,
-      isEditing,
-      isSubmitting,
-      onClose,
-      resetForm,
-      validateStep,
-    ]
-  );
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error("Client save error:", error);
+      showErrorToast(getApiErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    addNotification,
+    buildPayload,
+    clientId,
+    isEditing,
+    isSubmitting,
+    onClose,
+    resetForm,
+    validateStep,
+  ]);
 
   /* =======================================================
      PREVIEW
   ======================================================= */
 
-  const previewInitials =
-    useMemo(
-      () =>
-        getInitials(
-          formData.companyName
-        ),
-      [formData.companyName]
-    );
+  const previewInitials = useMemo(
+    () => getInitials(formData.companyName),
+    [formData.companyName]
+  );
 
   /* =======================================================
      FOOTER
@@ -1054,6 +2761,7 @@ const ClientFormDrawer = ({
 
       {step > 1 && (
         <Button
+          type="button"
           variant="secondary"
           onClick={handleBack}
           disabled={isSubmitting}
@@ -1068,18 +2776,13 @@ const ClientFormDrawer = ({
       )}
 
       <Button
-        onClick={
-          step === 3
-            ? handleSubmit
-            : handleContinue
-        }
+        type="button"
+        onClick={step === 3 ? handleSubmit : handleContinue}
         disabled={isSubmitting}
         icon={
           <span
             className={`material-symbols-outlined text-sm ${
-              isSubmitting
-                ? "animate-spin"
-                : ""
+              isSubmitting ? "animate-spin" : ""
             }`}
           >
             {isSubmitting
@@ -1110,118 +2813,77 @@ const ClientFormDrawer = ({
   return (
     <RightDrawer
       isOpen={isOpen}
-      onClose={
-        isSubmitting
-          ? undefined
-          : onClose
-      }
-      title={
-        isEditing
-          ? "Edit Client"
-          : "New Client"
-      }
-      icon={
-        isEditing
-          ? "edit"
-          : "person_add"
-      }
+      onClose={isSubmitting ? undefined : onClose}
+      title={isEditing ? "Edit Client" : "New Client"}
+      icon={isEditing ? "edit" : "person_add"}
       width="max-w-2xl"
       footer={footer}
     >
       <div className="space-y-6">
-
-        {/* =================================================
-            STEPPER
-        ================================================= */}
+        {/* STEPPER */}
 
         <nav
           aria-label="Client form progress"
           className="mb-6 flex items-center gap-2 border-b border-border-light pb-5"
         >
-          {STEPS.map(
-            (
-              currentStep,
-              index
-            ) => {
-              const isComplete =
-                step >
-                currentStep.id;
+          {STEPS.map((currentStep, index) => {
+            const isComplete = step > currentStep.id;
+            const isCurrent = step === currentStep.id;
 
-              const isCurrent =
-                step ===
-                currentStep.id;
-
-              return (
-                <React.Fragment
-                  key={
-                    currentStep.id
-                  }
+            return (
+              <React.Fragment key={currentStep.id}>
+                <div
+                  className={`flex items-center gap-2 ${
+                    step >= currentStep.id
+                      ? "text-primary"
+                      : "text-text-light"
+                  }`}
+                  aria-current={isCurrent ? "step" : undefined}
                 >
                   <div
-                    className={`flex items-center gap-2 ${
-                      step >=
-                      currentStep.id
-                        ? "text-primary"
-                        : "text-text-light"
-                    }`}
-                    aria-current={
-                      isCurrent
-                        ? "step"
-                        : undefined
-                    }
-                  >
-                    <div
-                      className={`
-                        grid h-7 w-7 shrink-0 place-items-center
-                        rounded-full text-xs font-bold
-                        transition-all duration-fast
-                        ${
-                          isComplete
-                            ? "bg-primary text-text-inverse"
-                            : isCurrent
-                            ? "bg-primary text-text-inverse ring-4 ring-primary/15"
-                            : "bg-surface-secondary text-text-muted"
-                        }
-                      `}
-                    >
-                      {isComplete ? (
-                        <span className="material-symbols-outlined text-sm">
-                          check
-                        </span>
-                      ) : (
-                        currentStep.id
-                      )}
-                    </div>
-
-                    <span className="text-[12.5px] font-semibold">
-                      {
-                        currentStep.label
+                    className={`
+                      grid h-7 w-7 shrink-0 place-items-center
+                      rounded-full text-xs font-bold
+                      transition-all duration-fast
+                      ${
+                        isComplete
+                          ? "bg-primary text-text-inverse"
+                          : isCurrent
+                          ? "bg-primary text-text-inverse ring-4 ring-primary/15"
+                          : "bg-surface-secondary text-text-muted"
                       }
-                    </span>
+                    `}
+                  >
+                    {isComplete ? (
+                      <span className="material-symbols-outlined text-sm">
+                        check
+                      </span>
+                    ) : (
+                      currentStep.id
+                    )}
                   </div>
 
-                  {index <
-                    STEPS.length -
-                      1 && (
-                    <div
-                      aria-hidden
-                      className={`h-px flex-1 ${
-                        step >
-                        currentStep.id
-                          ? "bg-primary"
-                          : "bg-border"
-                      }`}
-                    />
-                  )}
-                </React.Fragment>
-              );
-            }
-          )}
+                  <span className="text-[12.5px] font-semibold">
+                    {currentStep.label}
+                  </span>
+                </div>
+
+                {index < STEPS.length - 1 && (
+                  <div
+                    aria-hidden
+                    className={`h-px flex-1 ${
+                      step > currentStep.id
+                        ? "bg-primary"
+                        : "bg-border"
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
         </nav>
 
-        {/* =================================================
-            LIVE PREVIEW
-        ================================================= */}
+        {/* LIVE PREVIEW */}
 
         <Card
           bordered
@@ -1232,10 +2894,7 @@ const ClientFormDrawer = ({
             className={`
               grid h-12 w-12 shrink-0 place-items-center
               rounded-xl text-sm font-bold text-text-inverse
-              ${
-                formData.selectedColor ||
-                COLORS[0]
-              }
+              ${formData.selectedColor || COLORS[0]}
             `}
             aria-hidden
           >
@@ -1244,41 +2903,24 @@ const ClientFormDrawer = ({
 
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold text-text">
-              {formData.companyName ||
-                "Unnamed client"}
+              {formData.companyName || "Unnamed client"}
             </div>
 
             <div className="truncate text-[11.5px] text-text-muted">
-              {formData.contactEmail ||
-                "No email"}{" "}
-              ·{" "}
-              {formData.selectedTier ||
-                TIERS[0]}
+              {formData.contactEmail || "No email"} ·{" "}
+              {formData.selectedTier || TIERS[0]}
             </div>
           </div>
 
-          <Badge
-            label="Preview"
-            variant="active"
-          />
+          <Badge label="Preview" variant="active" />
         </Card>
 
-        {/* =================================================
-            STEP 1
-        ================================================= */}
+        {/* STEP 1: CONTACT */}
 
         {step === 1 && (
           <div className="space-y-6">
-
-            {/* Company */}
-
             <section aria-labelledby="company-section">
-              <h4
-                id="company-section"
-                className={
-                  sectionTitleClass
-                }
-              >
+              <h4 id="company-section" className={sectionTitleClass}>
                 Company
               </h4>
 
@@ -1286,14 +2928,9 @@ const ClientFormDrawer = ({
                 <FormInput
                   label="Company Name"
                   icon="business"
-                  value={
-                    formData.companyName
-                  }
+                  value={formData.companyName}
                   onChange={(event) =>
-                    updateForm(
-                      "companyName",
-                      event.target.value
-                    )
+                    updateForm("companyName", event.target.value)
                   }
                   placeholder="Acme Dynamics Corp"
                   required
@@ -1303,122 +2940,74 @@ const ClientFormDrawer = ({
                   <FormInput
                     label="Website"
                     icon="language"
-                    value={
-                      formData.website
-                    }
+                    value={formData.website}
                     onChange={(event) =>
-                      updateForm(
-                        "website",
-                        event.target.value
-                      )
+                      updateForm("website", event.target.value)
                     }
                     placeholder="https://company.com"
                     type="text"
                   />
 
                   <div>
-                    <label
-                      htmlFor="client-industry"
-                      className={
-                        labelClass
-                      }
-                    >
+                    <label htmlFor="client-industry" className={labelClass}>
                       Industry
                     </label>
 
                     <select
                       id="client-industry"
-                      value={
-                        formData.industry
-                      }
+                      value={formData.industry}
                       onChange={(event) =>
-                        updateForm(
-                          "industry",
-                          event.target.value
-                        )
+                        updateForm("industry", event.target.value)
                       }
-                      className={
-                        selectClassName
-                      }
+                      className={selectClassName}
                     >
-                      {INDUSTRIES.map(
-                        (industry) => (
-                          <option
-                            key={
-                              industry
-                            }
-                            value={
-                              industry
-                            }
-                          >
-                            {industry}
-                          </option>
-                        )
-                      )}
+                      {INDUSTRIES.map((industry) => (
+                        <option key={industry} value={industry}>
+                          {industry}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label
-                    className={labelClass}
-                  >
-                    Account Tier
-                  </label>
+                  <label className={labelClass}>Account Tier</label>
 
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    {TIERS.map(
-                      (tier) => {
-                        const selected =
-                          formData.selectedTier ===
-                          tier;
+                    {TIERS.map((tier) => {
+                      const selected = formData.selectedTier === tier;
 
-                        return (
-                          <button
-                            key={tier}
-                            type="button"
-                            aria-pressed={
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => updateForm("selectedTier", tier)}
+                          className={`
+                            rounded-lg border-2 px-3 py-2.5
+                            text-[12.5px] font-bold
+                            transition-colors duration-fast
+                            ${
                               selected
+                                ? "border-primary/30 bg-primary-soft text-primary-dark"
+                                : "border-border bg-surface text-text-secondary hover:border-border-dark"
                             }
-                            onClick={() =>
-                              updateForm(
-                                "selectedTier",
-                                tier
-                              )
-                            }
-                            className={`
-                              rounded-lg border-2 px-3 py-2.5
-                              text-[12.5px] font-bold
-                              transition-colors duration-fast
-                              ${
-                                selected
-                                  ? "border-primary/30 bg-primary-soft text-primary-dark"
-                                  : "border-border bg-surface text-text-secondary hover:border-border-dark"
-                              }
-                            `}
-                          >
-                            {tier}
-                          </button>
-                        );
-                      }
-                    )}
+                          `}
+                        >
+                          {tier}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Contact */}
-
             <section
               aria-labelledby="contact-section"
               className="border-t border-border-light pt-5"
             >
-              <h4
-                id="contact-section"
-                className={
-                  sectionTitleClass
-                }
-              >
+              <h4 id="contact-section" className={sectionTitleClass}>
                 Primary Contact
               </h4>
 
@@ -1426,66 +3015,37 @@ const ClientFormDrawer = ({
                 <FormInput
                   label="Contact Name"
                   icon="person"
-                  value={
-                    formData.contactName
-                  }
+                  value={formData.contactName}
                   onChange={(event) =>
-                    updateForm(
-                      "contactName",
-                      event.target.value
-                    )
+                    updateForm("contactName", event.target.value)
                   }
                   placeholder="Sarah Jenkins"
                 />
 
                 <div>
-                  <label
-                    className={labelClass}
-                  >
-                    Phone Number
-                  </label>
+                  <label className={labelClass}>Phone Number</label>
 
                   <div className="flex gap-2">
                     <select
-                      value={
-                        formData.countryCode
-                      }
+                      aria-label="Country dial code"
+                      value={formData.countryCode}
                       onChange={(event) =>
-                        updateForm(
-                          "countryCode",
-                          event.target.value
-                        )
+                        updateForm("countryCode", event.target.value)
                       }
                       className="w-[120px] shrink-0 rounded-lg border border-border bg-[var(--input-background)] px-2 py-2 text-xs font-semibold text-text outline-none focus:border-primary"
                     >
-                      {COUNTRY_DIAL_CODES.map(
-                        (dial) => (
-                          <option
-                            key={
-                              dial.code
-                            }
-                            value={
-                              dial.code
-                            }
-                          >
-                            {dial.label}
-                          </option>
-                        )
-                      )}
+                      {COUNTRY_DIAL_CODES.map((dial) => (
+                        <option key={dial.code} value={dial.code}>
+                          {dial.label}
+                        </option>
+                      ))}
                     </select>
 
                     <div className="flex-1">
                       <FormInput
-                        value={
-                          formData.phone
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          updateForm(
-                            "phone",
-                            event.target.value
-                          )
+                        value={formData.phone}
+                        onChange={(event) =>
+                          updateForm("phone", event.target.value)
                         }
                         placeholder="9876543210"
                         type="tel"
@@ -1500,14 +3060,9 @@ const ClientFormDrawer = ({
                   label="Contact Email"
                   icon="mail"
                   type="email"
-                  value={
-                    formData.contactEmail
-                  }
+                  value={formData.contactEmail}
                   onChange={(event) =>
-                    updateForm(
-                      "contactEmail",
-                      event.target.value
-                    )
+                    updateForm("contactEmail", event.target.value)
                   }
                   placeholder="billing@company.com"
                   required
@@ -1515,89 +3070,56 @@ const ClientFormDrawer = ({
               </div>
             </section>
 
-            {/* Color */}
-
             <section
               aria-labelledby="color-section"
               className="border-t border-border-light pt-5"
             >
-              <label
-                className={labelClass}
-              >
-                Color Tag
-              </label>
+              <label className={labelClass}>Color Tag</label>
 
               <div className="flex flex-wrap gap-2">
-                {COLORS.map(
-                  (color) => {
-                    const selected =
-                      formData.selectedColor ===
-                      color;
+                {COLORS.map((color) => {
+                  const selected = formData.selectedColor === color;
 
-                    return (
-                      <button
-                        key={color}
-                        type="button"
-                        aria-label={`Select ${color.replace(
-                          "bg-",
-                          ""
-                        )} color`}
-                        aria-pressed={
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Select ${color.replace("bg-", "")} color`}
+                      aria-pressed={selected}
+                      onClick={() => updateForm("selectedColor", color)}
+                      className={`
+                        h-9 w-9 rounded-lg
+                        transition-transform duration-fast hover:scale-105
+                        ${
                           selected
+                            ? "scale-110 ring-2 ring-text ring-offset-2"
+                            : ""
                         }
-                        onClick={() =>
-                          updateForm(
-                            "selectedColor",
-                            color
-                          )
-                        }
-                        className={`
-                          h-9 w-9 rounded-lg
-                          transition-transform duration-fast hover:scale-105
-                          ${
-                            selected
-                              ? "scale-110 ring-2 ring-text ring-offset-2"
-                              : ""
-                          }
-                          ${color}
-                        `}
-                      />
-                    );
-                  }
-                )}
+                        ${color}
+                      `}
+                    />
+                  );
+                })}
               </div>
             </section>
           </div>
         )}
 
-        {/* =================================================
-            STEP 2
-        ================================================= */}
+        {/* STEP 2: ADDRESS */}
 
         {step === 2 && (
           <div className="space-y-5">
-
             <section aria-labelledby="billing-section">
-              <h4
-                id="billing-section"
-                className={
-                  sectionTitleClass
-                }
-              >
+              <h4 id="billing-section" className={sectionTitleClass}>
                 Billing Address
               </h4>
 
               <div className="space-y-3">
                 <FormInput
                   label="Street Address"
-                  value={
-                    formData.billingAddress
-                  }
+                  value={formData.billingAddress}
                   onChange={(event) =>
-                    updateForm(
-                      "billingAddress",
-                      event.target.value
-                    )
+                    updateForm("billingAddress", event.target.value)
                   }
                   autoComplete="street-address"
                 />
@@ -1605,42 +3127,27 @@ const ClientFormDrawer = ({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <FormInput
                     label="City"
-                    value={
-                      formData.city
-                    }
+                    value={formData.city}
                     onChange={(event) =>
-                      updateForm(
-                        "city",
-                        event.target.value
-                      )
+                      updateForm("city", event.target.value)
                     }
                     autoComplete="address-level2"
                   />
 
                   <FormInput
                     label="State / Region"
-                    value={
-                      formData.stateRegion
-                    }
+                    value={formData.stateRegion}
                     onChange={(event) =>
-                      updateForm(
-                        "stateRegion",
-                        event.target.value
-                      )
+                      updateForm("stateRegion", event.target.value)
                     }
                     autoComplete="address-level1"
                   />
 
                   <FormInput
                     label="Postal Code"
-                    value={
-                      formData.postalCode
-                    }
+                    value={formData.postalCode}
                     onChange={(event) =>
-                      updateForm(
-                        "postalCode",
-                        event.target.value
-                      )
+                      updateForm("postalCode", event.target.value)
                     }
                     autoComplete="postal-code"
                     inputMode="numeric"
@@ -1649,67 +3156,38 @@ const ClientFormDrawer = ({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label
-                      htmlFor="client-country"
-                      className={
-                        labelClass
-                      }
-                    >
+                    <label htmlFor="client-country" className={labelClass}>
                       Country
                     </label>
 
                     <select
                       id="client-country"
-                      value={
-                        formData.country
-                      }
+                      value={formData.country}
                       onChange={(event) =>
-                        updateForm(
-                          "country",
-                          event.target.value
-                        )
+                        updateForm("country", event.target.value)
                       }
                       autoComplete="country-name"
-                      className={
-                        selectClassName
-                      }
+                      className={selectClassName}
                     >
-                      {COUNTRIES.map(
-                        (country) => (
-                          <option
-                            key={
-                              country
-                            }
-                            value={
-                              country
-                            }
-                          >
-                            {country}
-                          </option>
-                        )
-                      )}
+                      {COUNTRIES.map((country) => (
+                        <option key={country} value={country}>
+                          {country}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <FormInput
                     label="Tax ID / VAT"
-                    value={
-                      formData.taxId
-                    }
+                    value={formData.taxId}
                     onChange={(event) =>
-                      updateForm(
-                        "taxId",
-                        event.target.value
-                      )
+                      updateForm("taxId", event.target.value)
                     }
                     placeholder="Optional"
                   />
                 </div>
               </div>
             </section>
-
-            {/* Payment intentionally removed.
-                Billing belongs to Project. */}
 
             <section
               aria-labelledby="payment-section"
@@ -1725,16 +3203,12 @@ const ClientFormDrawer = ({
 
                   <div>
                     <h4 className="text-[13px] font-bold text-text">
-                      Billing belongs to
-                      Projects
+                      Billing belongs to Projects
                     </h4>
 
                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-muted">
-                      MRR, billing cycle,
-                      payment terms,
-                      payment method and
-                      invoice scheduling are
-                      managed at the Project
+                      MRR, billing cycle, payment terms, payment method
+                      and invoice scheduling are managed at the Project
                       level.
                     </p>
                   </div>
@@ -1744,160 +3218,102 @@ const ClientFormDrawer = ({
           </div>
         )}
 
-        {/* =================================================
-            STEP 3
-        ================================================= */}
+        {/* STEP 3: PREFERENCES */}
 
         {step === 3 && (
           <section className="space-y-5">
+            {/* AUTOMATION */}
 
-            {/* Automation */}
-
-            <section
-              aria-labelledby="automation-section"
-            >
-              <h4
-                id="automation-section"
-                className={
-                  sectionTitleClass
-                }
-              >
+            <section aria-labelledby="automation-section">
+              <h4 id="automation-section" className={sectionTitleClass}>
                 Automation
               </h4>
 
               <div className="space-y-3">
-                {AUTOMATION_ITEMS.map(
-                  (item) => {
-                    const enabled =
-                      Boolean(
-                        formData.automation?.[
-                          item.key
-                        ]
-                      );
+                {AUTOMATION_ITEMS.map((item) => {
+                  const enabled = Boolean(
+                    formData.automation?.[item.key]
+                  );
 
-                    return (
-                      <div
-                        key={item.key}
-                        className="
-                          flex items-center justify-between gap-4
-                          rounded-lg border border-border-light
-                          bg-surface-secondary p-3
-                        "
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
-                            <span className="material-symbols-outlined text-[18px]">
-                              {item.icon}
-                            </span>
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-bold text-text">
-                              {item.title}
-                            </div>
-
-                            <div className="leading-tight text-[11.5px] text-text-muted">
-                              {
-                                item.description
-                              }
-                            </div>
-                          </div>
+                  return (
+                    <div
+                      key={item.key}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-border-light bg-surface-secondary p-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+                          <span className="material-symbols-outlined text-[18px]">
+                            {item.icon}
+                          </span>
                         </div>
 
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={
-                            enabled
-                          }
-                          aria-label={`Toggle ${item.title}`}
-                          onClick={() =>
-                            updateAutomation(
-                              item.key
-                            )
-                          }
-                          className={`
-                            relative h-6 w-11 shrink-0 rounded-full
-                            transition-colors duration-fast
-                            ${
-                              enabled
-                                ? "bg-primary"
-                                : "bg-border-dark"
-                            }
-                          `}
-                        >
-                          <span
-                            aria-hidden
-                            className={`
-                              absolute top-0.5 h-5 w-5 rounded-full
-                              bg-surface shadow-sm
-                              transition-all duration-fast
-                              ${
-                                enabled
-                                  ? "right-0.5"
-                                  : "left-0.5"
-                              }
-                            `}
-                          />
-                        </button>
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-bold text-text">
+                            {item.title}
+                          </div>
+
+                          <div className="leading-tight text-[11.5px] text-text-muted">
+                            {item.description}
+                          </div>
+                        </div>
                       </div>
-                    );
-                  }
-                )}
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={enabled}
+                        aria-label={`Toggle ${item.title}`}
+                        onClick={() => updateAutomation(item.key)}
+                        className={`
+                          relative h-6 w-11 shrink-0 rounded-full
+                          transition-colors duration-fast
+                          ${enabled ? "bg-primary" : "bg-border-dark"}
+                        `}
+                      >
+                        <span
+                          aria-hidden
+                          className={`
+                            absolute top-0.5 h-5 w-5 rounded-full
+                            bg-surface shadow-sm transition-all duration-fast
+                            ${enabled ? "right-0.5" : "left-0.5"}
+                          `}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
-            {/* Tags & Notes */}
+            {/* TAGS & NOTES */}
 
             <section
               aria-labelledby="tags-notes-section"
               className="border-t border-border-light pt-5"
             >
-              <h4
-                id="tags-notes-section"
-                className={
-                  sectionTitleClass
-                }
-              >
+              <h4 id="tags-notes-section" className={sectionTitleClass}>
                 Tags & Notes
               </h4>
 
-              <div className="mb-4">
-                <label
-                  className={labelClass}
-                >
-                  Tags
-                </label>
+              {/* SELECTED TAGS */}
+
+              <div className="mb-5">
+                <label className={labelClass}>Selected client tags</label>
 
                 <div className="flex flex-wrap gap-2">
-                  {normalizeTags(
-                    formData.selectedTags
-                  ).map((tag) => (
+                  {normalizeTags(formData.selectedTags).map((tag) => (
                     <span
                       key={tag}
-                      className="
-                        inline-flex items-center gap-1
-                        rounded-full bg-primary-soft
-                        px-2.5 py-1
-                        text-[11.5px] font-bold
-                        text-primary-dark
-                      "
+                      className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[11.5px] font-bold text-primary-dark"
                     >
                       {tag}
 
                       <button
                         type="button"
-                        onClick={() =>
-                          removeTag(tag)
-                        }
+                        onClick={() => removeTag(tag)}
                         aria-label={`Remove ${tag}`}
-                        className="
-                          rounded-full
-                          hover:text-primary
-                          focus:outline-none
-                          focus:ring-2
-                          focus:ring-primary/25
-                        "
+                        title={`Remove ${tag}`}
+                        className="rounded-full hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                       >
                         <span className="material-symbols-outlined text-[12px]">
                           close
@@ -1906,23 +3322,64 @@ const ClientFormDrawer = ({
                     </span>
                   ))}
 
-                  {normalizeTags(
-                    formData.selectedTags
-                  ).length === 0 && (
+                  {normalizeTags(formData.selectedTags).length === 0 && (
                     <span className="text-[11.5px] text-text-light">
-                      No tags added
+                      No tags selected. Choose a tag below.
                     </span>
                   )}
                 </div>
               </div>
 
+              {/* AVAILABLE TAGS */}
+
+              <div className="mb-5">
+                <label className={labelClass}>
+                  Add or remove tags
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_CLIENT_TAGS.map((tag) => {
+                    const selected =
+                      normalizeTags(formData.selectedTags).includes(tag);
+
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggleTag(tag)}
+                        className={`
+                          inline-flex items-center gap-1.5 rounded-full
+                          border px-3 py-1.5 text-[11.5px] font-semibold
+                          transition-colors duration-fast
+                          focus:outline-none focus:ring-2 focus:ring-primary/25
+                          ${
+                            selected
+                              ? "border-primary bg-primary text-text-inverse"
+                              : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"
+                          }
+                        `}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
+                          {selected ? "check_circle" : "add_circle"}
+                        </span>
+
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-2 text-[11px] text-text-muted">
+                  Selected tags are sent with the client when you save.
+                  Click a selected tag to remove it.
+                </p>
+              </div>
+
+              {/* NOTES */}
+
               <div>
-                <label
-                  htmlFor="client-notes"
-                  className={
-                    labelClass
-                  }
-                >
+                <label htmlFor="client-notes" className={labelClass}>
                   Internal notes
                 </label>
 
@@ -1932,31 +3389,14 @@ const ClientFormDrawer = ({
                   maxLength={2000}
                   value={formData.notes}
                   onChange={(event) =>
-                    updateForm(
-                      "notes",
-                      event.target.value
-                    )
+                    updateForm("notes", event.target.value)
                   }
                   placeholder="Add internal notes about this client..."
-                  className="
-                    w-full resize-none rounded-lg
-                    border border-border px-3.5 py-2.5
-                    text-sm
-                    bg-[var(--input-background)]
-                    text-text
-                    outline-none
-                    transition-colors duration-fast
-                    focus:border-primary
-                    focus:ring-2
-                    focus:ring-primary/15
-                  "
+                  className="w-full resize-none rounded-lg border border-border bg-[var(--input-background)] px-3.5 py-2.5 text-sm text-text outline-none transition-colors duration-fast focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
 
                 <div className="mt-1 text-right text-[10px] text-text-light">
-                  {
-                    formData.notes.length
-                  }
-                  /2000
+                  {formData.notes.length}/2000
                 </div>
               </div>
             </section>
@@ -1968,33 +3408,3 @@ const ClientFormDrawer = ({
 };
 
 export default ClientFormDrawer;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
