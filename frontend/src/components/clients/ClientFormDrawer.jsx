@@ -1998,7 +1998,6 @@
 
 
 
-
 import React, {
   useCallback,
   useEffect,
@@ -2019,6 +2018,7 @@ import {
 
 import Button from "../ui/Button";
 import FormInput from "../ui/FormInput";
+import Badge from "../ui/Badge";
 
 const STEPS = [
   { id: 1, label: "Contact" },
@@ -2029,27 +2029,27 @@ const STEPS = [
 const TIERS = ["Enterprise", "Mid-Market", "SMB", "Agency"];
 
 const CLIENT_TAGS = [
-  { label: "VIP", color: "bg-purple-100 text-purple-700 ring-purple-200" },
-  { label: "Regular", color: "bg-slate-100 text-slate-700 ring-slate-200" },
-  { label: "Premium", color: "bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200" },
-  { label: "Enterprise", color: "bg-indigo-100 text-indigo-700 ring-indigo-200" },
-  { label: "New Client", color: "bg-blue-100 text-blue-700 ring-blue-200" },
-  { label: "Loyal Client", color: "bg-green-100 text-green-700 ring-green-200" },
-  { label: "Important", color: "bg-red-100 text-red-700 ring-red-200" },
-  { label: "High Priority", color: "bg-orange-100 text-orange-700 ring-orange-200" },
-  { label: "Medium Priority", color: "bg-amber-100 text-amber-700 ring-amber-200" },
-  { label: "Low Priority", color: "bg-gray-100 text-gray-700 ring-gray-200" },
-  { label: "Active", color: "bg-emerald-100 text-emerald-700 ring-emerald-200" },
-  { label: "Inactive", color: "bg-zinc-100 text-zinc-700 ring-zinc-200" },
-  { label: "At Risk", color: "bg-rose-100 text-rose-700 ring-rose-200" },
-  { label: "Potential Client", color: "bg-teal-100 text-teal-700 ring-teal-200" },
-  { label: "Payment Pending", color: "bg-yellow-100 text-yellow-800 ring-yellow-200" },
-  { label: "Payment Overdue", color: "bg-red-100 text-red-700 ring-red-200" },
-  { label: "Paid Client", color: "bg-green-100 text-green-700 ring-green-200" },
-  { label: "Follow-up", color: "bg-cyan-100 text-cyan-700 ring-cyan-200" },
-  { label: "Needs Attention", color: "bg-pink-100 text-pink-700 ring-pink-200" },
-  { label: "Referral", color: "bg-lime-100 text-lime-800 ring-lime-200" },
-  { label: "Long-term Client", color: "bg-sky-100 text-sky-700 ring-sky-200" },
+  { label: "VIP" },
+  { label: "Regular" },
+  { label: "Premium" },
+  { label: "Enterprise" },
+  { label: "New Client" },
+  { label: "Loyal Client" },
+  { label: "Important" },
+  { label: "High Priority" },
+  { label: "Medium Priority" },
+  { label: "Low Priority" },
+  { label: "Active" },
+  { label: "Inactive" },
+  { label: "At Risk" },
+  { label: "Potential Client" },
+  { label: "Payment Pending" },
+  { label: "Payment Overdue" },
+  { label: "Paid Client" },
+  { label: "Follow-up" },
+  { label: "Needs Attention" },
+  { label: "Referral" },
+  { label: "Long-term Client" },
 ];
 
 const COLORS = [
@@ -2092,7 +2092,8 @@ const AUTOMATION_ITEMS = [
     key: "autoCharge",
     icon: "bolt",
     title: "Auto-charge on due date",
-    description: "Charge stored payment method without manual confirmation",
+    description:
+      "Charge stored payment method without manual confirmation",
   },
   {
     key: "reminders",
@@ -2148,7 +2149,9 @@ const isDummyEmail = (email) => {
   const clean = email.trim().toLowerCase();
   const domain = clean.split("@")[1];
 
-  if (!domain || DUMMY_DOMAINS.includes(domain)) return true;
+  if (!domain || DUMMY_DOMAINS.includes(domain)) {
+    return true;
+  }
 
   return (
     clean.startsWith("test@") ||
@@ -2161,8 +2164,13 @@ const isDummyEmail = (email) => {
 const isDummyPhone = (phone) => {
   const digits = phone.replace(/\D/g, "");
 
-  if (digits.length < 7 || digits.length > 15) return true;
-  if (/^(\d)\1+$/.test(digits)) return true;
+  if (digits.length < 7 || digits.length > 15) {
+    return true;
+  }
+
+  if (/^(\d)\1+$/.test(digits)) {
+    return true;
+  }
 
   return [
     "1234567890",
@@ -2190,7 +2198,9 @@ const getInitialFormData = () => ({
   taxId: "",
   notes: "",
   automation: { ...DEFAULT_AUTOMATION },
-  selectedTags: [],
+
+  // Regular is selected automatically for new clients.
+  selectedTags: ["Regular"],
 });
 
 const asString = (value, fallback = "") =>
@@ -2201,7 +2211,7 @@ const asString = (value, fallback = "") =>
       : String(value);
 
 /**
- * Accept tags stored as:
+ * Supports tags stored as:
  * ["VIP", "Regular"]
  * [{ label: "VIP" }, { label: "Regular" }]
  * '["VIP","Regular"]'
@@ -2218,13 +2228,17 @@ const normalizeTags = (tags) => {
     }
   }
 
-  if (!Array.isArray(parsedTags)) return [];
+  if (!Array.isArray(parsedTags)) {
+    return [];
+  }
 
   return [
     ...new Set(
       parsedTags
         .map((tag) => {
-          if (typeof tag === "string") return tag.trim();
+          if (typeof tag === "string") {
+            return tag.trim();
+          }
 
           if (tag && typeof tag.label === "string") {
             return tag.label.trim();
@@ -2237,7 +2251,8 @@ const normalizeTags = (tags) => {
   ];
 };
 
-const getClientId = (client) => client?.id ?? client?._id ?? null;
+const getClientId = (client) =>
+  client?.id ?? client?._id ?? null;
 
 const getInitials = (companyName) => {
   const words = asString(companyName)
@@ -2245,7 +2260,9 @@ const getInitials = (companyName) => {
     .split(/\s+/)
     .filter(Boolean);
 
-  if (!words.length) return "?";
+  if (!words.length) {
+    return "?";
+  }
 
   if (words.length === 1) {
     return words[0].slice(0, 2).toUpperCase();
@@ -2261,7 +2278,9 @@ const getInitials = (companyName) => {
 const normalizeClientToForm = (client) => {
   const defaults = getInitialFormData();
 
-  if (!client) return defaults;
+  if (!client) {
+    return defaults;
+  }
 
   const rawPhone = asString(client.phone).trim();
   let extractedCode = "+91";
@@ -2270,7 +2289,9 @@ const normalizeClientToForm = (client) => {
   for (const dial of COUNTRY_DIAL_CODES) {
     if (rawPhone.startsWith(dial.code)) {
       extractedCode = dial.code;
-      extractedNumber = rawPhone.slice(dial.code.length).trim();
+      extractedNumber = rawPhone
+        .slice(dial.code.length)
+        .trim();
       break;
     }
   }
@@ -2293,6 +2314,7 @@ const normalizeClientToForm = (client) => {
     country: asString(client.country, defaults.country),
     taxId: asString(client.taxId),
     notes: asString(client.notes),
+
     automation: {
       autoCharge: Boolean(
         client.autoCharge ?? defaults.automation.autoCharge
@@ -2307,6 +2329,8 @@ const normalizeClientToForm = (client) => {
         client.welcomeEmail ?? defaults.automation.welcomeEmail
       ),
     },
+
+    // Preserve saved tags when editing.
     selectedTags: normalizeTags(client.tags),
   };
 };
@@ -2373,7 +2397,9 @@ const ClientFormDrawer = ({
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
 
     setStep(1);
     setFormData(normalizeClientToForm(client));
@@ -2421,9 +2447,9 @@ const ClientFormDrawer = ({
   const removeTag = useCallback((tagLabel) => {
     setFormData((previous) => ({
       ...previous,
-      selectedTags: normalizeTags(previous.selectedTags).filter(
-        (tag) => tag !== tagLabel
-      ),
+      selectedTags: normalizeTags(
+        previous.selectedTags
+      ).filter((tag) => tag !== tagLabel),
     }));
   }, []);
 
@@ -2433,36 +2459,43 @@ const ClientFormDrawer = ({
 
       if (stepToValidate === 1) {
         if (!formData.companyName.trim()) {
-          nextErrors.companyName = "Company name is required.";
+          nextErrors.companyName =
+            "Company name is required.";
         }
 
         if (!formData.contactName.trim()) {
-          nextErrors.contactName = "Contact name is required.";
+          nextErrors.contactName =
+            "Contact name is required.";
         }
 
         if (!formData.contactEmail.trim()) {
-          nextErrors.contactEmail = "Email address is required.";
+          nextErrors.contactEmail =
+            "Email address is required.";
         } else if (
           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
             formData.contactEmail.trim()
           )
         ) {
-          nextErrors.contactEmail = "Enter a valid email address.";
+          nextErrors.contactEmail =
+            "Enter a valid email address.";
         } else if (isDummyEmail(formData.contactEmail)) {
           nextErrors.contactEmail =
             "Please enter a valid business email address.";
         }
 
         if (!formData.phone.trim()) {
-          nextErrors.phone = "Phone number is required.";
+          nextErrors.phone =
+            "Phone number is required.";
         } else if (isDummyPhone(formData.phone)) {
-          nextErrors.phone = "Please enter a valid phone number.";
+          nextErrors.phone =
+            "Please enter a valid phone number.";
         }
       }
 
       if (stepToValidate === 2) {
         if (!formData.billingAddress.trim()) {
-          nextErrors.billingAddress = "Billing address is required.";
+          nextErrors.billingAddress =
+            "Billing address is required.";
         }
 
         if (!formData.city.trim()) {
@@ -2510,15 +2543,19 @@ const ClientFormDrawer = ({
       portalAccess: Boolean(formData.automation?.portalAccess),
       welcomeEmail: Boolean(formData.automation?.welcomeEmail),
 
-      // Send tags as an array of strings to the API.
+      // Submit the selected tags to the backend.
       tags: normalizeTags(formData.selectedTags),
     };
   }, [formData]);
 
   const handleNext = useCallback(() => {
-    if (!validateStep(step)) return;
+    if (!validateStep(step)) {
+      return;
+    }
 
-    setStep((previous) => Math.min(previous + 1, STEPS.length));
+    setStep((previous) =>
+      Math.min(previous + 1, STEPS.length)
+    );
   }, [step, validateStep]);
 
   const handlePrevious = useCallback(() => {
@@ -2597,7 +2634,9 @@ const ClientFormDrawer = ({
     [formData.selectedTags]
   );
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <RightDrawer
@@ -2694,11 +2733,15 @@ const ClientFormDrawer = ({
                     >
                       Company name *
                     </label>
+
                     <FormInput
                       id="client-company-name"
                       value={formData.companyName}
                       onChange={(event) =>
-                        updateForm("companyName", event.target.value)
+                        updateForm(
+                          "companyName",
+                          event.target.value
+                        )
                       }
                       placeholder="Enter company name"
                       error={errors.companyName}
@@ -2712,11 +2755,15 @@ const ClientFormDrawer = ({
                     >
                       Contact person *
                     </label>
+
                     <FormInput
                       id="client-contact-name"
                       value={formData.contactName}
                       onChange={(event) =>
-                        updateForm("contactName", event.target.value)
+                        updateForm(
+                          "contactName",
+                          event.target.value
+                        )
                       }
                       placeholder="Enter contact name"
                       error={errors.contactName}
@@ -2724,15 +2771,22 @@ const ClientFormDrawer = ({
                   </div>
 
                   <div>
-                    <label htmlFor="client-email" className={labelClass}>
+                    <label
+                      htmlFor="client-email"
+                      className={labelClass}
+                    >
                       Email address *
                     </label>
+
                     <FormInput
                       id="client-email"
                       type="email"
                       value={formData.contactEmail}
                       onChange={(event) =>
-                        updateForm("contactEmail", event.target.value)
+                        updateForm(
+                          "contactEmail",
+                          event.target.value
+                        )
                       }
                       placeholder="name@company.com"
                       error={errors.contactEmail}
@@ -2740,7 +2794,10 @@ const ClientFormDrawer = ({
                   </div>
 
                   <div>
-                    <label htmlFor="client-phone" className={labelClass}>
+                    <label
+                      htmlFor="client-phone"
+                      className={labelClass}
+                    >
                       Phone number *
                     </label>
 
@@ -2748,13 +2805,19 @@ const ClientFormDrawer = ({
                       <select
                         value={formData.countryCode}
                         onChange={(event) =>
-                          updateForm("countryCode", event.target.value)
+                          updateForm(
+                            "countryCode",
+                            event.target.value
+                          )
                         }
                         aria-label="Country dial code"
                         className={`${selectClassName} w-32 shrink-0`}
                       >
                         {COUNTRY_DIAL_CODES.map((dial) => (
-                          <option key={dial.code} value={dial.code}>
+                          <option
+                            key={dial.code}
+                            value={dial.code}
+                          >
                             {dial.label}
                           </option>
                         ))}
@@ -2766,7 +2829,10 @@ const ClientFormDrawer = ({
                           type="tel"
                           value={formData.phone}
                           onChange={(event) =>
-                            updateForm("phone", event.target.value)
+                            updateForm(
+                              "phone",
+                              event.target.value
+                            )
                           }
                           placeholder="Phone number"
                           error={errors.phone}
@@ -2782,12 +2848,16 @@ const ClientFormDrawer = ({
                     >
                       Website
                     </label>
+
                     <FormInput
                       id="client-website"
                       type="url"
                       value={formData.website}
                       onChange={(event) =>
-                        updateForm("website", event.target.value)
+                        updateForm(
+                          "website",
+                          event.target.value
+                        )
                       }
                       placeholder="https://company.com"
                     />
@@ -2798,7 +2868,9 @@ const ClientFormDrawer = ({
                     label="Industry"
                     value={formData.industry}
                     options={INDUSTRIES}
-                    onChange={(value) => updateForm("industry", value)}
+                    onChange={(value) =>
+                      updateForm("industry", value)
+                    }
                   />
 
                   <SelectField
@@ -2806,7 +2878,9 @@ const ClientFormDrawer = ({
                     label="Client tier"
                     value={formData.selectedTier}
                     options={TIERS}
-                    onChange={(value) => updateForm("selectedTier", value)}
+                    onChange={(value) =>
+                      updateForm("selectedTier", value)
+                    }
                   />
 
                   <SelectField
@@ -2822,7 +2896,9 @@ const ClientFormDrawer = ({
                           letter.toUpperCase()
                         ),
                     }))}
-                    onChange={(value) => updateForm("selectedColor", value)}
+                    onChange={(value) =>
+                      updateForm("selectedColor", value)
+                    }
                   />
                 </div>
               </section>
@@ -2833,7 +2909,9 @@ const ClientFormDrawer = ({
           {step === 2 && (
             <section className="space-y-5">
               <section>
-                <h4 className={sectionTitleClass}>Billing address</h4>
+                <h4 className={sectionTitleClass}>
+                  Billing address
+                </h4>
 
                 <div className="space-y-4">
                   <div>
@@ -2843,11 +2921,15 @@ const ClientFormDrawer = ({
                     >
                       Street address *
                     </label>
+
                     <FormInput
                       id="client-billing-address"
                       value={formData.billingAddress}
                       onChange={(event) =>
-                        updateForm("billingAddress", event.target.value)
+                        updateForm(
+                          "billingAddress",
+                          event.target.value
+                        )
                       }
                       placeholder="Enter billing address"
                       error={errors.billingAddress}
@@ -2856,9 +2938,13 @@ const ClientFormDrawer = ({
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label htmlFor="client-city" className={labelClass}>
+                      <label
+                        htmlFor="client-city"
+                        className={labelClass}
+                      >
                         City *
                       </label>
+
                       <FormInput
                         id="client-city"
                         value={formData.city}
@@ -2871,14 +2957,21 @@ const ClientFormDrawer = ({
                     </div>
 
                     <div>
-                      <label htmlFor="client-state" className={labelClass}>
+                      <label
+                        htmlFor="client-state"
+                        className={labelClass}
+                      >
                         State / Region
                       </label>
+
                       <FormInput
                         id="client-state"
                         value={formData.stateRegion}
                         onChange={(event) =>
-                          updateForm("stateRegion", event.target.value)
+                          updateForm(
+                            "stateRegion",
+                            event.target.value
+                          )
                         }
                         placeholder="Enter state or region"
                       />
@@ -2891,11 +2984,15 @@ const ClientFormDrawer = ({
                       >
                         Postal code
                       </label>
+
                       <FormInput
                         id="client-postal-code"
                         value={formData.postalCode}
                         onChange={(event) =>
-                          updateForm("postalCode", event.target.value)
+                          updateForm(
+                            "postalCode",
+                            event.target.value
+                          )
                         }
                         placeholder="Enter postal code"
                       />
@@ -2906,7 +3003,9 @@ const ClientFormDrawer = ({
                       label="Country *"
                       value={formData.country}
                       options={COUNTRIES}
-                      onChange={(value) => updateForm("country", value)}
+                      onChange={(value) =>
+                        updateForm("country", value)
+                      }
                     />
 
                     <div>
@@ -2916,6 +3015,7 @@ const ClientFormDrawer = ({
                       >
                         Tax ID / GSTIN
                       </label>
+
                       <FormInput
                         id="client-tax-id"
                         value={formData.taxId}
@@ -2941,10 +3041,11 @@ const ClientFormDrawer = ({
                     <h4 className="text-[13px] font-bold text-text">
                       Billing belongs to Projects
                     </h4>
+
                     <p className="mt-1 text-[11.5px] leading-relaxed text-text-muted">
-                      MRR, billing cycle, payment terms, payment method
-                      and invoice scheduling are managed at the Project
-                      level.
+                      MRR, billing cycle, payment terms, payment
+                      method and invoice scheduling are managed at
+                      the Project level.
                     </p>
                   </div>
                 </div>
@@ -2957,7 +3058,10 @@ const ClientFormDrawer = ({
             <section className="space-y-5">
               {/* AUTOMATION */}
               <section aria-labelledby="automation-section">
-                <h4 id="automation-section" className={sectionTitleClass}>
+                <h4
+                  id="automation-section"
+                  className={sectionTitleClass}
+                >
                   Automation
                 </h4>
 
@@ -2983,6 +3087,7 @@ const ClientFormDrawer = ({
                             <div className="text-[13px] font-bold text-text">
                               {item.title}
                             </div>
+
                             <div className="leading-tight text-[11.5px] text-text-muted">
                               {item.description}
                             </div>
@@ -2994,15 +3099,21 @@ const ClientFormDrawer = ({
                           role="switch"
                           aria-checked={enabled}
                           aria-label={`Toggle ${item.title}`}
-                          onClick={() => updateAutomation(item.key)}
+                          onClick={() =>
+                            updateAutomation(item.key)
+                          }
                           className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                            enabled ? "bg-primary" : "bg-border-dark"
+                            enabled
+                              ? "bg-primary"
+                              : "bg-border-dark"
                           }`}
                         >
                           <span
                             aria-hidden="true"
                             className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
-                              enabled ? "right-0.5" : "left-0.5"
+                              enabled
+                                ? "right-0.5"
+                                : "left-0.5"
                             }`}
                           />
                         </button>
@@ -3025,6 +3136,7 @@ const ClientFormDrawer = ({
                     >
                       Tags & Notes
                     </h4>
+
                     <p className="text-xs text-text-muted">
                       Categorize clients by importance, relationship,
                       status, or payment follow-up.
@@ -3044,7 +3156,9 @@ const ClientFormDrawer = ({
 
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {CLIENT_TAGS.map((tag) => {
-                      const isSelected = selectedTags.includes(tag.label);
+                      const isSelected = selectedTags.includes(
+                        tag.label
+                      );
 
                       return (
                         <button
@@ -3059,6 +3173,7 @@ const ClientFormDrawer = ({
                           }`}
                         >
                           <span>{tag.label}</span>
+
                           <span className="shrink-0 text-sm">
                             {isSelected ? "✓" : "+"}
                           </span>
@@ -3068,58 +3183,53 @@ const ClientFormDrawer = ({
                   </div>
                 </div>
 
-                {/* SELECTED TAGS PREVIEW */}
+                {/* SELECTED TAGS: COLORED BADGES */}
                 <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
                       Selected client tags
                     </p>
+
                     <span className="text-xs text-slate-500">
                       {selectedTags.length} total
                     </span>
                   </div>
 
                   {selectedTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTags.map((tagLabel) => {
-                        const tagConfig = CLIENT_TAGS.find(
-                          (item) => item.label === tagLabel
-                        );
+                    <div className="flex flex-wrap items-center gap-2">
+                      {selectedTags.map((tagLabel) => (
+                        <span
+                          key={tagLabel}
+                          className="inline-flex items-center gap-1"
+                        >
+                          <Badge label={tagLabel} />
 
-                        return (
-                          <span
-                            key={tagLabel}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${
-                              tagConfig?.color ||
-                              "bg-slate-100 text-slate-700 ring-slate-200"
-                            }`}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(tagLabel)}
+                            aria-label={`Remove ${tagLabel}`}
+                            title={`Remove ${tagLabel}`}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-sm text-slate-500 transition hover:bg-red-100 hover:text-red-600"
                           >
-                            <span>{tagLabel}</span>
-
-                            <button
-                              type="button"
-                              onClick={() => removeTag(tagLabel)}
-                              aria-label={`Remove ${tagLabel}`}
-                              title={`Remove ${tagLabel}`}
-                              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-sm leading-none opacity-70 transition hover:bg-black/10 hover:opacity-100"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        );
-                      })}
+                            ×
+                          </button>
+                        </span>
+                      ))}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">
-                      No tags selected. Select VIP, Regular, Premium,
-                      or another tag above.
+                      No tags selected. Select VIP, Regular,
+                      Premium, or another tag above.
                     </p>
                   )}
                 </div>
 
                 {/* INTERNAL NOTES */}
                 <div>
-                  <label htmlFor="client-notes" className={labelClass}>
+                  <label
+                    htmlFor="client-notes"
+                    className={labelClass}
+                  >
                     Internal notes
                   </label>
 
@@ -3149,7 +3259,9 @@ const ClientFormDrawer = ({
           <Button
             type="button"
             variant="secondary"
-            onClick={step === 1 ? onClose : handlePrevious}
+            onClick={
+              step === 1 ? onClose : handlePrevious
+            }
             disabled={isSaving}
           >
             {step === 1 ? "Cancel" : "Back"}
