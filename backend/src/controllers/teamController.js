@@ -188,10 +188,14 @@ const getCompanyContext = async (req) => {
 };
 
 
+
 /*
 |--------------------------------------------------------------------------
 | GET ALL TEAM MEMBERS
 | GET /api/v1/team
+|--------------------------------------------------------------------------
+| Includes the registered company Owner, even if the Owner
+| does not have a TeamMember record.
 |--------------------------------------------------------------------------
 */
 
@@ -199,15 +203,100 @@ const getTeamMembers = async (req, res) => {
   try {
     const { companyId, userId } = await getCompanyContext(req);
 
+    // Get the company and its registered owner.
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        ownerId: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found.",
+      });
+    }
+
+    // Fetch the existing team members.
+    const members = await teamService.listMembers(companyId);
+
+    const memberList = Array.isArray(members) ? members : [];
+
+    // Fetch the real Owner account from the User table.
+    const owner = company.ownerId
+      ? await prisma.user.findUnique({
+          where: { id: company.ownerId },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatar: true,
+          },
+        })
+      : null;
+
+    let finalMembers = memberList;
+
+    if (owner) {
+      const ownerEmail = String(owner.email || "").toLowerCase();
+
+      // Prevent duplicate Owner rows.
+      const ownerAlreadyIncluded = memberList.some((member) => {
+        const memberUserId = String(
+          member.userId || member.user?.id || ""
+        );
+
+        const memberId = String(member.id || "");
+
+        const memberEmail = String(
+          member.email || member.user?.email || ""
+        ).toLowerCase();
+
+        return (
+          memberUserId === String(owner.id) ||
+          memberId === String(owner.id) ||
+          (ownerEmail && memberEmail === ownerEmail)
+        );
+      });
+
+      if (!ownerAlreadyIncluded) {
+        const ownerName =
+          [owner.firstName, owner.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          owner.email ||
+          "Company Owner";
+
+        const ownerMember = {
+          id: owner.id,
+          userId: owner.id,
+          name: ownerName,
+          firstName: owner.firstName,
+          lastName: owner.lastName,
+          email: owner.email,
+          avatar: owner.avatar || null,
+          role: "Owner",
+          status: "ACTIVE",
+          lastActivityAt: null,
+          isWorkspaceOwner: true,
+        };
+
+        finalMembers = [ownerMember, ...memberList];
+      }
+    }
+
     console.log("GET TEAM MEMBERS");
     console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-
-    const members = await teamService.listMembers(companyId);
+    console.log("Requested by User ID:", userId);
+    console.log("Registered Owner found:", Boolean(owner));
+    console.log("Total members returned:", finalMembers.length);
 
     return res.status(200).json({
       success: true,
-      data: members,
+      data: finalMembers,
     });
   } catch (error) {
     console.error("GET TEAM MEMBERS ERROR:", error);
@@ -218,6 +307,7 @@ const getTeamMembers = async (req, res) => {
     });
   }
 };
+
 
 /*
 |--------------------------------------------------------------------------
