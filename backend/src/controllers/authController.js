@@ -1,4 +1,3 @@
-
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const prisma = require("../../config/prisma");
@@ -155,16 +154,46 @@ const handleGoogleCallback = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { company: true },
     });
 
     if (!user) {
       return res.redirect(`${FRONTEND_URL}/login?error=account_not_found`);
     }
 
-    // Keep expired-subscription checks consistent with normal login.
+    // Find active team membership + real role
+    const teamMember = await prisma.teamMember.findFirst({
+      where: {
+        OR: [
+          { userId: user.id },
+          { email: normalizedEmail },
+        ],
+        status: "ACTIVE",
+      },
+      include: {
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
+    });
+
+    if (!teamMember) {
+      return res.redirect(
+        `${FRONTEND_URL}/login?error=no_active_membership`
+      );
+    }
+
+    const realRole =
+      teamMember.roleRef?.name || teamMember.role || "VIEWER";
+    const companyId = teamMember.companyId;
+
+    // Subscription check
     const subscription = await prisma.subscription.findFirst({
-      where: { companyId: user.companyId },
+      where: { companyId },
       orderBy: { createdAt: "desc" },
       include: { plan: true },
     });
@@ -206,17 +235,18 @@ const handleGoogleCallback = async (req, res) => {
 
     const token = generateToken({
       userId: user.id,
-      companyId: user.companyId,
-      role: user.role,
+      companyId,
+      role: realRole,
     });
 
     const params = new URLSearchParams({
       token,
-      companyId: user.companyId || "",
+      companyId: companyId || "",
       userId: user.id,
       firstName: user.firstName || "",
       lastName: user.lastName || "",
       email: user.email || "",
+      role: realRole,
     });
 
     return res.redirect(`${FRONTEND_URL}/login?${params.toString()}`);
@@ -229,7 +259,6 @@ const handleGoogleCallback = async (req, res) => {
 // =====================================================
 // 3. REGISTER
 // =====================================================
-
 const register = async (req, res) => {
   try {
     const {
@@ -310,21 +339,19 @@ const register = async (req, res) => {
       });
     }
 
-    const verifiedEmailRecord =
-      await prisma.emailVerification.findFirst({
-        where: {
-          email: normalizedEmail,
-          verified: true,
-          expiresAt: { gt: new Date() },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
+    const verifiedEmailRecord = await prisma.emailVerification.findFirst({
+      where: {
+        email: normalizedEmail,
+        verified: true,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
     if (!verifiedEmailRecord) {
       return res.status(403).json({
         success: false,
-        message:
-          "Please verify your email before creating your account.",
+        message: "Please verify your email before creating your account.",
       });
     }
 
@@ -417,8 +444,6 @@ const register = async (req, res) => {
       };
     });
 
-    // The registering account owns this company.
-    // User.role and User.companyId do not exist in your supplied schema.
     const token = generateToken({
       userId: result.user.id,
       companyId: result.company.id,
@@ -476,9 +501,8 @@ const register = async (req, res) => {
   }
 };
 
-
 // =====================================================
-// 4. LOGIN
+// 4. LOGIN  (FIXED – now returns correct role)
 // =====================================================
 const login = async (req, res) => {
   try {
@@ -496,7 +520,6 @@ const login = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { company: true },
     });
 
     if (!user) {
@@ -518,8 +541,49 @@ const login = async (req, res) => {
       });
     }
 
+    // ========== FIND THE TEAM MEMBER + REAL ROLE ==========
+    const teamMember = await prisma.teamMember.findFirst({
+      where: {
+        OR: [
+          { userId: user.id },
+          { email: normalizedEmail },
+        ],
+        status: "ACTIVE",
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            companySize: true,
+            industry: true,
+          },
+        },
+        roleRef: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
+            isSystem: true,
+          },
+        },
+      },
+    });
+
+    if (!teamMember) {
+      return res.status(403).json({
+        success: false,
+        message: "No active team membership found for this account.",
+      });
+    }
+
+    const realRole =
+      teamMember.roleRef?.name || teamMember.role || "VIEWER";
+    const companyId = teamMember.companyId;
+
+    // ========== SUBSCRIPTION CHECK ==========
     const subscription = await prisma.subscription.findFirst({
-      where: { companyId: user.companyId },
+      where: { companyId },
       orderBy: { createdAt: "desc" },
       include: { plan: true },
     });
@@ -572,12 +636,14 @@ const login = async (req, res) => {
       });
     }
 
+    // ========== GENERATE TOKEN WITH CORRECT ROLE ==========
     const token = generateToken({
       userId: user.id,
-      companyId: user.companyId,
-      role: user.role,
+      companyId,
+      role: realRole,
     });
 
+    // ========== RESPONSE ==========
     return res.status(200).json({
       success: true,
       message: "Login successful.",
@@ -587,13 +653,19 @@ const login = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        role: user.role,
+        role: realRole, // ← will now be "Sales"
       },
       company: {
-        id: user.company?.id,
-        name: user.company?.name,
-        companySize: user.company?.companySize,
-        industry: user.company?.industry,
+        id: teamMember.company?.id,
+        name: teamMember.company?.name,
+        companySize: teamMember.company?.companySize,
+        industry: teamMember.company?.industry,
+      },
+      teamMember: {
+        id: teamMember.id,
+        role: realRole,
+        roleId: teamMember.roleId,
+        status: teamMember.status,
       },
       subscription: {
         id: subscription.id,
@@ -616,7 +688,6 @@ const login = async (req, res) => {
 // =====================================================
 // 5. CHANGE PLAN WITHOUT PAYMENT - DEMO MODE
 // =====================================================
-
 const changePlan = async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.id;
@@ -641,21 +712,27 @@ const changePlan = async (req, res) => {
       });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, companyId: true },
+    // Get companyId from TeamMember (User has no companyId)
+    const teamMember = await prisma.teamMember.findFirst({
+      where: {
+        userId,
+        status: "ACTIVE",
+      },
+      select: { companyId: true },
     });
 
-    if (!user?.companyId) {
+    if (!teamMember?.companyId) {
       return res.status(404).json({
         success: false,
         message: "User or company not found.",
       });
     }
 
+    const companyId = teamMember.companyId;
+
     const result = await prisma.$transaction(async (tx) => {
       const subscription = await tx.subscription.findFirst({
-        where: { companyId: user.companyId },
+        where: { companyId },
         orderBy: { createdAt: "desc" },
         include: { plan: true },
       });
@@ -672,11 +749,9 @@ const changePlan = async (req, res) => {
 
       const trialExpired =
         subscription.status === "EXPIRED" ||
-        (
-          subscription.status === "TRIALING" &&
+        (subscription.status === "TRIALING" &&
           subscription.trialEndsAt &&
-          new Date(subscription.trialEndsAt) <= now
-        );
+          new Date(subscription.trialEndsAt) <= now);
 
       // Starter must not restart an expired or already-used trial.
       if (normalizedPlanId === "starter") {
@@ -721,7 +796,6 @@ const changePlan = async (req, res) => {
           };
         }
 
-        // The Starter trial is already active; don't reset its dates.
         return {
           subscription,
           unchanged: true,
@@ -730,8 +804,6 @@ const changePlan = async (req, res) => {
 
       const plan = await getPlan(tx, normalizedPlanId);
 
-      // Demo mode: activate the chosen paid-tier plan without collecting
-      // or verifying payment. Do not reset an expired Starter trial.
       const currentPeriodEnd = new Date(now);
       currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
 
@@ -782,7 +854,6 @@ const changePlan = async (req, res) => {
     });
   }
 };
-
 
 // =====================================================
 // 6. FORGOT PASSWORD - SEND OTP
@@ -916,8 +987,7 @@ const resetPassword = async (req, res) => {
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : "";
 
-    const cleanOtp =
-      typeof otp === "string" ? otp.trim() : "";
+    const cleanOtp = typeof otp === "string" ? otp.trim() : "";
 
     if (!normalizedEmail || !newPassword) {
       return res.status(400).json({
