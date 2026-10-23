@@ -229,6 +229,7 @@ const handleGoogleCallback = async (req, res) => {
 // =====================================================
 // 3. REGISTER
 // =====================================================
+
 const register = async (req, res) => {
   try {
     const {
@@ -267,7 +268,7 @@ const register = async (req, res) => {
       });
     }
 
-    if (!password || password.length < 12) {
+    if (typeof password !== "string" || password.length < 12) {
       return res.status(400).json({
         success: false,
         message: "Password must be at least 12 characters.",
@@ -289,9 +290,7 @@ const register = async (req, res) => {
       Other: "OTHER",
     };
 
-    const userRole = roleMap[role];
-
-    if (!userRole) {
+    if (!roleMap[role]) {
       return res.status(400).json({
         success: false,
         message: "Invalid role.",
@@ -311,19 +310,21 @@ const register = async (req, res) => {
       });
     }
 
-    const verifiedEmailRecord = await prisma.emailVerification.findFirst({
-      where: {
-        email: normalizedEmail,
-        verified: true,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const verifiedEmailRecord =
+      await prisma.emailVerification.findFirst({
+        where: {
+          email: normalizedEmail,
+          verified: true,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
 
     if (!verifiedEmailRecord) {
       return res.status(403).json({
         success: false,
-        message: "Please verify your email before creating your account.",
+        message:
+          "Please verify your email before creating your account.",
       });
     }
 
@@ -331,25 +332,59 @@ const register = async (req, res) => {
       const plan = await getPlan(tx, planId);
       const passwordHash = await bcrypt.hash(password, 12);
 
-      const company = await tx.company.create({
-        data: {
-          name: companyName.trim(),
-          companySize: companySize || "1-10",
-          industry: industry || "SaaS / Software",
-        },
-      });
-
+      // 1. Create the account first.
       const user = await tx.user.create({
         data: {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: normalizedEmail,
           passwordHash,
-          role: userRole,
-          companyId: company.id,
         },
       });
 
+      // 2. Create the company and assign its owner.
+      const company = await tx.company.create({
+        data: {
+          name: companyName.trim(),
+          companySize: companySize || "1-10",
+          industry: industry || "SaaS / Software",
+          ownerId: user.id,
+        },
+      });
+
+      // 3. Create the system Owner role for this company.
+      const ownerRole = await tx.role.upsert({
+        where: {
+          companyId_name: {
+            companyId: company.id,
+            name: "Owner",
+          },
+        },
+        update: {},
+        create: {
+          companyId: company.id,
+          name: "Owner",
+          description: "Company owner",
+          isSystem: true,
+          permissions: ["*"],
+        },
+      });
+
+      // 4. Make the owner a real, active team member.
+      const ownerMembership = await tx.teamMember.create({
+        data: {
+          companyId: company.id,
+          userId: user.id,
+          name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+          email: normalizedEmail,
+          role: "OWNER",
+          roleId: ownerRole.id,
+          status: "ACTIVE",
+          acceptedAt: new Date(),
+        },
+      });
+
+      // 5. Create the subscription.
       const TRIAL_DAYS = 14;
       const trialEndsAt = new Date(
         Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000
@@ -362,20 +397,32 @@ const register = async (req, res) => {
           status: "TRIALING",
           trialEndsAt,
         },
-        include: { plan: true },
+        include: {
+          plan: true,
+        },
       });
 
+      // 6. Remove the completed email verification record.
       await tx.emailVerification.deleteMany({
-        where: { email: normalizedEmail },
+        where: {
+          email: normalizedEmail,
+        },
       });
 
-      return { company, user, subscription };
+      return {
+        user,
+        company,
+        ownerMembership,
+        subscription,
+      };
     });
 
+    // The registering account owns this company.
+    // User.role and User.companyId do not exist in your supplied schema.
     const token = generateToken({
       userId: result.user.id,
       companyId: result.company.id,
-      role: result.user.role,
+      role: "OWNER",
     });
 
     return res.status(201).json({
@@ -387,13 +434,22 @@ const register = async (req, res) => {
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         email: result.user.email,
-        role: result.user.role,
+        role: "OWNER",
       },
       company: {
         id: result.company.id,
         name: result.company.name,
         companySize: result.company.companySize,
         industry: result.company.industry,
+      },
+      teamMember: {
+        id: result.ownerMembership.id,
+        userId: result.ownerMembership.userId,
+        name: result.ownerMembership.name,
+        email: result.ownerMembership.email,
+        role: result.ownerMembership.role,
+        roleId: result.ownerMembership.roleId,
+        status: result.ownerMembership.status,
       },
       subscription: {
         id: result.subscription.id,
@@ -408,7 +464,8 @@ const register = async (req, res) => {
     if (error.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message: "An account with this email already exists.",
+        message:
+          "An account with this email or company already exists.",
       });
     }
 
@@ -418,6 +475,7 @@ const register = async (req, res) => {
     });
   }
 };
+
 
 // =====================================================
 // 4. LOGIN

@@ -1,62 +1,33 @@
-
 const prisma = require("../../config/prisma");
 const teamService = require("../services/teamService");
-
 const {
   DEFAULT_ROLE_PERMISSIONS,
 } = require("../constants/permissions");
-
-/*
-|--------------------------------------------------------------------------
-| SYSTEM ROLES
-|--------------------------------------------------------------------------
-| These roles are stored in the Role table for each company.
-|
-| IMPORTANT:
-| We use upsert with update: {} so existing customized permissions
-| are NOT overwritten.
-|--------------------------------------------------------------------------
-*/
 
 const SYSTEM_ROLES = [
   {
     name: "Owner",
     description: "Full access to the company",
-    permissions: DEFAULT_ROLE_PERMISSIONS.Owner,
   },
   {
     name: "Admin",
     description: "Administrative access",
-    permissions: DEFAULT_ROLE_PERMISSIONS.Admin,
   },
   {
     name: "Manager",
     description: "Management access",
-    permissions: DEFAULT_ROLE_PERMISSIONS.Manager,
   },
   {
     name: "Analyst",
     description: "Analytics and read access",
-    permissions: DEFAULT_ROLE_PERMISSIONS.Analyst,
   },
   {
     name: "Viewer",
     description: "Read-only access",
-    permissions: DEFAULT_ROLE_PERMISSIONS.Viewer,
   },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| ENSURE SYSTEM ROLES
-|--------------------------------------------------------------------------
-| Creates the standard roles if they do not already exist.
-|
-| Existing role permissions are preserved.
-|--------------------------------------------------------------------------
-*/
-
-const ensureSystemRoles = async (companyId) => {
+async function ensureSystemRoles(companyId) {
   for (const role of SYSTEM_ROLES) {
     await prisma.role.upsert({
       where: {
@@ -65,53 +36,41 @@ const ensureSystemRoles = async (companyId) => {
           name: role.name,
         },
       },
-
-      /*
-       * DO NOT update existing permissions here.
-       *
-       * The administrator may have customized the role.
-       */
       update: {},
-
       create: {
         companyId,
         name: role.name,
         description: role.description,
-        permissions: role.permissions,
+        permissions:
+          DEFAULT_ROLE_PERMISSIONS[role.name] || [],
         isSystem: true,
       },
     });
   }
-};
+}
 
+function createError(message, statusCode = 400) {
+  return Object.assign(new Error(message), {
+    statusCode,
+  });
+}
 
-/*
-|--------------------------------------------------------------------------
-| GET AUTHENTICATED USER / COMPANY CONTEXT
-|--------------------------------------------------------------------------
-| User has no companyId or role column.
-| Company access comes from Company.ownerId or TeamMember membership.
-|--------------------------------------------------------------------------
-*/
-
-const getCompanyContext = async (req) => {
+async function getCompanyContext(req) {
   const userId = req.user?.userId || req.user?.id;
   const companyId = req.user?.companyId;
 
   if (!userId) {
-    const error = new Error(
-      "Authenticated user not found. Please log in again."
+    throw createError(
+      "Authenticated user not found. Please log in again.",
+      401
     );
-    error.statusCode = 401;
-    throw error;
   }
 
   if (!companyId) {
-    const error = new Error(
-      "No active company selected for this account."
+    throw createError(
+      "No active company selected for this account.",
+      400
     );
-    error.statusCode = 400;
-    throw error;
   }
 
   const [user, company] = await Promise.all([
@@ -120,6 +79,9 @@ const getCompanyContext = async (req) => {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
       },
     }),
 
@@ -133,25 +95,21 @@ const getCompanyContext = async (req) => {
   ]);
 
   if (!user) {
-    const error = new Error("User account was not found.");
-    error.statusCode = 401;
-    throw error;
+    throw createError("User account was not found.", 401);
   }
 
   if (!company) {
-    const error = new Error("Company was not found.");
-    error.statusCode = 404;
-    throw error;
+    throw createError("Company was not found.", 404);
   }
 
-  // The company owner does not need a TeamMember record.
   const isOwner = company.ownerId === user.id;
 
+  let membership = null;
+
   if (!isOwner) {
-    // Verify that this user has an active membership in this company.
-    const membership = await prisma.teamMember.findFirst({
+    membership = await prisma.teamMember.findFirst({
       where: {
-        companyId: company.id,
+        companyId,
         status: "ACTIVE",
         OR: [
           { userId: user.id },
@@ -163,54 +121,73 @@ const getCompanyContext = async (req) => {
           },
         ],
       },
-      select: {
-        id: true,
-        role: true,
-        roleId: true,
+      include: {
+        roleRef: true,
       },
     });
 
     if (!membership) {
-      const error = new Error(
-        "You do not have an active membership in this company."
+      throw createError(
+        "You do not have an active membership in this company.",
+        403
       );
-      error.statusCode = 403;
-      throw error;
     }
   }
 
   return {
-    companyId: company.id,
+    companyId,
     userId: user.id,
-    role: isOwner ? "OWNER" : req.user.role,
+    user,
+    role: isOwner
+      ? "Owner"
+      : membership.roleRef?.name ||
+        membership.role ||
+        "Viewer",
+    roleId: membership?.roleId || null,
     isOwner,
+    membershipId: membership?.id || null,
   };
-};
+}
 
+function sendError(
+  res,
+  error,
+  fallback,
+  defaultStatus = 500
+) {
+  console.error(fallback, error);
 
+  return res.status(
+    error.statusCode || defaultStatus
+  ).json({
+    success: false,
+    message: error.message || fallback,
+  });
+}
 
 /*
 |--------------------------------------------------------------------------
-| GET ALL TEAM MEMBERS
+| GET TEAM MEMBERS
 | GET /api/v1/team
-|--------------------------------------------------------------------------
-| Includes the registered company Owner, even if the Owner
-| does not have a TeamMember record.
 |--------------------------------------------------------------------------
 */
 
 const getTeamMembers = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, userId } =
+      await getCompanyContext(req);
 
-    // Get the company and its registered owner.
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        ownerId: true,
-      },
-    });
+    const [company, members] = await Promise.all([
+      prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          ownerId: true,
+        },
+      }),
+
+      teamService.listMembers(companyId),
+    ]);
 
     if (!company) {
       return res.status(404).json({
@@ -219,12 +196,10 @@ const getTeamMembers = async (req, res) => {
       });
     }
 
-    // Fetch the existing team members.
-    const members = await teamService.listMembers(companyId);
+    let data = Array.isArray(members)
+      ? members
+      : [];
 
-    const memberList = Array.isArray(members) ? members : [];
-
-    // Fetch the real Owner account from the User table.
     const owner = company.ownerId
       ? await prisma.user.findUnique({
           where: { id: company.ownerId },
@@ -238,151 +213,154 @@ const getTeamMembers = async (req, res) => {
         })
       : null;
 
-    let finalMembers = memberList;
-
-    if (owner) {
-      const ownerEmail = String(owner.email || "").toLowerCase();
-
-      // Prevent duplicate Owner rows.
-      const ownerAlreadyIncluded = memberList.some((member) => {
-        const memberUserId = String(
-          member.userId || member.user?.id || ""
+    data = data.map((member) => {
+      const isWorkspaceOwner =
+        Boolean(owner) &&
+        (
+          member.userId === owner.id ||
+          String(member.email || "").toLowerCase() ===
+            String(owner.email || "").toLowerCase()
         );
 
-        const memberId = String(member.id || "");
+      return {
+        ...member,
+        role: isWorkspaceOwner
+          ? "Owner"
+          : member.roleRef?.name ||
+            member.role ||
+            "Viewer",
+        isWorkspaceOwner,
+      };
+    });
 
-        const memberEmail = String(
-          member.email || member.user?.email || ""
-        ).toLowerCase();
+    /*
+     * If registration has not created an owner TeamMember
+     * record, return a display-only owner row.
+     *
+     * Its id is null intentionally. It cannot be edited
+     * or deleted as a normal TeamMember.
+     */
+    const ownerAlreadyListed =
+      owner &&
+      data.some(
+        (member) =>
+          member.userId === owner.id ||
+          String(member.email || "").toLowerCase() ===
+            String(owner.email || "").toLowerCase()
+      );
 
-        return (
-          memberUserId === String(owner.id) ||
-          memberId === String(owner.id) ||
-          (ownerEmail && memberEmail === ownerEmail)
-        );
-      });
-
-      if (!ownerAlreadyIncluded) {
-        const ownerName =
+    if (owner && !ownerAlreadyListed) {
+      data.unshift({
+        id: null,
+        userId: owner.id,
+        name:
           [owner.firstName, owner.lastName]
             .filter(Boolean)
             .join(" ") ||
           owner.email ||
-          "Company Owner";
-
-        const ownerMember = {
-          id: owner.id,
-          userId: owner.id,
-          name: ownerName,
-          firstName: owner.firstName,
-          lastName: owner.lastName,
-          email: owner.email,
-          avatar: owner.avatar || null,
-          role: "Owner",
-          status: "ACTIVE",
-          lastActivityAt: null,
-          isWorkspaceOwner: true,
-        };
-
-        finalMembers = [ownerMember, ...memberList];
-      }
+          "Company Owner",
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        email: owner.email,
+        avatar: owner.avatar || null,
+        role: "Owner",
+        roleId: null,
+        roleRef: null,
+        extraPermissions: [],
+        status: "active",
+        lastActivityAt: null,
+        isWorkspaceOwner: true,
+        isDisplayOnly: true,
+      });
     }
 
-    console.log("GET TEAM MEMBERS");
-    console.log("Company ID:", companyId);
-    console.log("Requested by User ID:", userId);
-    console.log("Registered Owner found:", Boolean(owner));
-    console.log("Total members returned:", finalMembers.length);
+    console.log("GET TEAM MEMBERS", {
+      companyId,
+      userId,
+      ownerFound: Boolean(owner),
+      count: data.length,
+    });
 
     return res.status(200).json({
       success: true,
-      data: finalMembers,
+      data,
     });
   } catch (error) {
-    console.error("GET TEAM MEMBERS ERROR:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to fetch team members",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to fetch team members"
+    );
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
-| GET TEAM STATS
+| GET TEAM STATISTICS
 | GET /api/v1/team/stats
 |--------------------------------------------------------------------------
 */
 
 const getTeamStats = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId } =
+      await getCompanyContext(req);
 
-    console.log("GET TEAM STATS");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-
-    const stats = await teamService.getStats(companyId);
+    const stats =
+      await teamService.getStats(companyId);
 
     return res.status(200).json({
       success: true,
       data: stats,
     });
   } catch (error) {
-    console.error("GET TEAM STATS ERROR:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to fetch team statistics",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to fetch team statistics"
+    );
   }
 };
 
 /*
 |--------------------------------------------------------------------------
 | INVITE TEAM MEMBER
-| POST /api/v1/team/invite
+| POST /api/v1/team
 |--------------------------------------------------------------------------
 */
 
 const inviteTeamMember = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, userId, isOwner } =
+      await getCompanyContext(req);
 
-    console.log("================================");
-    console.log("INVITE TEAM MEMBER");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Request Body:", req.body);
-    console.log("================================");
-
-    if (!req.body) {
-      return res.status(400).json({
+    if (!isOwner) {
+      return res.status(403).json({
         success: false,
-        message: "Request body is required.",
+        message:
+          "Only the workspace owner can invite team members.",
       });
     }
 
-    const member = await teamService.inviteMember(
-      companyId,
-      userId,
-      req.body
-    );
+    const member =
+      await teamService.inviteMember(
+        companyId,
+        userId,
+        req.body || {}
+      );
 
     return res.status(201).json({
       success: true,
-      message: "Team member invited successfully",
+      message: "Team member invited successfully.",
       data: member,
     });
   } catch (error) {
-    console.error("INVITE TEAM MEMBER ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message || "Failed to invite team member",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to invite team member",
+      400
+    );
   }
 };
 
@@ -391,30 +369,23 @@ const inviteTeamMember = async (req, res) => {
 | UPDATE TEAM MEMBER ROLE
 | PATCH /api/v1/team/:id/role
 |--------------------------------------------------------------------------
-|
-| This changes which Role the member belongs to.
-|
-| Example:
-|
-| Rahul
-|   roleId -> Analyst
-|
-| It does NOT modify extraPermissions.
-|--------------------------------------------------------------------------
 */
 
 const updateTeamMemberRole = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, isOwner } =
+      await getCompanyContext(req);
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only the workspace owner can change team roles.",
+      });
+    }
 
     const memberId = req.params.id;
     const { role } = req.body || {};
-
-    console.log("UPDATE TEAM MEMBER ROLE");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Member ID:", memberId);
-    console.log("Role:", role);
 
     if (!memberId) {
       return res.status(400).json({
@@ -430,6 +401,43 @@ const updateTeamMemberRole = async (req, res) => {
       });
     }
 
+    const target =
+      await prisma.teamMember.findFirst({
+        where: {
+          id: memberId,
+          companyId,
+        },
+        select: {
+          id: true,
+          userId: true,
+          email: true,
+        },
+      });
+
+    if (!target) {
+      return res.status(404).json({
+        success: false,
+        message: "Team member not found.",
+      });
+    }
+
+    const company =
+      await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { ownerId: true },
+      });
+
+    if (
+      target.userId &&
+      target.userId === company?.ownerId
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "The workspace owner's role cannot be changed.",
+      });
+    }
+
     const member = await teamService.updateRole(
       companyId,
       memberId,
@@ -438,75 +446,50 @@ const updateTeamMemberRole = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Team member role updated successfully",
+      message:
+        "Team member role updated successfully.",
       data: member,
     });
   } catch (error) {
-    console.error("UPDATE TEAM MEMBER ROLE ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message || "Failed to update team member role",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to update team member role",
+      400
+    );
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| UPDATE TEAM MEMBER EXTRA PERMISSIONS
+| UPDATE MEMBER-SPECIFIC PERMISSIONS
 | PATCH /api/v1/team/:id/permissions
-|--------------------------------------------------------------------------
-|
-| MEMBER-WISE PERMISSIONS
-|
-| These permissions belong ONLY to this specific TeamMember.
-|
-| Example:
-|
-| Role:
-|   Analyst
-|
-| Role permissions:
-|   dashboard:view
-|   invoices:view
-|   analytics:view
-|
-| Member extra permissions:
-|   invoices:create
-|   clients:edit
-|
-| These extra permissions do NOT affect other Analysts.
 |--------------------------------------------------------------------------
 */
 
-const updateTeamMemberPermissions = async (req, res) => {
+const updateTeamMemberPermissions = async (
+  req,
+  res
+) => {
   try {
-    const { companyId, userId } =
+    const { companyId, isOwner } =
       await getCompanyContext(req);
 
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only the workspace owner can update member permissions.",
+      });
+    }
+
     const memberId = req.params.id;
-
-    const { extraPermissions } =
-      req.body || {};
-
-    console.log("================================");
-    console.log(
-      "UPDATE TEAM MEMBER PERMISSIONS"
-    );
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Member ID:", memberId);
-    console.log(
-      "Extra Permissions:",
-      extraPermissions
-    );
-    console.log("================================");
+    const { extraPermissions } = req.body || {};
 
     if (!memberId) {
       return res.status(400).json({
         success: false,
-        message:
-          "Team member ID is required.",
+        message: "Team member ID is required.",
       });
     }
 
@@ -532,19 +515,11 @@ const updateTeamMemberPermissions = async (req, res) => {
       data: member,
     });
   } catch (error) {
-    console.error(
-      "UPDATE TEAM MEMBER PERMISSIONS ERROR:",
-      error
+    return sendError(
+      res,
+      error,
+      "Failed to update member permissions"
     );
-
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message:
-        error.message ||
-        "Failed to update team member permissions",
-    });
   }
 };
 
@@ -557,14 +532,18 @@ const updateTeamMemberPermissions = async (req, res) => {
 
 const deleteTeamMember = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, isOwner } =
+      await getCompanyContext(req);
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only the workspace owner can remove team members.",
+      });
+    }
 
     const memberId = req.params.id;
-
-    console.log("DELETE TEAM MEMBER");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Member ID:", memberId);
 
     if (!memberId) {
       return res.status(400).json({
@@ -573,71 +552,80 @@ const deleteTeamMember = async (req, res) => {
       });
     }
 
-    await teamService.removeMember(companyId, memberId);
+    const target =
+      await prisma.teamMember.findFirst({
+        where: {
+          id: memberId,
+          companyId,
+        },
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+    if (!target) {
+      return res.status(404).json({
+        success: false,
+        message: "Team member not found.",
+      });
+    }
+
+    const company =
+      await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { ownerId: true },
+      });
+
+    if (
+      target.userId &&
+      target.userId === company?.ownerId
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "The workspace owner cannot be removed.",
+      });
+    }
+
+    await teamService.removeMember(
+      companyId,
+      memberId
+    );
 
     return res.status(200).json({
       success: true,
-      message: "Team member removed successfully",
+      message: "Team member removed successfully.",
     });
   } catch (error) {
-    console.error("DELETE TEAM MEMBER ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message || "Failed to remove team member",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to remove team member",
+      400
+    );
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| LIST ALL ROLES
+| LIST ROLES
 | GET /api/v1/team/roles
-|--------------------------------------------------------------------------
-|
-| Returns:
-|
-| 1. System roles
-|    Owner
-|    Admin
-|    Manager
-|    Analyst
-|    Viewer
-|
-| 2. Custom roles
-|
-| Every role now has a real database ID.
 |--------------------------------------------------------------------------
 */
 
 const listCustomRoles = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId } =
+      await getCompanyContext(req);
 
-    console.log("LIST TEAM ROLES");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-
-    /*
-     * Make sure standard roles exist for this company.
-     */
     await ensureSystemRoles(companyId);
 
-    /*
-     * Return BOTH system and custom roles.
-     */
     const roles = await prisma.role.findMany({
-      where: {
-        companyId,
-      },
-
+      where: { companyId },
       orderBy: [
-        {
-          isSystem: "desc",
-        },
-        {
-          name: "asc",
-        },
+        { isSystem: "desc" },
+        { name: "asc" },
       ],
     });
 
@@ -646,12 +634,11 @@ const listCustomRoles = async (req, res) => {
       data: roles,
     });
   } catch (error) {
-    console.error("LIST TEAM ROLES ERROR:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to fetch team roles",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to fetch team roles"
+    );
   }
 };
 
@@ -660,38 +647,26 @@ const listCustomRoles = async (req, res) => {
 | UPDATE ROLE PERMISSIONS
 | PATCH /api/v1/team/roles/:id
 |--------------------------------------------------------------------------
-|
-| ROLE-WISE PERMISSIONS
-|
-| These permissions belong to the Role.
-|
-| Example:
-|
-| Analyst
-|   permissions:
-|     dashboard:view
-|     invoices:view
-|     analytics:view
-|
-| Every member assigned to Analyst gets these permissions.
-|--------------------------------------------------------------------------
 */
 
-const updateRolePermissions = async (req, res) => {
+const updateRolePermissions = async (
+  req,
+  res
+) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, isOwner } =
+      await getCompanyContext(req);
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only the workspace owner can update role permissions.",
+      });
+    }
 
     const roleId = req.params.id;
-
     const { permissions } = req.body || {};
-
-    console.log("================================");
-    console.log("UPDATE ROLE PERMISSIONS");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Role ID:", roleId);
-    console.log("Permissions:", permissions);
-    console.log("================================");
 
     if (!roleId) {
       return res.status(400).json({
@@ -707,21 +682,6 @@ const updateRolePermissions = async (req, res) => {
       });
     }
 
-    /*
-     * Remove empty values and duplicates.
-     */
-    const uniquePermissions = [
-      ...new Set(
-        permissions
-          .filter(Boolean)
-          .map((permission) => String(permission).trim())
-          .filter(Boolean)
-      ),
-    ];
-
-    /*
-     * Make sure the role belongs to the current company.
-     */
     const role = await prisma.role.findFirst({
       where: {
         id: roleId,
@@ -736,35 +696,36 @@ const updateRolePermissions = async (req, res) => {
       });
     }
 
-    /*
-     * Update Role.permissions.
-     *
-     * IMPORTANT:
-     * This does NOT modify TeamMember.extraPermissions.
-     */
-    const updatedRole = await prisma.role.update({
-      where: {
-        id: role.id,
-      },
+    const normalizedPermissions = [
+      ...new Set(
+        permissions
+          .map((permission) =>
+            String(permission).trim()
+          )
+          .filter(Boolean)
+      ),
+    ];
 
-      data: {
-        permissions: uniquePermissions,
-      },
-    });
+    const updatedRole =
+      await prisma.role.update({
+        where: { id: roleId },
+        data: {
+          permissions: normalizedPermissions,
+        },
+      });
 
     return res.status(200).json({
       success: true,
-      message: `${updatedRole.name} permissions updated successfully.`,
+      message:
+        `${updatedRole.name} permissions updated successfully.`,
       data: updatedRole,
     });
   } catch (error) {
-    console.error("UPDATE ROLE PERMISSIONS ERROR:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message:
-        error.message || "Failed to update role permissions",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to update role permissions"
+    );
   }
 };
 
@@ -777,47 +738,49 @@ const updateRolePermissions = async (req, res) => {
 
 const createCustomRole = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, isOwner } =
+      await getCompanyContext(req);
 
-    console.log("CREATE CUSTOM ROLE");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-
-    if (!req.body) {
-      return res.status(400).json({
+    if (!isOwner) {
+      return res.status(403).json({
         success: false,
-        message: "Request body is required.",
+        message:
+          "Only the workspace owner can create roles.",
       });
     }
 
-    const role = await teamService.createCustomRole(
-      companyId,
-      req.body
-    );
+    const role =
+      await teamService.createCustomRole(
+        companyId,
+        req.body || {}
+      );
 
     return res.status(201).json({
       success: true,
-      message: "Custom role created successfully",
+      message: "Custom role created successfully.",
       data: role,
     });
   } catch (error) {
-    console.error("CREATE CUSTOM ROLE ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message || "Failed to create custom role",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to create custom role",
+      400
+    );
   }
 };
 
 /*
 |--------------------------------------------------------------------------
 | ACCEPT TEAM INVITATION
-| POST /api/v1/team/accept
+| POST /api/v1/team/accept-invitation
 |--------------------------------------------------------------------------
 */
 
-const acceptTeamInvitation = async (req, res) => {
+const acceptTeamInvitation = async (
+  req,
+  res
+) => {
   try {
     const { token } = req.body || {};
 
@@ -828,21 +791,22 @@ const acceptTeamInvitation = async (req, res) => {
       });
     }
 
-    const member = await teamService.acceptInvitation(token);
+    const member =
+      await teamService.acceptInvitation(token);
 
     return res.status(200).json({
       success: true,
-      message: "Invitation accepted successfully.",
+      message:
+        "Invitation accepted successfully.",
       data: member,
     });
   } catch (error) {
-    console.error("ACCEPT TEAM INVITATION ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message:
-        error.message || "Unable to accept invitation.",
-    });
+    return sendError(
+      res,
+      error,
+      "Unable to accept invitation.",
+      400
+    );
   }
 };
 
@@ -855,14 +819,18 @@ const acceptTeamInvitation = async (req, res) => {
 
 const deleteCustomRole = async (req, res) => {
   try {
-    const { companyId, userId } = await getCompanyContext(req);
+    const { companyId, isOwner } =
+      await getCompanyContext(req);
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only the workspace owner can delete roles.",
+      });
+    }
 
     const roleId = req.params.id;
-
-    console.log("DELETE CUSTOM ROLE");
-    console.log("Company ID:", companyId);
-    console.log("User ID:", userId);
-    console.log("Role ID:", roleId);
 
     if (!roleId) {
       return res.status(400).json({
@@ -878,36 +846,26 @@ const deleteCustomRole = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Custom role removed successfully",
+      message: "Custom role removed successfully.",
     });
   } catch (error) {
-    console.error("DELETE CUSTOM ROLE ERROR:", error);
-
-    return res.status(error.statusCode || 400).json({
-      success: false,
-      message:
-        error.message || "Failed to remove custom role",
-    });
+    return sendError(
+      res,
+      error,
+      "Failed to remove custom role",
+      400
+    );
   }
 };
-
-/*
-|--------------------------------------------------------------------------
-| EXPORTS
-|--------------------------------------------------------------------------
-*/
 
 module.exports = {
   getTeamMembers,
   getTeamStats,
   inviteTeamMember,
   acceptTeamInvitation,
-
   updateTeamMemberRole,
   updateTeamMemberPermissions,
-
   deleteTeamMember,
-
   listCustomRoles,
   createCustomRole,
   updateRolePermissions,
