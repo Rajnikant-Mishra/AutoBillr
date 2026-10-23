@@ -955,23 +955,13 @@ async function acceptInvitation(token) {
    */
 // ---------- START OF REPLACEMENT ----------
 
-// Existing TeamMember role (can be "Helper", "Sales", "Viewer", etc.)
 const invitationRole = member.role || "VIEWER";
 
-const normalizedInvitationRole = String(invitationRole)
-  .trim()
-  .toUpperCase();
-
-// ONLY system roles are allowed on User.role (Prisma enum)
-const allowedUserRoles = ["OWNER", "ADMIN", "MANAGER", "ANALYST", "VIEWER"];
-
-const userRole = allowedUserRoles.includes(normalizedInvitationRole)
-  ? normalizedInvitationRole
-  : "VIEWER";   // custom roles stay as VIEWER on the User table
-
+// Generate temporary password
 const temporaryPassword = generateRandomPassword(16);
 const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
+// Find or create the User (NO role field on User model)
 let user = await prisma.user.findUnique({
   where: { email: member.email },
 });
@@ -983,8 +973,7 @@ if (!user) {
       firstName,
       lastName,
       passwordHash,
-      role: userRole,          // always a real UserRole enum value
-      companyId: member.companyId,
+      // DO NOT set role — it does not exist on User
     },
   });
 } else {
@@ -992,10 +981,9 @@ if (!user) {
     where: { id: user.id },
     data: {
       passwordHash,
-      role: userRole,          // always a real UserRole enum value
-      companyId: member.companyId,
       firstName,
       lastName,
+      // DO NOT set role
     },
   });
 }
@@ -1008,54 +996,32 @@ if (!user) {
    * roleId is preserved.
    * extraPermissions are preserved.
    */
-  const updated =
-    await prisma.teamMember.update({
-      where: {
-        id: member.id,
+ const updated = await prisma.teamMember.update({
+  where: { id: member.id },
+  data: {
+    status: "ACTIVE",
+    acceptedAt: new Date(),
+    lastActivityAt: new Date(),
+    invitationToken: null,
+    temporaryPassword,
+    temporaryPasswordHash: passwordHash,
+    roleId: member.roleId || null,
+    extraPermissions: Array.isArray(member.extraPermissions)
+      ? member.extraPermissions
+      : [],
+    userId: user.id,          // ← ADD THIS LINE
+  },
+  include: {
+    roleRef: {
+      select: {
+        id: true,
+        name: true,
+        permissions: true,
+        isSystem: true,
       },
-
-      data: {
-        status: "ACTIVE",
-
-        acceptedAt: new Date(),
-
-        lastActivityAt: new Date(),
-
-        invitationToken: null,
-
-        temporaryPassword,
-
-        temporaryPasswordHash:
-          passwordHash,
-
-        /*
-         * Keep the database role relationship.
-         */
-        roleId:
-          member.roleId || null,
-
-        /*
-         * Keep member-specific permissions.
-         */
-        extraPermissions:
-          Array.isArray(
-            member.extraPermissions
-          )
-            ? member.extraPermissions
-            : [],
-      },
-
-      include: {
-        roleRef: {
-          select: {
-            id: true,
-            name: true,
-            permissions: true,
-            isSystem: true,
-          },
-        },
-      },
-    });
+    },
+  },
+});
 
   /*
    * Send credentials.
