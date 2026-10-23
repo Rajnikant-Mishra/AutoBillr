@@ -474,7 +474,7 @@ export default function CreateRoleModal({
           ? "Edit role"
           : "Create custom role"
       }
-      size="xl"
+      size="sm"
     >
       <form
         onSubmit={handleSubmit}

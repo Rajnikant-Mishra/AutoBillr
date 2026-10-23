@@ -955,19 +955,19 @@ async function acceptInvitation(token) {
    */
 // ---------- START OF REPLACEMENT ----------
 
-// Existing TeamMember role (can be "Helper", "HELPER", "Viewer", etc.)
+// Existing TeamMember role (can be "Helper", "Sales", "Viewer", etc.)
 const invitationRole = member.role || "VIEWER";
 
 const normalizedInvitationRole = String(invitationRole)
   .trim()
   .toUpperCase();
 
-// ONLY system roles are allowed on User.role
+// ONLY system roles are allowed on User.role (Prisma enum)
 const allowedUserRoles = ["OWNER", "ADMIN", "MANAGER", "ANALYST", "VIEWER"];
 
 const userRole = allowedUserRoles.includes(normalizedInvitationRole)
   ? normalizedInvitationRole
-  : "VIEWER";   // custom roles (Helper, etc.) always become VIEWER on the User table
+  : "VIEWER";   // custom roles stay as VIEWER on the User table
 
 const temporaryPassword = generateRandomPassword(16);
 const passwordHash = await bcrypt.hash(temporaryPassword, 12);
